@@ -252,8 +252,9 @@ backend/
     │   │   ├── auth/                                 # register, verify, login, JWT, refresh, reset password
     │   │   │   ├── AuthApi.java   PasswordPolicy.java   # BR-02 is read by dto and service, so it sits above both (D-30)
     │   │   │   ├── config/        SecurityConfig, JwtConfig
-    │   │   │   ├── controller/    AuthController
-    │   │   │   ├── service/       AuthService, AccessTokenIssuer, SecureTokenFactory, FamilyRevoker
+    │   │   │   ├── controller/    AuthController, PasswordChangeController   # PUT /me/password (UC-07)
+    │   │   │   ├── service/       AuthService, PasswordChangeService, AccessTokenIssuer, SecureTokenFactory, FamilyRevoker
+    │   │   │   │                  # UC-07 is its own service: it has a session, names no address and spends no link (D-32)
     │   │   │   │                  # UC-04 lives on AuthService, not a PasswordResetService: it shares the
     │   │   │   │                  # token table, the non-enumeration rule and the session revocation with
     │   │   │   │                  # UC-02 and UC-05, and a second class would have to reach all three (D-32)
@@ -767,6 +768,8 @@ refresh(token):
   mark rec used; issue new refresh (same family) + new access token
 ```
 
+Every access token carries a `sid` claim naming the family of the refresh token issued beside it (T-014). It grants nothing; it lets a request say which session it belongs to, which UC-07 needs because SRS 3.2.5 revokes every session *other than* the caller's after a password change (`UserTokenRepository.revokeOtherSessions`). A token without the claim is treated as naming no session, and then every session is revoked.
+
 ---
 
 ## 8. API design
@@ -781,7 +784,7 @@ Endpoint catalogue (summary):
 | Module | Endpoints |
 |---|---|
 | auth | POST /auth/register, /auth/verify-email, /auth/resend-verification, /auth/login, /auth/refresh, /auth/logout, /auth/forgot-password, /auth/reset-password; PUT /me/password |
-| user | GET/PUT /me/profile; PUT /me/notification-preferences; POST/DELETE /me/devices |
+| user | GET/PUT /me/profile; PUT /me/notification-preferences; POST /me/devices; DELETE /me/devices/{deviceId}. `POST /auth/logout` also accepts an optional `fcmToken`, and that device of the session's account is deactivated with the session (SRS 3.2.5) |
 | market | GET /market/pairs?market=; GET /market/{market}/{symbol}/candles?tf=&limit=; GET /market/{market}/{symbol}/stats; GET /market/futures/{symbol}/metrics?range= |
 | market (analysis) | GET /analysis/{market}/{symbol}?tf= (latest indicators, S/R, setup score) |
 | watchlist | GET/POST /watchlist; PATCH/DELETE /watchlist/{id}; GET/POST /alerts; PUT/DELETE /alerts/{id}; POST /alerts/{id}/pause, /resume |

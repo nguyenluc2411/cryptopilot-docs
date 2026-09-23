@@ -1,22 +1,16 @@
 # CURRENT_STATE.md — CryptoPilot Project State
 
-**Last updated:** 2026-09-24 · **Document version:** 2.10 · **Phase:** P0 done bar the DO tasks; P1 in progress
-**Next task:** `T-014` — profile, notification preferences and device registration.
-T-013 is `DONE`: UC-04 works end to end and BR-04 is proved clause by clause, including that a reset
-ends a session opened from another device. Three alignment items came out of it — **A-26** (a reset
-does not clear the BR-03 lockout, which the SRS never decides), **A-27** (nothing says a new request
-retires the previous link) and **A-28** (the reset endpoint has no cap at all, so one address can be
-mailed without limit). T-100 is `DONE`: Lombok is used in the two places TD 1.3 and 3.4 allowed and configured
-out of everywhere else, and the `dto`-to-`service` dependency that `LayerRulesTest` could not see —
-because javac inlines a constant and ArchUnit reads bytecode — is gone and is now guarded by a second
-test that reads the import lines (D-29, D-30). The six previously unpushed tasks finally left this
-machine: `feature/T-011-identity-use-cases` was renamed `feature/P1-identity` and pushed with 32
-commits. **Its name still undersells it — T-006 and T-007 are P0 database tasks — so the pull request
-description must say so.** T-015 stays `PARTIAL`: every row of the SRS 3.1.3 matrix is enforced by the
-security filter chain and proved by an API test driven three ways — no credential, a Trader token, an
-Admin token — but the **entitlement handler half was not built**, because it needs `BillingApi`, which
-arrives with the `billing` module in P10, so T-015's dependency column is wrong (Q-12). T-007 stays
-`PARTIAL`: the seed sets Q-04 and Q-05 gate are withheld until those are answered.
+**Last updated:** 2026-09-24 · **Document version:** 2.11 · **Phase:** P0 done bar the DO tasks; P1 done bar two PARTIAL tasks and the web screens
+**Next task:** `T-017` — Binance market data client (REST) with resilience policies (first task of P2 on the critical path).
+T-014 is `PARTIAL`: UC-06 (without the avatar), UC-07 and UC-08 work end to end over HTTP. `GET/PUT /me/profile`
+holds the default capital and risk to BR-30's ranges (MSG15) and answers MSG14; `PUT /me/notification-preferences`
+saves the two switches; `PUT /me/password` checks the current password (MSG08, as a 400) and ends every **other**
+session, which needed a new `sid` claim in the access token (D-33); `POST /me/devices` and
+`DELETE /me/devices/{id}` register and deactivate FCM tokens, and `POST /auth/logout` deactivates the device it
+names in the same transaction (D-34). **The avatar was not built** (Q-13): SRS 3.2.5 stores it in Media Storage,
+and that adapter is T-061 in P9. Decimals now reach the client as strings (`JacksonConfig`, TD 5.4). The work is
+committed on `feature/T-014-profile-and-devices` (5 commits) and **not pushed**. Still open from before: T-015
+`PARTIAL` (Q-12, entitlement needs `BillingApi` from P10) and T-007 `PARTIAL` (seed sets wait on Q-04 and Q-05).
 
 This file is the single source of truth for *status*. `docs/design/TECHNICAL_DESIGN.md` owns *how*; the SRS owns *what*. Every working session starts by reading this file and ends by updating it (`CLAUDE.md` sections 1 and 8).
 
@@ -64,8 +58,8 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 | Phase | Sprint | Scope | Tasks | Done | Status |
 |---|---|---|---|---|---|
 | P0 Foundation | S0 | Repo, CI, database, docker, architecture tests | 9 | 5 | WIP — T-007 PARTIAL |
-| P1 Identity | S1 | Register, verify, login, tokens, profile, devices | 8 | 5 | WIP — T-015 PARTIAL, T-014 NEXT |
-| P2 Market Data | S2 | Pairs, backfill, streams, futures metrics | 8 | 0 | TODO |
+| P1 Identity | S1 | Register, verify, login, tokens, profile, devices | 8 | 5 | WIP — T-014 and T-015 PARTIAL, T-016 TODO |
+| P2 Market Data | S2 | Pairs, backfill, streams, futures metrics | 8 | 0 | TODO — T-017 NEXT |
 | P3 Analysis | S2–S3 | Indicators, S/R, setup score | 5 | 0 | TODO |
 | P4 Market UI | S3 | Public home, market list, spot/futures analysis | 5 | 0 | TODO |
 | P5 Trading Plan | S3–S4 | Risk calculation, warnings, plan lifecycle | 7 | 0 | TODO |
@@ -81,8 +75,8 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 | P15 Hardening | S12 | E2E, performance, security, deploy, docs | 7 | 0 | TODO |
 | **Total** | | | **100** | **10** | **10%** |
 
-**Coverage:** `calculator` packages — no class yet (gate 90%) · Backend 98.03% line (647/660), branches 95.56% (172/180) (gate 70%), measured after T-013 · AI Service —% (gate 80%) — T-015 added 98 tests and moved the percentages by two hundredths, which is what a task made almost entirely of configuration and assertions looks like: the thirteen uncovered lines and eight uncovered branches are unchanged from T-012 — generated members of records nothing compares or prints, and defensive guards no reachable input produces.
-**Test suite:** 705 passed / 705 total after T-013 (`./mvnw clean verify`, Spring Boot 4.1.1). The breakdown below is the 674 of T-015; T-013 added 30 (`PasswordResetTest` 21, `AuthControllerTest` +7, `SecurityConfigTest` +2) and T-100 one — 1 liveness, 2 modularity, 9 layer rules, 153 shared kernel, 71 identity domain (44 account lifecycle, 17 token, 8 profile and device, 2 role), 36 identity persistence (20 account repository, 16 token repository), 229 identity use cases (**80 authorization matrix**, 36 sign-in and rotation, 27 registration and verification service, 25 controller, 21 security configuration, 19 password policy, **11 access token converter**, 10 token properties), 173 schema and mapping (Testcontainers: 42 baseline, 34 seed, 32 entity mapping, 28 constraints, 13 hypertable, 11 login-state migration, 6 catalogue, 3 enumerations, 2 demo isolation, 2 column contract). The suite needs Docker and a signing key (`JWT_SECRET`, supplied by the Surefire configuration because the application declares it with no fallback, D-20).
+**Coverage:** `calculator` packages — no class yet (gate 90%) · Backend 98.30% line (752/765), branches 95.00% (190/200) (gate 70%), measured after T-014 · AI Service —% (gate 80%). The thirteen uncovered lines are the same thirteen as before T-014 (generated record members and defensive guards); the new code leaves two branches uncovered, one of them the `sid`-less token path of `PasswordChangeController`, which is covered one layer down in `PasswordChangeTest`.
+**Test suite:** 768 passed / 768 total after T-014 (`./mvnw clean verify`, Spring Boot 4.1.1); T-014 added 63 (23 profile controller, 12 device controller, 9 password change service, 7 password change controller, 4 Jackson config, 4 request records, 1 token repository, 3 more `ErrorCodeTest` cases from the new code). The per-area breakdown of the 674 of T-015 is no longer maintained here. The suite needs Docker running (Testcontainers) and a signing key (`JWT_SECRET`, supplied by the Surefire configuration, D-20).
 
 > The figure before T-015 was recorded here as 578; the measured baseline was **576** — the "148 shared kernel" was 146. T-015 added 98 tests (80 + 11 + 7 in `ErrorCodeTest` from the two new codes), so 576 + 98 = 674.
 **Merged to `develop`:** everything built so far. `develop` is at `428e66d` (`5311036` plus one docs commit) after a **fast-forward** of the whole
@@ -93,6 +87,7 @@ stands behind this merge is the suite (705/705), the pre-merge hygiene scan and 
 A human pass over `develop..14fe422` is still worth doing. Fast-forward was chosen over a merge commit because
 `develop` was strictly behind, so the history is linear and no commit names the branch it arrived on. `main` is
 untouched.
+**Not merged:** `feature/T-014-profile-and-devices`, 5 commits on top of `develop` (`9972550` … `7cdc8bf`), local only.
 **Deployed:** dev — · staging —
 
 ### Critical path
@@ -142,6 +137,9 @@ Decisions that bind the code. An AI agent must follow `APPROVED` rows and must n
 | D-30 | 2026-09-23 | A rule that both a request record and a service must read lives in the module's root package, not in either layer. `PasswordPolicy` moved from `auth.service` to `auth` because `RegisterRequest` has to declare BR-02 as a bean-validation pattern and a `dto` may not depend on a `service`. **The reason it was never caught:** `PATTERN` is a constant variable, so javac copies its value into the annotation and leaves no reference in the bytecode — ArchUnit reads bytecode, so `LayerRulesTest` passed 9/9 with the violation present, which the T-100 baseline of 674/674 proves. A rule that can only be broken invisibly is not enforced. `LayerSourceRulesTest` now states the same table over the import lines, and it was verified against a probe that reads only a constant: ArchUnit passed it, the source test refused it. **Rejected:** duplicating the expression in the request record, because the class exists to hold BR-02 once; moving it to `common`, which carries no business logic. **The cost, stated:** `PasswordPolicy` is now part of the `auth` module's public surface, and one layer table is stated in two files that can drift. The source test covers only the pairs inside `com.cryptopilot`; framework rules stay with ArchUnit, where the bytecode is the honest source | PROPOSED | T-100 |
 | D-31 | 2026-09-23 | One factory makes every opaque token. `VerificationTokenFactory` and `RefreshTokenFactory` were identical from the package statement to the closing brace - same 256 bits, same generator, same URL-safe encoding, same SHA-256 digest - and differed only in the visibility of one constant. T-013 would have been the third copy. They are now `SecureTokenFactory`, and what actually differs between the three kinds of token - how long one lasts, what presenting it achieves, which rule retires it - lives on `UserToken` and in the use case, where it always did. **Rejected:** a third class for the reset link, which is the duplication the rule about reusing abstractions exists to stop; keeping the two and letting the reset link borrow the verification one, because the name would then be a lie at two of the three call sites. **The cost, stated:** a rename reaching T-011's and T-012's code, which is refactoring their files inside another task's commit. It is accepted because the alternative was to add to the duplication rather than to leave it alone - there was no option that touched nothing | PROPOSED | T-013 |
 | D-32 | 2026-09-23 | UC-04 is two methods on `AuthService`, not a `PasswordResetService` as TD 4.1 listed. The two halves share the token table, the single-use rule, the digest-only handling, the non-enumeration shape of the resend and the bulk revocation of logout; a separate class would have to reach every one of them and would own none. **Rejected:** a class per use case, which would put the four token lifecycles in four places that all write one table. **The cost, stated:** `AuthService` is now 600 lines and holds UC-01 to UC-05. That is the cost of the seam being the table rather than the use case, and it is the right moment to split when a second table appears - the mail module of A-18, or UC-07's change-password, which needs the current password and therefore a session. Splitting it now would be splitting on names | PROPOSED | T-013 |
+| D-33 | 2026-09-24 | Every access token carries a `sid` claim: the family id of the refresh token issued beside it. SRS 3.2.5 says a password change revokes all **other** sessions, and an access token that names only an account cannot say which session is "this one". The claim grants nothing and identifies a sign-in, not a person; the name is OpenID Connect's for a session identifier. A token without it (issued before T-014) is read as naming no session, and then every session is revoked — the stronger reading of the rule, costing the caller one sign-in. **Rejected:** sending the refresh token in the password-change body, because it puts the one long-lived credential into a second endpoint; revoking every session including the caller's and issuing a new pair in the response, because it contradicts "other" and turns a password change into a sign-in. **The cost, stated:** one more claim in a token every request carries, and rotation must keep the family, which it already does (TD 7.15) | PROPOSED | T-014 |
+| D-34 | 2026-09-24 | Device tokens. A token is unique across accounts, so registering one decides by who holds it: nobody → a new row; the caller → the same row reactivated and seen now; another account → that row is **deleted** and a new one written (the delete is flushed first, because Hibernate orders inserts before deletes). Deactivation is by device key from the signed-in app (`DELETE /me/devices/{id}`, never the token in a URL) and by token from `POST /auth/logout`, whose optional `fcmToken` is deactivated only if it belongs to the account the refresh token belongs to. **Rejected:** moving the row to the new account, which would hand one account's device history to another; relying on the app calling `DELETE` before logout alone, because an app whose access token has expired would have to refresh first just to be silenced. **The cost, stated:** two ways to deactivate, and the logout body is now wider than the refresh body (`LogoutRequest` vs `RefreshRequest`) | PROPOSED | T-014 |
+| D-35 | 2026-09-24 | A wrong current password on the Security tab is its own error code, `CURRENT_PASSWORD_INCORRECT`, 400 with MSG08 — not `INVALID_CREDENTIALS`, which is 401. A 401 on a request that carried a valid access token tells a client its session is over and would send somebody who mistyped back to SCR-04. Same message, different status | PROPOSED | T-014 |
 **Action:** D-02 and D-03 were confirmed by the team on 2026-09-19 and are `APPROVED`; D-18 on 2026-09-20. D-04 … D-09 still need confirmation; D-06 and D-07 are already load-bearing in committed code (T-008). D-19 and D-20 are load-bearing as of T-007 and need confirmation before the first staging deployment, because D-20 decides how an operator obtains the first administrator. D-21 and D-22 are load-bearing as of T-010; D-21 is the one worth arguing about, because reversing it later means touching every entity that was written under it. D-29 and D-30 are load-bearing as of T-100; D-31 and D-32 as of T-013. D-23 … D-26 are load-bearing as of T-011 and T-012; D-26 is the one to re-read if the refresh windows of SRS 3.2.3 are ever changed, because it infers "Remember me" from the length of the window rather than from a stored flag.
 
 ---
@@ -180,6 +178,7 @@ Deviations found while designing. Each needs team approval, then the SRS and the
 | A-27 | SRS 3.2.2 requires a new verification token to invalidate the previous unused ones. SRS 3.2.4 states nothing of the kind for reset links, so by the letter of it every request leaves another working link in the mailbox, each independently valid for thirty minutes | The implementation invalidates the previous unused reset links on every request, borrowing 3.2.2's rule, because the consequence is worse here: presenting a reset link sets a password, while presenting a verification link only confirms an address. Confirm, and say it once in the SRS for both kinds rather than per section | SRS 3.2.4, 3.2.2, BR-04 | PENDING | — |
 | A-28 | SRS 3.2.2 caps verification resends at once per 60 seconds and five per day. SRS 3.2.4 puts **no cap at all** on the reset request, so `POST /auth/forgot-password` can be called without limit against one address - a way to flood a mailbox, and the endpoint that must answer identically to everybody and so cannot refuse the caller either | Decide whether the 3.2.2 cap applies to reset links too, or whether this is left to the Bucket4j rate limit of TECHNICAL_DESIGN 5.3, which is per IP and per user and therefore does not protect a single address from many callers. Not implemented in T-013, because a cap the SRS does not state would be a number nobody chose, and because a throttle that refuses is visible in a response that must not vary | SRS 3.2.4, 3.2.2, NSF | PENDING | — |
 | A-29 | Two endpoints return the same answer for every address, which SRS 3.2.2 and 3.2.4 require, but not in the same **time**. `requestPasswordReset`: an address that gets a link costs a bulk update, an insert and an event that an unknown or unverified one does not. `resendVerification` is **worse, with three tiers rather than two** - unknown or already verified returns after one query; known, unverified and throttled returns after the throttle check, which is two more queries; known, unverified and not throttled goes on to write and publish. So it leaks not only whether an address holds an unverified account but whether that address has asked recently. `login` in the same class equalises exactly this kind of difference with a bcrypt verification against a hash of nothing, so this is a standard the codebase already sets and neither of these paths meets | Decide the fix when the mail module lands: move the issuing work off the request thread so every case returns after the same lookup, which is the seam A-18 already has to open. **Not a constant delay** - that is a new number nobody chose, it costs every caller, and it leaks under statistics anyway. Found by self-review of T-013; the `resendVerification` half was found when an external review grouped the two endpoints together as solved, which they are at the level of the response body and are not at the level of the clock | SRS 3.2.2, 3.2.4, SCR-05, BR-01, BR-04 | PENDING | the task that adds the mail module |
+| A-30 | BR-03 locks an account after five consecutive failed **logins**. SRS 3.2.5 asks for the current password on the Security tab and says nothing about what a wrong one counts towards, so a stolen access token (fifteen minutes) can guess the current password on `PUT /me/password` with no lockout at all | Read as: a wrong current password does not count towards BR-03 — the caller is already signed in, and BR-03's words are about signing in. `BR03_aWrongCurrentPassword_doesNotCountTowardsTheLockout` pins that reading. Confirm, or state that it counts; the other defence is the per-user Bucket4j limit of TECHNICAL_DESIGN 5.3, which is not built yet | BR-03, SRS 3.2.5 | PENDING | — |
 | A-12 | `futures_market_data` mixes periodic snapshots (90 days, NSF-17) with funding settlements the P/L must keep for ever (BR-37, A-05). A TimescaleDB retention policy drops whole chunks and cannot filter by column, so no policy on that table can keep one kind and drop the other | Split the settlements into `funding_rate_history (pair_id, funding_time, funding_rate, mark_price)`, primary key `(pair_id, funding_time)`, no retention policy and deliberately not a hypertable; `futures_market_data` keeps periodic snapshots only and drops `snapshot_type`. Done in `V2__timescale_hypertables.sql` beside the policies that force it | NSF-17, BR-37, A-05, logical model | APPROVED 2026-09-20 | — |
 
 ---
@@ -220,7 +219,7 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 | T-011 | Registration and email verification | BE1 | T-010 | UC-01, UC-02, BR-01 | 24h single-use token; resend throttled; MSG01…MSG07 returned | **DONE** 2026-09-21 — UC-01 and UC-02 end to end; BR-01, BR-02, BR-04 proved from endpoint to row |
 | T-012 | Login, lockout, JWT access token and refresh rotation | BE1 | T-010 | UC-03, UC-05, BR-03, TD 7.15 | Lockout after 5 failures; refresh reuse revokes the family; tests per BR | **DONE** 2026-09-21 — UC-03 and UC-05 end to end; BR-03 proved clause by clause; reuse revokes the family. Committed as `73d1a96` … `adf2f7a`, merged to `develop` and pushed |
 | T-013 | Password reset | BE2 | T-011 | UC-04, BR-04 | 30-minute single-use link; reset revokes all sessions; no account enumeration | **DONE** 2026-09-23 — UC-04 end to end; BR-04 proved clause by clause, including a reset that ends a session opened from another device |
-| T-014 | Profile, notification preferences, device registration | BE2 | T-012 | UC-06…08 | Avatar upload validated; FCM token stored and deactivated on logout | **NEXT** |
+| T-014 | Profile, notification preferences, device registration | BE2 | T-012 | UC-06…08 | Avatar upload validated; FCM token stored and deactivated on logout | **PARTIAL** 2026-09-24 — UC-07 and UC-08 done; UC-06 done except the avatar, which needs the Media Storage adapter of T-061 (Q-13). FCM token stored, reused by the same installation, passed to a new account, deactivated by key and on logout |
 | T-015 | Authorization: role policies and entitlement handler | BE1 | T-012 | SRS 3.1.3 | Every row of the authorization matrix has an API test | **PARTIAL** 2026-09-21 — every row of SRS 3.1.3 is enforced by the filter chain and proved by an API test driven three ways. The **entitlement handler was not built**: it needs `BillingApi`, which the `billing` module brings in P10, so the dependency column is wrong (Q-12). Committed as `11b4a92` … `e9f31a9`, merged to `develop` and pushed |
 | T-016 | Web: register, verify, login, reset, profile screens | FE | T-011…T-014 | SCR-02…07 | Screens work against the API; validation messages match section 5.3 | TODO |
 | T-100 | Backend hygiene: adopt Lombok inside the scope TD 1.3 and 3.4 already allow, and move the password pattern out of `service` so the `dto` layer rule holds in bytecode as well as in source | BE1 | T-015 | TD 1.3, 3.3, 3.4; SRS 4.2.5 | `@Getter` and `@RequiredArgsConstructor` used where TD 3.4 permits and nowhere else; `lombok.config` keeps generated members out of the coverage ratio; no `dto` class imports from `service`; the layer rule fails when one does; suite green with no test edited | **DONE** 2026-09-23 — 30 getters and 9 constructors generated; `PasswordPolicy` moved to the `auth` root and the layer rule now fails when a `dto` imports a `service`, which it could not before |
@@ -229,7 +228,7 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 
 | ID | Task | Owner | Dep | Refs | Done when | Status |
 |---|---|---|---|---|---|---|
-| T-017 | Binance market data client (REST) with resilience policies | BE2 | T-008 | NSF-01, BR-09 | WireMock tests for success, 429, 418, 5xx; request weight respected | TODO |
+| T-017 | Binance market data client (REST) with resilience policies | BE2 | T-008 | NSF-01, BR-09 | WireMock tests for success, 429, 418, 5xx; request weight respected | **NEXT** |
 | T-018 | Pair and coin model, pair filters (tick, step, min notional) | BE2 | T-005 | BR-07, UC-45 | Rounding helpers tested against real filter values | TODO |
 | T-019 | NSF-01 symbol synchronization job | BE2 | T-017, T-018 | NSF-01 | Daily job upserts filters; a pair that stops trading is flagged | TODO |
 | T-020 | NSF-02 historical candle backfill | BE2 | T-017 | NSF-02, BR-08 | Gap detection works; re-running inserts no duplicates | TODO |
@@ -382,37 +381,25 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 
 ## 7. Detail block — current NEXT task
 
-### T-014 · Profile, notification preferences, device registration
+### T-017 · Binance market data client (REST) with resilience policies
 
-**Unblocked:** T-012 (the session a profile screen is reached from) is DONE, and T-013 has since
-added the second write path into `user_account`. No alignment item or open question lists T-014 in
-its "Blocks" column.
+**Unblocked:** its only dependency, T-008, is DONE. No alignment item or open question lists T-017 in its
+"Blocks" column. It is the first task of P2 and sits on the critical path (`P2 → P3 → P5 → P6`).
 
-**To do at the start of that session** (this block is deliberately short — it is written from the
-task row, not from the SRS, and the SRS ids below have not been read yet): read SRS UC-06, UC-07,
-UC-08 and SCR-07, then replace this block with the real one.
+**To do at the start of that session** (this block is written from the task row and has not read the SRS
+ids yet): read SRS NSF-01 to NSF-04 (section 3.3), BR-09 and SRS 4.2.3, and TECHNICAL_DESIGN 7.1 and the
+`market` rows of 4.1, then replace this block with the real one.
 
-**What T-013 leaves ready for it, and what it leaves as a trap**
+**What is known already**
 
-- `UserProfileRepository` already exists and is the documented exception to "one repository per
-  aggregate root" (D-24). The profile edit screen has its gateway and needs no new one.
-- `UserAccount.changePassword` was added for BR-04 and is exactly what UC-07's change-password needs
-  for its write half. What it does **not** do is check the current password, because a reset has no
-  current password to check. UC-07 must check it, and it must check it in `auth`, where the encoder
-  is — `user` never sees a raw password.
-- `PUT /me/password` is **not** in `SecurityConfig.PUBLIC_AUTH_ENDPOINTS` and must not be added to
-  it. It is already covered by `SHARED_PASSWORD_CHANGE`, which both roles reach, because UC-07 asks
-  for the current password and therefore requires a session. The chain ends in `denyAll`, so every
-  new path this task adds has to be named somewhere or it is unreachable.
-- BR-06 says logging out deactivates the device's FCM token. `AuthService.logout` revokes the family
-  and does nothing about devices today; the seam between `auth` and `user` for that is the decision
-  T-014 has to make, and it is the same shape as the one T-013 made for the password write — `auth`
-  decides, `user` owns the table.
-- A device row is not an aggregate root either, and the same argument D-24 records for the profile
-  will be put to it. Re-read D-21 before mapping an association.
+- WireMock is named in the "Done when" column and in TD 11.1 but is **not** in `pom.xml` yet; check TD 1.3
+  lists it before adding it (CLAUDE.md section 4).
+- R-02: request weights and IP limits of the exchange are the main risk of P2; the client has to read the
+  weight headers rather than assume a budget.
+- The enabled pair list is still Q-05, so tests must use recorded exchange responses and no seeded pairs.
 
-**Out of scope:** avatar storage itself (the media seam arrives with P9), and the entitlement half
-of T-015 (Q-12, which cannot be built before P10).
+**Carried over from T-014:** decimals are now written as strings everywhere (`common.config.JacksonConfig`),
+so market DTOs need nothing per field.
 
 ---
 
@@ -427,6 +414,7 @@ of T-015 (Q-12, which cannot be built before P10).
 | Q-05 | Which 30–50 pairs are enabled at release | 2026-09-18 | T-007 (seed withheld), T-019 | Team | **OPEN** — needs the list of symbols, which of them are spot, futures or both, and the display order. The tick and step sizes are *not* wanted from the team: they come from the exchange through the NSF-01 job. Until then `coin` and `crypto_pair` stay empty, because a guessed filter becomes a wrong position size (BR-23, BR-30) |
 | Q-11 | How long a verification mail is throttled before it may be resent | 2026-09-21 | T-011 | Team + BE1 | **ANSWERED BY THE SRS, needs confirming — the question's premise was wrong.** SRS section 3.2.2 states it verbatim: "Resending is limited to once per 60 seconds and 5 times per day per email; a new token invalidates previous unused verification tokens." The row was raised saying the SRS gave no window; it does, and T-011 implements exactly that text rather than a number anyone chose. Two residual points, both recorded rather than guessed: the SRS says *per email* and the implementation counts per account, which coincide while an address identifies one account (A-21 covers neither); and the SRS fixes no boundary for "per day", so the count runs from 00:00 UTC+7 borrowed from BR-50 — **that** is the part still genuinely open, and it is A-21. Close this row once the team confirms the reading |
 | Q-12 | T-015 is named "role policies **and entitlement handler**", but the entitlement handler cannot be built where the backlog places it. `@entitlement.has(authentication, 'AI')` calls `BillingApi.hasActiveEntitlement` (TECHNICAL_DESIGN 7.12), and the `billing` module arrives in P10 (T-065, T-066). T-015's dependency column lists only T-012, which is wrong: the task as written cannot be finished before P10 | 2026-09-21 | T-015 (entitlement half), T-062, T-075 | BE1 + Team | **OPEN** — the role half is done and proved; the two matrix rows that need entitlement (SCR-29 AI Assistant, and Post Video on SCR-26) are enforced at their role level (`/api/v1/ai/**` and `/api/v1/media/**` are TRADER) with the subscription check still to come. Decide which: move the entitlement handler into T-066 where `BillingApi` is born, or open a new P10 task for it and cut T-015 down to role policies. Nothing should build the handler against a stub `BillingApi`, because an entitlement source that always answers "no" is indistinguishable from a working one until P10 lands and would pass its own tests |
+| Q-13 | T-014's "Done when" says "Avatar upload validated", but SRS 3.2.5 stores the avatar (JPG, PNG or WEBP, at most 2 MB) in **Media Storage**, and the Media Storage adapter is T-061 (Cloudinary, signed upload) in P9. Accepting an avatar URL from the client before that exists would let a profile point at any address on the internet; storing the file anywhere else would be a second media store | 2026-09-24 | T-014 (avatar half) | BE2 + Team | **OPEN** — everything else of UC-06 is done. Decide: move the avatar into a new task that depends on T-061 and T-014 (proposed: the client uploads through the signed-upload seam, then `PUT /me/profile` accepts only a public id from our own media store), or pull a minimal part of T-061 forward. `UserProfile.changeAvatar` already exists and nothing calls it |
 | Q-06 | Flutter chart library (ADR-012) | 2026-09-19 | T-090 | FE | OPEN |
 | Q-07 | Hosting for staging (VPS provider and size) and the demo domain. A managed PostgreSQL service usually cannot install TimescaleDB, so self-hosted Docker on a VPS is assumed | 2026-09-19 | T-096 | DO | OPEN |
 | Q-08 | Confirm the database stack: PostgreSQL 16 + TimescaleDB 2.x in Docker, EF Core migrations (earlier drafts mentioned Flyway and PostgreSQL 14/15) | 2026-09-19 | T-004, T-005, T-006, T-007, T-009 | BE1 + BE2 | ANSWERED 2026-09-20: PostgreSQL 16 + TimescaleDB 2.x on `timescale/timescaledb:2.30.1-pg16` pinned for dev, Testcontainers and staging; Flyway SQL migrations with the TimescaleDB DDL in its own migration; staging self-hosted Docker on a VPS, no managed PostgreSQL (D-18) |
@@ -440,6 +428,43 @@ Rule: an AI agent never answers an open question by guessing. It implements what
 ## 9. Session log
 
 Newest first. One block per working session, format in `CLAUDE.md` section 8.
+
+### 2026-09-24 – T-014 Profile, notification preferences, device registration
+- Result: **PARTIAL**
+- Summary: UC-06 (all but the avatar), UC-07 and UC-08 end to end. `GET/PUT /me/profile` and
+  `PUT /me/notification-preferences` (new `ProfileService`, `ProfileController`); `PUT /me/password` on a new
+  `PasswordChangeService` in `auth`, which checks the current password (MSG08 as a 400, D-35), applies BR-02
+  and revokes every other session through a new `sid` claim naming the caller's refresh family (D-33);
+  `POST /me/devices`, `DELETE /me/devices/{id}` and an optional `fcmToken` on `POST /auth/logout` that
+  deactivates that device of the session's account (D-34). `MessageResponse` moved to `common.web` so `user`
+  can answer MSG14; `common.config.JacksonConfig` now writes every `BigDecimal` as a plain string (TD 5.4).
+- Files: `auth/{controller/PasswordChangeController, service/PasswordChangeService, dto/ChangePasswordRequest,
+  dto/LogoutRequest, config/JwtConfig, service/AccessTokenIssuer, service/AuthService, repository/UserTokenRepository}`;
+  `user/{UserApi, controller/*, dto/*, service/{ProfileService, DeviceService, UserService},
+  repository/UserDeviceRepository, entity/UserProfile}`; `common/{web/MessageResponse, config/JacksonConfig,
+  exception/ErrorCode}`
+- Tests: +63 (705 → 768); suite 768/768; coverage Domain — / Backend 98.30% line (752/765), branches 95.00%
+  (190/200). Two existing tests were edited and neither was weakened: `LoginAndSessionTest` follows the new
+  `logout(token, fcmToken)` signature (four call sites, `null` device), and `UserTokenRepositoryTest` pins the
+  repository's exact method list, so it grew by `revokeOtherSessions`, with a new test of that query beside it.
+- BR/UC/NSF covered: UC-06 (PARTIAL, no avatar), UC-07, UC-08; BR-02 on a third path; BR-30's capital and risk
+  ranges on the profile (its leverage and price parts belong to P5); messages MSG01, MSG03, MSG08, MSG14, MSG15,
+  MSG41. UC coverage 5 → 8.
+- Decisions: **D-33** (`sid` claim), **D-34** (device token ownership and deactivation), **D-35** (a wrong
+  current password is 400, not 401), all PROPOSED. TECHNICAL_DESIGN 4.1, 7.15 and 8 updated.
+- Open questions: **Q-13 raised** (the avatar needs the Media Storage adapter of T-061); **A-30 raised** (a
+  wrong current password does not count towards BR-03, so the endpoint has no lockout until the rate limiter
+  exists).
+- Found on the way: Docker Desktop was not running, and the first baseline run failed 429 tests on
+  Testcontainers alone; the baseline after starting it was 705/705. The first commit of the session landed on
+  `develop` by mistake and was moved to the feature branch before anything was pushed; `develop` is back at
+  `origin/develop`.
+- Next: T-017 (Binance market data client). T-016 (web screens) waits until T-014 is DONE.
+- Commits, all on `feature/T-014-profile-and-devices` and **unpushed**: `9972550` refactor(common): share the
+  message response between modules · `f0ac7e6` feat(common): write decimals as plain strings in every response
+  · `ab3bace` feat(user): show and save the profile and notification preferences · `579f935` feat(user):
+  register push devices and deactivate them on sign-out · `7cdc8bf` feat(auth): change the password from the
+  security tab. Each was checked out into a separate worktree and compiled on its own.
 
 ### 2026-09-23 – T-013 Password reset
 - Result: **DONE**
@@ -1406,7 +1431,7 @@ Kept current as tasks close (`/end-session` step 5). Each row: BR/UC/NSF/SCR id 
 | Source | Count | Covered by tasks |
 |---|---|---|
 | Business rules BR-01 … BR-61 | 61 | 17 (BR-01, BR-02, BR-03, BR-04, BR-05, BR-06, BR-15, BR-17, BR-21, BR-29, BR-36, BR-37, BR-44, BR-45, BR-46, BR-49, BR-54), as `check_traceability.py` reports them. T-005, T-006 and T-007 cover the database and seed halves; T-010 adds the domain half of BR-01, BR-04, BR-05 and BR-06. **BR-01, BR-02, BR-03 and BR-06 are now proved end to end**, from the endpoint to the row: T-011 added BR-02, T-012 added BR-03 and closed BR-01 in both directions |
-| Use cases UC-01 … UC-52 | 52 | 5 (UC-01, UC-02 from T-011; UC-03, UC-05 from T-012; UC-04 from T-013), counted by hand from the test names — `check_traceability.py` reads `BR` ids only, so the `UseCase`, `NonScreenFunction` and `Screen` rows of `traceability.csv` stay empty until it learns the other three prefixes |
+| Use cases UC-01 … UC-52 | 52 | 8 (UC-01, UC-02 from T-011; UC-03, UC-05 from T-012; UC-04 from T-013; UC-06 partially, UC-07, UC-08 from T-014), counted by hand from the test names — `check_traceability.py` reads `BR` ids only, so the `UseCase`, `NonScreenFunction` and `Screen` rows of `traceability.csv` stay empty until it learns the other three prefixes |
 | Non-screen functions NSF-01 … NSF-18 | 18 | 0 |
 | Screens SCR-01 … SCR-44 | 44 | 0 |
 | Messages MSG01 … MSG45 | 45 | 15 appear in assertions (MSG01 … MSG11, MSG41, MSG43, MSG44, MSG45), also counted by hand. Every one is returned as a code and never as text, so the sentences stay in SRS section 5.3 and the client owns them (TECHNICAL_DESIGN 5.1); MSG39 and MSG43 are named by an `ErrorCode` as the nearest existing message rather than the right one — A-15 and A-17 |
