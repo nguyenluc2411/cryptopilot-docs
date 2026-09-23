@@ -5,6 +5,7 @@ CryptoPilot is a decision-support and paper-trading system. It never executes re
 
 ## 1. Read order at the start of every session
 
+0. **Pull the documents first**: `./docs.sh pull` (Windows: `.\docs.ps1 pull`), then `git pull`. The documents below live in a second repository over this same folder (`docs/BOOTSTRAP.md`), so without this they are whatever this machine last saw — a `NEXT` marker somebody has already moved, a decision that has since changed. Everything in this list is read out of files that another member may have written since.
 1. `CLAUDE.md` (this file)
 2. `CURRENT_STATE.md` → find the task marked `NEXT`, its dependencies, acceptance criteria and open questions
 3. `docs/design/TECHNICAL_DESIGN.md` → only the sections referenced by the task
