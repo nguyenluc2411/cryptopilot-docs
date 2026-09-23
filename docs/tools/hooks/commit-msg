@@ -1,0 +1,46 @@
+#!/bin/sh
+# commit-msg hook (local only, installed by docs/tools/setup-local.*)
+# 1. Rejects any AI attribution in the commit message.
+# 2. Enforces Conventional Commits for the subject line.
+# Note: the product itself integrates an LLM API, so words such as "anthropic"
+# or "claude" alone are allowed (e.g. "feat(ai): add anthropic client");
+# only attribution phrases are rejected.
+
+msg_file="$1"
+msg=$(grep -v '^#' "$msg_file" | tr -d '\r')
+subject=$(printf '%s\n' "$msg" | sed -n '/./{p;q;}')
+
+fail() {
+  printf '\n[commit-msg] Commit rejected: %s\n' "$1" >&2
+  printf '[commit-msg] Message was:\n%s\n\n' "$msg" >&2
+  exit 1
+}
+
+# ---- 1. AI attribution --------------------------------------------------
+attribution='co-authored-by:.*(claude|anthropic|openai|chatgpt|gpt|copilot|gemini|cursor|codeium|noreply)'
+attribution="$attribution|generated (with|by|using) "
+attribution="$attribution|(written|created|made|authored|assisted) (by|with|using) (an? )?(ai|claude|chatgpt|gpt|copilot|gemini|cursor)([^a-z]|$)"
+attribution="$attribution|(^|[^a-z])by ai([^a-z]|$)"
+attribution="$attribution|ai[- ]generated|ai[- ]assisted"
+attribution="$attribution|claude code|claude\.ai/code|claude-session:|noreply@anthropic\.com"
+
+if printf '%s\n' "$msg" | grep -Eiq "$attribution"; then
+  fail "the message contains AI attribution. Remove trailers or phrases such as 'Co-Authored-By: ...', 'Generated with ...', 'by AI'."
+fi
+
+# ---- 2. Conventional Commits ------------------------------------------------
+case "$subject" in
+  "Merge "*|"Revert \""*|"fixup! "*|"squash! "*) exit 0 ;;
+esac
+
+types='feat|fix|test|refactor|perf|docs|build|ci|chore|style|revert'
+if ! printf '%s\n' "$subject" | grep -Eq "^($types)(\([a-z0-9-]+\))?!?: [^ ].*"; then
+  fail "subject must follow Conventional Commits, e.g. 'feat(trading): add liquidation price calculator'. Allowed types: $types. Scope in lower case."
+fi
+
+len=$(printf '%s' "$subject" | wc -m | tr -d ' ')
+if [ "$len" -gt 72 ]; then
+  fail "subject is $len characters; keep it at 72 or fewer."
+fi
+
+exit 0

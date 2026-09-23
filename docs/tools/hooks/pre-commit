@@ -1,0 +1,54 @@
+#!/bin/sh
+# pre-commit hook (local only, installed by docs/tools/setup-local.*)
+# 1. Blocks local-only files, even when force-added with `git add -f`.
+# 2. Blocks .env files (only *.env.example may be committed).
+# 3. Blocks AI attribution text in the added lines of staged files.
+# The product integrates an LLM API, so product words such as "anthropic" are
+# allowed in code; only attribution phrases are rejected.
+
+git_dir=$(git rev-parse --git-dir)
+exclude_file="$git_dir/info/exclude"
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -z "$staged" ] && exit 0
+
+# Local-only paths come from the managed block of .git/info/exclude.
+local_paths=$(sed -n '/^# >>> cryptopilot-local-only/,/^# <<< cryptopilot-local-only/p' "$exclude_file" 2>/dev/null \
+  | tr -d '\r' | grep -v '^#' | grep -v '^[[:space:]]*$' | sed 's#^/##')
+
+violations=$(
+  printf '%s\n' "$staged" | while IFS= read -r f; do
+    # 1. local-only paths
+    printf '%s\n' "$local_paths" | while IFS= read -r p; do
+      [ -z "$p" ] && continue
+      case "$p" in
+        */) case "$f" in "$p"*) echo "local-only file staged: $f";; esac ;;
+        *)  [ "$f" = "$p" ] && echo "local-only file staged: $f" ;;
+      esac
+    done
+    # 2. environment files
+    case "$f" in
+      *.env.example|*.env.sample|*.env.template) ;;
+      .env|*/.env|.env.*|*/.env.*) echo "environment file staged: $f (only *.env.example may be committed)";;
+    esac
+  done
+)
+
+# 3. AI attribution in added lines
+pattern='co-authored-by:.*(claude|anthropic|openai|chatgpt|copilot|gemini|cursor|noreply)'
+pattern="$pattern|generated (with|by|using) (claude|chatgpt|gpt|copilot|gemini|cursor|an? ai|ai)([^a-z]|$)"
+pattern="$pattern|(written|created|authored) (by|with) (claude|chatgpt|copilot|gemini|an? ai|ai)([^a-z]|$)"
+pattern="$pattern|claude code|claude\.ai/code|claude-session:|noreply@anthropic\.com"
+
+hits=$(git diff --cached -U0 --no-color --diff-filter=ACMR \
+  | grep '^+' | grep -v '^+++' | grep -Ei "$pattern" | head -5)
+
+if [ -n "$violations" ] || [ -n "$hits" ]; then
+  [ -n "$violations" ] && printf '%s\n' "$violations" | sed 's/^/[pre-commit] /' >&2
+  if [ -n "$hits" ]; then
+    printf '[pre-commit] AI attribution found in staged changes:\n%s\n' "$hits" >&2
+  fi
+  printf '[pre-commit] Commit rejected. Unstage with: git restore --staged <file>\n' >&2
+  exit 1
+fi
+exit 0

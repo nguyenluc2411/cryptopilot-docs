@@ -1,0 +1,53 @@
+#!/bin/sh
+# pre-commit for the DOCUMENTS repository (.docs.git), not for the code repository.
+#
+# The two repositories share one working tree, so a mistyped command can stage the entire backend
+# into this one. This refuses any path that is not on the list the documents repository is allowed
+# to track, which turns that mistake into a rejected commit instead of a 12,000-line diff nobody
+# reads.
+#
+# It also refuses deploy/.env and anything that looks like a key, because this repository is where
+# the temptation to "just keep it with the docs" lands.
+
+set -e
+
+fail() {
+    printf '\n[docs pre-commit] Commit rejected: %s\n\n' "$1" >&2
+    exit 1
+}
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -z "$staged" ] && exit 0
+
+for path in $staged; do
+    case "$path" in
+        CLAUDE.md|CLAUDE.local.md|CURRENT_STATE.md|docs.sh|docs.ps1) ;;
+        .claude/*|docs/*) ;;
+        *)
+            fail "'$path' is not a document. This repository tracks CLAUDE.md, CLAUDE.local.md,
+CURRENT_STATE.md, .claude/, docs/ and the two wrappers - nothing else. Source code belongs to the
+other repository in this folder: use plain 'git', not './docs.sh'."
+            ;;
+    esac
+done
+
+# The documents repository is private, which is a reason to be careful rather than a reason not to be.
+case "$staged" in
+    *deploy/.env*|*.pem*|*.p12*|*.pfx*|*firebase-service-account*)
+        fail "a credential file is staged. Secrets live in deploy/.env, which is committed nowhere."
+        ;;
+esac
+
+# The hooks themselves are skipped: they carry these patterns as their own detection logic, and a
+# scanner that refuses to be committed is a scanner nobody keeps.
+for path in $staged; do
+    case "$path" in
+        docs/tools/hooks/*) continue ;;
+    esac
+    if git diff --cached -U0 -- "$path" |
+        grep -qE '^\+.*(PRIVATE KEY|BEGIN RSA|xox[baprs]-|sk-[A-Za-z0-9]{20,})'; then
+        fail "a staged line in '$path' looks like a live credential. Remove it before committing."
+    fi
+done
+
+exit 0

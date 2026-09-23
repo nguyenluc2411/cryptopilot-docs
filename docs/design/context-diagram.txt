@@ -1,0 +1,72 @@
+flowchart LR
+  E1["Guest"]
+  E2["Trader"]
+  E3["Admin"]
+  E4["Binance Market Data API"]
+  E5["LLM Provider"]
+  E6["Payment Gateway<br/>VNPay / MoMo"]
+  E7["News Source"]
+  E8["Email Service"]
+  E9["Push Notification Service"]
+  E10["Media Storage"]
+  P0(("CryptoPilot"))
+
+  E1 -->|"Authentication Information"| P0
+  E1 -->|"Public Market Query"| P0
+  P0 -->|"Public Market Information"| E1
+  P0 -->|"Authentication Result"| E1
+
+  E2 -->|"Account Information"| P0
+  E2 -->|"Market Analysis Query"| P0
+  E2 -->|"Monitoring Configuration"| P0
+  E2 -->|"Trading Plan Information"| P0
+  E2 -->|"Journal Entry"| P0
+  E2 -->|"Performance Query"| P0
+  E2 -->|"Community Content"| P0
+  E2 -->|"News Query"| P0
+  E2 -->|"AI Question"| P0
+  E2 -->|"Subscription Purchase Information"| P0
+
+  P0 -->|"Account Details"| E2
+  P0 -->|"In-app Notification"| E2
+  P0 -->|"Market Analysis Information"| E2
+  P0 -->|"Monitoring Details"| E2
+  P0 -->|"Trading Plan Evaluation"| E2
+  P0 -->|"Trading Performance Information"| E2
+  P0 -->|"Community Feed"| E2
+  P0 -->|"News Feed"| E2
+  P0 -->|"AI Response"| E2
+  P0 -->|"Subscription Information"| E2
+
+  E3 -->|"User Administration Information"| P0
+  E3 -->|"Moderation Decision"| P0
+  E3 -->|"Official Announcement"| P0
+  E3 -->|"Report Criteria"| P0
+  E3 -->|"System Configuration"| P0
+  P0 -->|"User List"| E3
+  P0 -->|"Violation Report Queue"| E3
+  P0 -->|"Management Report"| E3
+
+  P0 -->|"Market Data Request"| E4
+  E4 -->|"Symbol Information"| P0
+  E4 -->|"Spot Market Data"| P0
+  E4 -->|"Futures Market Data"| P0
+
+  P0 -->|"AI Generation Request"| E5
+  E5 -->|"AI Generated Content"| P0
+
+  P0 -->|"Payment Request"| E6
+  P0 -->|"IPN Acknowledgement"| E6
+  P0 -->|"Transaction Query"| E6
+  E6 -->|"Payment Result"| P0
+
+  E7 -->|"RSS Feed Item"| P0
+
+  P0 -->|"Email Message"| E8
+
+  P0 -->|"Push Notification"| E9
+  E9 -->|"Delivery Failure Feedback"| P0
+
+  P0 -->|"Media File"| E10
+  P0 -->|"Media Deletion Request"| E10
+  E10 -->|"Media Metadata"| P0

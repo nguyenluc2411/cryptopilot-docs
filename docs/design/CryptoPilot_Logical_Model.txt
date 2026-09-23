@@ -1,0 +1,542 @@
+erDiagram
+
+  %% ================= USER =================
+  USER {
+    uuid user_id PK
+    varchar email UK
+    varchar password_hash
+    varchar role "TRADER, ADMIN"
+    varchar account_status "ACTIVE, LOCKED, BANNED"
+    timestamp email_verified_at
+    timestamp last_login_at
+    timestamp created_at
+    timestamp updated_at
+  }
+  USER_PROFILE {
+    uuid user_id PK, FK
+    varchar display_name
+    varchar avatar_url
+    decimal default_capital
+    decimal default_risk_percent
+    varchar trading_style "SCALPING, DAY, SWING, POSITION"
+    boolean notify_email
+    boolean notify_push
+    timestamp updated_at
+  }
+  USER_TOKEN {
+    uuid token_id PK
+    uuid user_id FK
+    varchar token_type "EMAIL_VERIFICATION, PASSWORD_RESET, REFRESH"
+    varchar token_hash UK
+    timestamp expires_at
+    timestamp used_at
+    timestamp created_at
+  }
+  USER_DEVICE {
+    uuid device_id PK
+    uuid user_id FK
+    varchar fcm_token UK
+    varchar platform "ANDROID, IOS"
+    boolean is_active
+    timestamp last_seen_at
+  }
+
+  %% ================= MARKET DATA =================
+  COIN {
+    uuid coin_id PK
+    varchar symbol UK "BTC, ETH, USDT"
+    varchar coin_name
+    varchar logo_url
+    timestamp created_at
+  }
+  CRYPTO_PAIR {
+    uuid pair_id PK
+    uuid base_coin_id FK
+    uuid quote_coin_id FK
+    varchar symbol UK "BTCUSDT"
+    boolean is_spot_enabled
+    boolean is_futures_enabled
+    decimal spot_tick_size
+    decimal spot_step_size
+    decimal futures_tick_size
+    decimal futures_step_size
+    decimal spot_min_notional
+    decimal futures_min_notional
+    int max_leverage "null if no futures"
+    varchar pair_status "ACTIVE, INACTIVE"
+    int display_order
+    timestamp updated_at
+  }
+  OHLCV {
+    uuid pair_id PK, FK
+    varchar market_type PK "SPOT, FUTURES"
+    varchar timeframe PK "15m, 1h, 4h, 1d"
+    timestamp open_time PK
+    timestamp close_time
+    decimal open_price
+    decimal high_price
+    decimal low_price
+    decimal close_price
+    decimal base_volume
+    decimal quote_volume
+    int trade_count
+  }
+  TECHNICAL_INDICATOR {
+    uuid pair_id PK, FK
+    varchar market_type PK, FK
+    varchar timeframe PK, FK
+    timestamp open_time PK, FK
+    decimal sma_20
+    decimal ema_20
+    decimal ema_50
+    decimal ema_200
+    decimal rsi_14
+    decimal macd_line
+    decimal macd_signal
+    decimal macd_histogram
+    decimal bb_upper
+    decimal bb_middle
+    decimal bb_lower
+    decimal volume_sma_20
+    decimal nearest_support
+    decimal nearest_resistance
+    decimal trend_score
+    decimal momentum_score
+    decimal volume_score
+    decimal level_score
+    decimal derivatives_score "null if SPOT"
+    decimal setup_score "0-100, weighted total"
+    varchar score_version
+    timestamp calculated_at
+  }
+  SPOT_MARKET_DATA {
+    uuid pair_id PK, FK
+    timestamp snapshot_time PK
+    decimal last_price
+    decimal best_bid_price
+    decimal best_ask_price
+    decimal high_price_24h
+    decimal low_price_24h
+    decimal price_change_percent_24h
+    decimal base_volume_24h
+    decimal quote_volume_24h
+  }
+  FUTURES_MARKET_DATA {
+    uuid pair_id PK, FK
+    timestamp snapshot_time PK
+    decimal mark_price
+    decimal index_price
+    decimal funding_rate "predicted, live"
+    timestamp next_funding_time
+    decimal open_interest
+    decimal open_interest_value
+    decimal long_short_ratio
+    decimal long_account_ratio
+    decimal short_account_ratio
+  }
+
+  FUNDING_RATE_HISTORY {
+    uuid pair_id PK, FK
+    timestamp funding_time PK
+    decimal funding_rate "settled, charged"
+    decimal mark_price
+  }
+
+  %% ================= WATCHLIST, ALERT, NOTIFICATION =================
+  WATCHLIST {
+    uuid watchlist_id PK
+    uuid user_id FK
+    uuid pair_id FK "unique with user_id"
+    varchar label
+    int sort_order
+    text note
+    timestamp added_at
+  }
+  ALERT {
+    uuid alert_id PK
+    uuid user_id FK
+    uuid watchlist_id FK
+    varchar market_type "SPOT, FUTURES"
+    varchar alert_type "PRICE, INDICATOR"
+    varchar indicator_name "null if PRICE"
+    varchar timeframe "null if PRICE"
+    varchar condition_operator "CROSS_ABOVE, CROSS_BELOW, GREATER_THAN, LESS_THAN"
+    decimal threshold_value
+    varchar trigger_mode "ONCE, ONCE_PER_BAR, EVERY_TIME"
+    int cooldown_minutes
+    boolean notify_in_app
+    boolean notify_email
+    boolean notify_push
+    varchar alert_status "ACTIVE, PAUSED, TRIGGERED, EXPIRED"
+    int trigger_count
+    timestamp last_triggered_at
+    timestamp expires_at
+    timestamp created_at
+    timestamp updated_at
+  }
+  NOTIFICATION {
+    uuid notification_id PK
+    uuid user_id FK
+    uuid alert_id FK "null if not from alert"
+    varchar notification_type "ALERT, PLAN, MODERATION, SUBSCRIPTION"
+    varchar title
+    text content
+    varchar reference_type
+    uuid reference_id
+    boolean sent_via_push
+    boolean sent_via_email
+    boolean is_read
+    timestamp read_at
+    timestamp created_at
+  }
+
+  %% ================= TRADING =================
+  TRADING_STRATEGY {
+    uuid strategy_id PK
+    varchar strategy_code UK "BREAKOUT, SWING, SCALPING"
+    varchar strategy_name
+    text description
+  }
+  TRADING_PLAN {
+    uuid plan_id PK
+    uuid user_id FK
+    uuid pair_id FK
+    varchar market_type "SPOT, FUTURES"
+    varchar direction "LONG, SHORT - SPOT only LONG"
+    varchar entry_type "LIMIT, MARKET"
+    decimal entry_price
+    decimal stop_loss_price
+    decimal take_profit_price
+    decimal capital_amount
+    decimal risk_percent
+    int leverage "null if SPOT"
+    varchar margin_mode "ISOLATED, null if SPOT"
+    decimal position_quantity "snapshot"
+    decimal notional_value "snapshot"
+    decimal initial_margin "snapshot"
+    decimal maintenance_margin_rate_used "snapshot, FUTURES only"
+    decimal risk_amount "snapshot"
+    decimal reward_amount "snapshot"
+    decimal risk_reward_ratio "snapshot"
+    decimal estimated_liquidation_price "snapshot, FUTURES only"
+    varchar plan_status "DRAFT, ACTIVE, EXECUTED, CANCELLED, EXPIRED"
+    text plan_note
+    timestamp activated_at
+    timestamp expires_at
+    timestamp created_at
+    timestamp updated_at
+  }
+  TRADING_PLAN_WARNING {
+    uuid warning_id PK
+    uuid plan_id FK
+    varchar warning_type "LOW_RR, HIGH_LEVERAGE, SL_BEYOND_LIQUIDATION, OVERSIZED_POSITION, INSUFFICIENT_CAPITAL, HIGH_FUNDING_RATE, WIDE_STOP_LOSS"
+    varchar severity "INFO, WARNING, BLOCKING"
+    varchar warning_message
+    timestamp created_at
+  }
+  TRADING_JOURNAL {
+    uuid journal_id PK
+    uuid user_id FK
+    uuid pair_id FK
+    uuid plan_id FK "unique, null if MANUAL"
+    uuid strategy_id FK
+    varchar source "SIMULATED, MANUAL"
+    varchar market_type "SPOT, FUTURES"
+    varchar direction "LONG, SHORT"
+    int leverage
+    decimal entry_price
+    decimal stop_loss_price
+    decimal take_profit_price
+    decimal exit_price
+    decimal quantity
+    timestamp entry_time
+    timestamp exit_time
+    varchar close_reason "TAKE_PROFIT, STOP_LOSS, MANUAL, LIQUIDATION"
+    decimal fee_amount
+    decimal funding_fee_amount
+    decimal realized_pnl
+    varchar trade_status "OPEN, CLOSED"
+    text setup_description
+    text lessons_learned
+    text mistakes
+    varchar chart_image_url
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  %% ================= AI =================
+  AI_CONVERSATION {
+    uuid conversation_id PK
+    uuid user_id FK
+    uuid pair_id FK "null if no coin context"
+    varchar conversation_title
+    timestamp created_at
+    timestamp updated_at
+  }
+  AI_MESSAGE {
+    uuid message_id PK
+    uuid conversation_id FK
+    varchar sender_role "USER, ASSISTANT"
+    text content
+    jsonb context_snapshot
+    int input_tokens
+    int output_tokens
+    varchar message_status "PENDING, COMPLETED, FAILED"
+    timestamp created_at
+  }
+  AI_CONFIGURATION {
+    uuid config_id PK
+    uuid updated_by FK "Admin"
+    varchar model_name
+    text system_prompt
+    decimal temperature
+    int max_output_tokens
+    boolean is_active "only one active"
+    timestamp created_at
+  }
+
+  %% ================= SUBSCRIPTION =================
+  SUBSCRIPTION_PACKAGE {
+    uuid package_id PK
+    varchar package_code UK
+    varchar package_name
+    decimal price_amount
+    varchar currency "VND"
+    int duration_days
+    int ai_daily_quota
+    boolean can_post_video
+    boolean is_active
+  }
+  SUBSCRIPTION_ORDER {
+    uuid order_id PK
+    uuid user_id FK
+    uuid package_id FK
+    varchar order_code UK
+    decimal amount "price at order time"
+    varchar currency
+    varchar payment_gateway "VNPAY, MOMO"
+    varchar order_status "PENDING, PAID, FAILED, EXPIRED"
+    varchar gateway_transaction_no
+    varchar gateway_response_code
+    timestamp created_at
+    timestamp ipn_received_at
+    timestamp paid_at
+    timestamp expires_at
+  }
+  USER_SUBSCRIPTION {
+    uuid subscription_id PK
+    uuid order_id FK "unique"
+    timestamp start_at
+    timestamp end_at
+    varchar subscription_status "ACTIVE, EXPIRED, CANCELLED"
+  }
+
+  %% ================= FORUM =================
+  FORUM_POST {
+    uuid post_id PK
+    uuid author_id FK
+    varchar post_type "TEXT, VIDEO"
+    varchar title
+    text content
+    varchar market_type "SPOT, FUTURES, null"
+    boolean is_official "Admin only, pinned"
+    varchar post_status "PUBLISHED, HIDDEN, DELETED"
+    timestamp created_at
+    timestamp updated_at
+  }
+  POST_COIN {
+    uuid post_id PK, FK
+    uuid coin_id PK, FK
+  }
+  FORUM_COMMENT {
+    uuid comment_id PK
+    uuid post_id FK
+    uuid author_id FK
+    uuid parent_comment_id FK "null = top-level"
+    text content
+    varchar comment_status "PUBLISHED, HIDDEN, DELETED"
+    timestamp created_at
+    timestamp updated_at
+  }
+  ENGAGEMENT {
+    uuid engagement_id PK
+    uuid user_id FK
+    uuid post_id FK "exactly one of post_id, comment_id"
+    uuid comment_id FK
+    varchar action_type "LIKE, SAVE"
+    timestamp created_at
+  }
+  POST_MEDIA {
+    uuid media_id PK
+    uuid post_id FK
+    varchar media_type "IMAGE, VIDEO"
+    varchar storage_public_id UK
+    varchar media_url
+    varchar thumbnail_url
+    bigint file_size_bytes
+    int duration_seconds
+    int width
+    int height
+    varchar processing_status "UPLOADING, READY, FAILED"
+    int sort_order
+    timestamp created_at
+  }
+  POST_REPORT {
+    uuid report_id PK
+    uuid post_id FK
+    uuid reporter_id FK
+    uuid resolved_by FK "Admin"
+    varchar reason "SPAM, SCAM, ABUSE, MISLEADING, OTHER"
+    text description
+    varchar report_status "OPEN, REVIEWING, RESOLVED"
+    varchar resolution_action "HIDE_POST, DISMISS, WARN_USER, BAN_USER"
+    timestamp resolved_at
+    timestamp created_at
+  }
+
+  %% ================= NEWS =================
+  NEWS_SOURCE {
+    uuid source_id PK
+    uuid managed_by FK "Admin"
+    varchar source_name
+    varchar feed_url UK
+    varchar source_type "RSS"
+    int crawl_interval_minutes
+    boolean is_active
+    timestamp last_crawled_at
+  }
+  NEWS_CRAWL_LOG {
+    uuid crawl_log_id PK
+    uuid source_id FK
+    timestamp started_at
+    timestamp finished_at
+    varchar crawl_status "SUCCESS, PARTIAL, FAILED"
+    int articles_found
+    int articles_inserted
+    text error_message
+  }
+  NEWS_ARTICLE {
+    uuid article_id PK
+    uuid source_id FK
+    varchar title
+    varchar original_url
+    varchar url_hash UK
+    varchar title_hash
+    text excerpt
+    text ai_summary
+    varchar sentiment_label "BULLISH, NEUTRAL, BEARISH"
+    timestamp published_at
+    timestamp collected_at
+  }
+  NEWS_TAG {
+    uuid tag_id PK
+    varchar tag_name UK
+  }
+  NEWS_ARTICLE_TAG {
+    uuid article_id PK, FK
+    uuid tag_id PK, FK
+  }
+  NEWS_ARTICLE_COIN {
+    uuid article_id PK, FK
+    uuid coin_id PK, FK
+    boolean is_primary
+  }
+
+  %% ================= SYSTEM CONFIGURATION =================
+  LEVERAGE_BRACKET {
+    uuid pair_id PK, FK
+    int bracket_no PK
+    decimal notional_floor
+    decimal notional_cap
+    int max_leverage
+    decimal maintenance_margin_rate
+    decimal maintenance_amount
+    uuid updated_by FK "Admin"
+    timestamp updated_at
+  }
+  SYSTEM_SETTING {
+    varchar setting_key PK "MAX_ALERTS_PER_USER, MAX_UPLOAD_MB, SPOT_TAKER_FEE"
+    varchar setting_value
+    varchar value_type "INT, DECIMAL, BOOLEAN, STRING"
+    varchar description
+    uuid updated_by FK "Admin"
+    timestamp updated_at
+  }
+
+  %% ================= AUDIT =================
+  AUDIT_LOG {
+    uuid audit_id PK
+    uuid user_id FK
+    varchar action_code
+    varchar entity_type
+    uuid entity_id
+    jsonb old_value
+    jsonb new_value
+    varchar ip_address
+    timestamp created_at
+  }
+
+  %% ================= RELATIONSHIPS =================
+  USER ||--|| USER_PROFILE : has
+  USER ||--o{ USER_TOKEN : owns
+  USER ||--o{ USER_DEVICE : registers
+
+  COIN ||--o{ CRYPTO_PAIR : "is base of"
+  COIN ||--o{ CRYPTO_PAIR : "is quote of"
+  CRYPTO_PAIR ||--o{ OHLCV : "has candles"
+  OHLCV ||--o| TECHNICAL_INDICATOR : "computed into"
+  CRYPTO_PAIR ||--o{ SPOT_MARKET_DATA : "has spot data"
+  CRYPTO_PAIR ||--o{ FUTURES_MARKET_DATA : "has futures data"
+  CRYPTO_PAIR ||--o{ FUNDING_RATE_HISTORY : "has settled funding"
+
+  USER ||--o{ WATCHLIST : watches
+  CRYPTO_PAIR ||--o{ WATCHLIST : "is watched in"
+  USER ||--o{ ALERT : sets
+  WATCHLIST ||--o{ ALERT : "monitored by"
+  ALERT |o--o{ NOTIFICATION : triggers
+  USER ||--o{ NOTIFICATION : receives
+
+  USER ||--o{ TRADING_PLAN : creates
+  CRYPTO_PAIR ||--o{ TRADING_PLAN : targets
+  TRADING_PLAN ||--o{ TRADING_PLAN_WARNING : raises
+  TRADING_PLAN |o--o| TRADING_JOURNAL : "results in"
+  USER ||--o{ TRADING_JOURNAL : writes
+  CRYPTO_PAIR ||--o{ TRADING_JOURNAL : "traded on"
+  TRADING_STRATEGY |o--o{ TRADING_JOURNAL : categorizes
+
+  USER ||--o{ AI_CONVERSATION : starts
+  CRYPTO_PAIR |o--o{ AI_CONVERSATION : "context of"
+  AI_CONVERSATION ||--o{ AI_MESSAGE : contains
+  USER ||--o{ AI_CONFIGURATION : "configured by Admin"
+
+  USER ||--o{ SUBSCRIPTION_ORDER : places
+  SUBSCRIPTION_PACKAGE ||--o{ SUBSCRIPTION_ORDER : "ordered as"
+  SUBSCRIPTION_ORDER ||--o| USER_SUBSCRIPTION : activates
+
+  USER ||--o{ FORUM_POST : authors
+  FORUM_POST ||--o{ POST_COIN : "tagged with"
+  COIN ||--o{ POST_COIN : tags
+  FORUM_POST ||--o{ FORUM_COMMENT : "has comments"
+  USER ||--o{ FORUM_COMMENT : writes
+  FORUM_COMMENT |o--o{ FORUM_COMMENT : "replies to"
+  USER ||--o{ ENGAGEMENT : reacts
+  FORUM_POST |o--o{ ENGAGEMENT : receives
+  FORUM_COMMENT |o--o{ ENGAGEMENT : receives
+  FORUM_POST ||--o{ POST_MEDIA : attaches
+  FORUM_POST ||--o{ POST_REPORT : "reported as"
+  USER ||--o{ POST_REPORT : files
+  USER |o--o{ POST_REPORT : resolves
+
+  USER ||--o{ NEWS_SOURCE : "managed by Admin"
+  NEWS_SOURCE ||--o{ NEWS_CRAWL_LOG : logs
+  NEWS_SOURCE ||--o{ NEWS_ARTICLE : provides
+  NEWS_ARTICLE ||--o{ NEWS_ARTICLE_TAG : has
+  NEWS_TAG ||--o{ NEWS_ARTICLE_TAG : labels
+  NEWS_ARTICLE ||--o{ NEWS_ARTICLE_COIN : mentions
+  COIN ||--o{ NEWS_ARTICLE_COIN : "mentioned in"
+
+  CRYPTO_PAIR ||--o{ LEVERAGE_BRACKET : "has margin tiers"
+  USER ||--o{ LEVERAGE_BRACKET : "configured by Admin"
+  USER ||--o{ SYSTEM_SETTING : "configured by Admin"
+
+  USER ||--o{ AUDIT_LOG : performs
