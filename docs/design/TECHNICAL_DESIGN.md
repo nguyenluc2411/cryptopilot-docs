@@ -768,7 +768,14 @@ refresh(token):
   mark rec used; issue new refresh (same family) + new access token
 ```
 
-Every access token carries a `sid` claim naming the family of the refresh token issued beside it (T-014). It grants nothing; it lets a request say which session it belongs to, which UC-07 needs because SRS 3.2.5 revokes every session *other than* the caller's after a password change (`UserTokenRepository.revokeOtherSessions`). A token without the claim is treated as naming no session, and then every session is revoked.
+Every access token carries a `sid` claim naming the family of the refresh token issued beside it (T-014, D-33). It grants nothing; it says which session a request belongs to. Two things read it:
+
+- **Every request.** `SessionLivenessValidator` runs in the resource server's decoder after signature, expiry and issuer, and refuses (401, MSG44) a token whose family holds no unused refresh token for its subject (`UserTokenRepository.countUnusedInSession`). So a sign-out, reuse detection, a password reset, a password change or the A-30 threshold ends the access tokens of those sessions at once, not at their expiry. The answer is cached in memory by `auth.service.LiveSessions` for at most one minute (never longer than the access token lifetime) and evicted per account after the commit of every path that ends sessions; a generation counter discards an answer read before the latest eviction. The cache is per process: a second backend instance would need the shared cache (Redis) instead. A token without `sid` (issued before T-014) is accepted until it expires.
+- **The password change.** SRS 3.2.5 revokes every session *other than* the caller's (`UserTokenRepository.revokeOtherSessions`); a token without the claim names no session, and then every session is revoked.
+
+The paths that end sessions and must evict: `FamilyRevoker` (logout, reuse), `AuthService.resetPassword`, `PasswordChangeService`, `WrongCurrentPasswordRecorder`. **Any later path that ends sessions — BR-06 lock and ban in T-083 — must call `LiveSessions.evictAccountAfterCommit` too.**
+
+**Wrong current password (A-30, resolved 2026-09-24).** `PUT /me/password` counts wrong current passwords in `user_account.failed_password_change_count` (V6), separate from the BR-03 sign-in counter, against the same threshold of five consecutive. The fifth ends every session of the account including the caller's (the answer to that request is still MSG08, 400, D-35; the next request is 401) and restarts the count; the sign-in is not locked, because the guesser holds a session and the owner does not need to be locked out. A successful change or reset restarts the count. The counter commits in its own transaction (`WrongCurrentPasswordRecorder`, `REQUIRES_NEW`), as BR-03's does.
 
 ---
 
@@ -784,7 +791,7 @@ Endpoint catalogue (summary):
 | Module | Endpoints |
 |---|---|
 | auth | POST /auth/register, /auth/verify-email, /auth/resend-verification, /auth/login, /auth/refresh, /auth/logout, /auth/forgot-password, /auth/reset-password; PUT /me/password |
-| user | GET/PUT /me/profile; PUT /me/notification-preferences; POST /me/devices; DELETE /me/devices/{deviceId}. `POST /auth/logout` also accepts an optional `fcmToken`, and that device of the session's account is deactivated with the session (SRS 3.2.5) |
+| user | GET/PUT /me/profile; PUT /me/notification-preferences; POST /me/devices (one `INSERT ... ON CONFLICT (fcm_token) DO UPDATE`, D-34); DELETE /me/devices/{deviceId}. `POST /auth/logout` also accepts an optional `fcmToken`, and that device of the session's account is deactivated with the session (SRS 3.2.5) |
 | market | GET /market/pairs?market=; GET /market/{market}/{symbol}/candles?tf=&limit=; GET /market/{market}/{symbol}/stats; GET /market/futures/{symbol}/metrics?range= |
 | market (analysis) | GET /analysis/{market}/{symbol}?tf= (latest indicators, S/R, setup score) |
 | watchlist | GET/POST /watchlist; PATCH/DELETE /watchlist/{id}; GET/POST /alerts; PUT/DELETE /alerts/{id}; POST /alerts/{id}/pause, /resume |
@@ -913,6 +920,7 @@ Overall backend line coverage ≥ 70% (SRS 4.2.5), enforced by the JaCoCo `check
 | A-07 | Setup score direction | Two-direction score and `setup_bias` column on TECHNICAL_INDICATOR | BR-13, logical model |
 | A-08 | Backend runtime | SRS is technology-neutral; runtime recorded in ADR-002 only. No SRS change | — |
 | A-09 | Physical technical tables | `event_publication` (Spring Modulith) and `flyway_schema_history` documented as non-business tables | SRS 3.1.5 note |
+| A-30 | SRS 3.2.5 does not say what a wrong current password counts towards | **Resolved 2026-09-24:** a separate per-account counter with BR-03's threshold of five; the fifth ends all sessions of the account, the sign-in is not locked, success resets it (7.15) | SRS 3.2.5, BR-03 |
 
 ---
 

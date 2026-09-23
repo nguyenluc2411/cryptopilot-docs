@@ -127,7 +127,7 @@ UseCase,UC-02,Verify Email,,,,NOT_COVERED
 UseCase,UC-03,Log In,,,,NOT_COVERED
 UseCase,UC-04,Reset Password,,,,NOT_COVERED
 UseCase,UC-05,Log Out,,,,NOT_COVERED
-UseCase,UC-06,Update Profile,T-014,backend\src\test\java\com\cryptopilot\user\controller\ProfileControllerTest.java,UC06_aValidSave_answersMsg14AndIsShownBack; UC06_anEmptyDefault_clearsTheStoredOne; UC06_aSave_changesOnlyTheCallersProfile …,PARTIAL
+UseCase,UC-06,Update Profile,T-014; T-101 (avatar),backend\src\test\java\com\cryptopilot\user\controller\ProfileControllerTest.java,UC06_aValidSave_answersMsg14AndIsShownBack; UC06_anEmptyDefault_clearsTheStoredOne; UC06_aSave_changesOnlyTheCallersProfile …,PARTIAL
 UseCase,UC-07,Change Password,T-014,backend\src\test\java\com\cryptopilot\auth\service\PasswordChangeTest.java; backend\src\test\java\com\cryptopilot\auth\controller\PasswordChangeControllerTest.java,UC07_theRightCurrentPassword_replacesIt; UC07_aChange_endsEveryOtherSessionAndKeepsTheCallers; UC07_aWrongCurrentPassword_answersMsg08WithBadRequest …,COVERED
 UseCase,UC-08,Configure Notification Preferences,T-014,backend\src\test\java\com\cryptopilot\user\controller\ProfileControllerTest.java; backend\src\test\java\com\cryptopilot\user\controller\DeviceControllerTest.java,UC08_theNotificationSwitches_areSavedWithMsg14; UC08_registeringADevice_storesItActiveForTheCaller; UC05_signingOutWithTheDeviceToken_deactivatesTheDevice …,COVERED
 UseCase,UC-09,View Market Overview,,,,NOT_COVERED
