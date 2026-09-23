@@ -24,6 +24,7 @@ $block = @(
   '/CURRENT_STATE.md',
   '/.claude/',
   '/docs/README.md',
+  '/docs/BOOTSTRAP.md',
   '/docs/srs/',
   '/docs/design/',
   '/docs/adr/',

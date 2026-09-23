@@ -21,6 +21,7 @@ block='# >>> cryptopilot-local-only (managed by docs/tools/setup-local)
 /CURRENT_STATE.md
 /.claude/
 /docs/README.md
+/docs/BOOTSTRAP.md
 /docs/srs/
 /docs/design/
 /docs/adr/
@@ -57,7 +58,8 @@ echo "[setup] hooks installed in $target"
 #         and a mistyped command would otherwise stage the whole backend into it.
 if [ -d ".docs.git" ]; then
   mkdir -p .docs.git/hooks
-  tr -d '' < docs/tools/hooks/docs-pre-commit > .docs.git/hooks/pre-commit
+  tr -d '
+' < docs/tools/hooks/docs-pre-commit > .docs.git/hooks/pre-commit
   chmod +x .docs.git/hooks/pre-commit
   git --git-dir=.docs.git --work-tree=. config status.showUntrackedFiles no
   echo "[setup] documents repository guarded (.docs.git/hooks/pre-commit)"
