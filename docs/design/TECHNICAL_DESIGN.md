@@ -272,7 +272,7 @@ backend/
     │   │   │   └── dto/
     │   │   │
     │   │   ├── market/                               # pairs, candles, snapshots, Binance, brackets, indicators, setup score
-    │   │   │   ├── MarketApi.java PairFilters.java
+    │   │   │   ├── MarketApi.java PairFilters.java MarketType.java   # PairFilters and MarketType exist since T-018 (D-38); MarketApi arrives with its first caller
     │   │   │   ├── controller/    MarketController, AnalysisController, AdminPairController
     │   │   │   ├── service/       PairService, CandleService, AnalysisService, LeverageBracketService, MarketBroadcastService
     │   │   │   ├── repository/    CoinRepository, CryptoPairRepository, OhlcvRepository, TechnicalIndicatorRepository …

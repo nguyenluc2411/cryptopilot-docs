@@ -1,15 +1,15 @@
 # CURRENT_STATE.md — CryptoPilot Project State
 
-**Last updated:** 2026-09-24 · **Document version:** 2.14 · **Phase:** P0 done bar the DO tasks; P1 done bar T-015 (PARTIAL, Q-12) and the web screens; P2 started
-**Next task:** `T-018` — pair and coin model, pair filters (tick, step, min notional). Also unblocked: T-020 and T-023 (by T-017), T-016 (by T-014).
-**T-014 is merged** into `develop` by the team lead (PR #3, merge commit `a345dc9`). T-017 is `DONE` and was
-rebased onto that `develop` with no conflict; a follow-up the same day made the Binance IP ban survive a restart
-(`binance_ban`, V7), fixed the rejection contract as one final `BinanceClientException` with a documented caller
-rule (skip the run, reschedule at or after `retryAt`, never loop or sleep), and narrowed the string-only parsing
-rule to decimal fields. D-36 and D-37 are **ACCEPTED** by the team lead. `feature/T-017-binance-market-data-client`
-holds 5 commits on top of `develop` and is **not pushed**; the pre-rebase state is kept as the local branch
-`backup/T-017-pre-rebase`, for the team lead to delete once the PR merges. Still open from before: T-015
-`PARTIAL` (Q-12) and T-007 `PARTIAL` (Q-04, Q-05).
+**Last updated:** 2026-09-24 · **Document version:** 2.15 · **Phase:** P0 done bar the DO tasks; P1 done bar T-015 (PARTIAL, Q-12) and the web screens; P2 in progress
+**Next task:** `T-019` — NSF-01 symbol synchronization job (both dependencies, T-017 and T-018, are DONE). Read **Q-15** first: the exchange's trading status has no column yet. Also unblocked: T-020, T-023, T-016.
+T-018 is `DONE`: `Coin` and `CryptoPair` map the `coin` and `crypto_pair` tables that V1 already created, so **no
+migration was needed**; `PairFilters` (module root) carries a market's tick, step and minimum notional, floors a
+quantity (BR-23) and rounds a price (BR-30), tested against the real Binance filters of BTCUSDT and SHIBUSDT;
+`ExchangeSymbolMapper` turns T-017's `ExchangeSymbol` into an `ExchangeListing` for T-019. The model keeps one row
+per symbol with both markets side by side (logical model), not one row per market; a Spot/futures symbol mismatch
+(`SHIBUSDT` vs `1000SHIBUSDT`) is raised as **Q-14**. `feature/T-018-pair-and-coin-model` holds 3 commits on
+`develop` (`b52fe40`, T-017 merged as PR #4) and is **not pushed**; its upstream was removed at creation.
+Still open from before: T-015 `PARTIAL` (Q-12) and T-007 `PARTIAL` (Q-04, Q-05).
 
 This file is the single source of truth for *status*. `docs/design/TECHNICAL_DESIGN.md` owns *how*; the SRS owns *what*. Every working session starts by reading this file and ends by updating it (`CLAUDE.md` sections 1 and 8).
 
@@ -58,7 +58,7 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 |---|---|---|---|---|---|
 | P0 Foundation | S0 | Repo, CI, database, docker, architecture tests | 9 | 5 | WIP — T-007 PARTIAL |
 | P1 Identity | S1 | Register, verify, login, tokens, profile, devices | 8 | 6 | WIP — T-015 PARTIAL, T-016 TODO (unblocked) |
-| P2 Market Data | S2 | Pairs, backfill, streams, futures metrics | 8 | 1 | WIP — T-017 DONE, T-018 NEXT |
+| P2 Market Data | S2 | Pairs, backfill, streams, futures metrics | 8 | 2 | WIP — T-017, T-018 DONE; T-019 NEXT |
 | P3 Analysis | S2–S3 | Indicators, S/R, setup score | 5 | 0 | TODO |
 | P4 Market UI | S3 | Public home, market list, spot/futures analysis | 5 | 0 | TODO |
 | P5 Trading Plan | S3–S4 | Risk calculation, warnings, plan lifecycle | 7 | 0 | TODO |
@@ -72,14 +72,14 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 | P13 Administration | S10 | Users, moderation, config, reports, audit | 7 | 0 | TODO |
 | P14 Mobile | S11 | Flutter app, push, offline | 5 | 0 | TODO |
 | P15 Hardening | S12 | E2E, performance, security, deploy, docs | 7 | 0 | TODO |
-| **Total** | | | **101** | **12** | **12%** |
+| **Total** | | | **101** | **13** | **13%** |
 
-**Coverage:** `calculator` packages — no class yet (gate 90%) · Backend 98.88% line (1149/1162), branches 95.78% (295/308) on the T-017 branch after the rebase (gate 70%); `develop` alone 98.42% / 95.98% · AI Service —% (gate 80%).
-**Test suite:** T-017 branch 848/848 (`./mvnw clean verify`): 792 of `develop` (T-014 merged) + 42 of T-017 = 834 right after the rebase, as expected, then +14 in the follow-up (5 ban persistence against PostgreSQL, 2 ban-store failures in the gate, 2 rejection contract, 5 parser and breaker-input rules). Two `live` tests are excluded from the build. Needs Docker and `JWT_SECRET` (supplied by Surefire, D-20).
+**Coverage:** `calculator` packages — no class yet (gate 90%) · Backend 98.95% line (1231/1244), branches 95.18% (336/353) on the T-018 branch (gate 70%); `develop` 98.88% / 95.78% · AI Service —% (gate 80%).
+**Test suite:** T-018 branch 904/904 (`./mvnw clean verify`): the 848 of `develop` (T-014 and T-017 merged) + 56 (21 pair filters, 17 pair and coin objects, 12 exchange symbol mapping, 6 repository against PostgreSQL). Two `live` tests are excluded from the build. Needs Docker and `JWT_SECRET` (supplied by Surefire, D-20).
 
 > The figure before T-015 was recorded here as 578; the measured baseline was **576** — the "148 shared kernel" was 146. T-015 added 98 tests (80 + 11 + 7 in `ErrorCodeTest` from the two new codes), so 576 + 98 = 674.
 **Merged to `develop`:** everything up to T-017. `develop` is at `b52fe40`, the merge commit of PR #4 (T-017), after `a345dc9` of PR #3 (T-014); both reviewed and merged by the team lead on 2026-09-24.
-**Not merged:** nothing. `backup/T-017-pre-rebase` is a local branch kept for the team lead to delete.
+**Not merged:** `feature/T-018-pair-and-coin-model`, 3 commits on top of `b52fe40` (`969358e`, `9f2b1fd`, `f9efb42`), local only, no upstream. No migration. `backup/T-017-pre-rebase` is a local branch kept for the team lead to delete.
 **Deployed:** dev — · staging —
 
 ### Critical path
@@ -134,6 +134,7 @@ Decisions that bind the code. An AI agent must follow `APPROVED` rows and must n
 | D-35 | 2026-09-24 | A wrong current password on the Security tab is its own error code, `CURRENT_PASSWORD_INCORRECT`, 400 with MSG08 — not `INVALID_CREDENTIALS`, which is 401. A 401 on a request that carried a valid access token tells a client its session is over and would send somebody who mistyped back to SCR-04. Same message, different status | ACCEPTED 2026-09-24 (team lead, by merging PR #3) | T-014 |
 | D-36 | 2026-09-24 | The Binance client is tested against a local stand-in built on the JDK's `com.sun.net.httpserver`, not WireMock. The task row and TECHNICAL_DESIGN 11.1 name WireMock, but it is not in `pom.xml`, and every case T-017 needs — a status, headers, a body, a delay, a count of requests — is thirty lines on the JDK server. **Rejected:** adding WireMock now, a dependency for canned answers; `MockRestServiceServer`, because it replaces the HTTP layer and so cannot produce a real read timeout or a refused connection. **The cost, stated:** a small test helper (`StubExchange`) to maintain; the payment adapters (T-067, T-068) may still want WireMock for signature fixtures, and that is the moment to decide again | ACCEPTED 2026-09-24 (team lead) | T-017 |
 | D-37 | 2026-09-24 | Resilience of the Binance client is built from what the stack already has: Spring Framework 7 `RetryTemplate` for transient failures, and a circuit breaker of about thirty lines in `BinanceRequestGate` (consecutive failed calls open it for a fixed time, then one trial call). TECHNICAL_DESIGN 1.3 left the breaker to T-017 "after checking Spring Boot 4 compatibility"; Resilience4j's Boot 4 support was not confirmed, and the breaker needed here is small. The same gate enforces the weight budget and the 429/418 waits per venue, and it **refuses** rather than sleeps: a refusal carries the instant to retry at, and the job that called decides. **Extended in the T-017 follow-up:** a 418 is also written to `binance_ban` (V7) through the `BinanceBanStore` port and read back the first time each venue is used after a start, so a restart never forgets a ban and repeats the offence that lengthens the next one (2 minutes to 3 days); a 429 stays in memory. The rejection contract is one final `BinanceClientException` whose Javadoc binds callers: skip the run and reschedule at or after `retryAt` for RATE_LIMITED, BANNED and CIRCUIT_OPEN, wait for the next run on UNAVAILABLE, log a defect on REJECTED and MALFORMED, never loop or sleep in the calling thread. Only 5xx, timeouts and refused connections feed the breaker. **The cost, stated:** a breaker the project owns and tests itself; if a second integration (AI Service, payment) needs one, move to Resilience4j then rather than copy this one | ACCEPTED 2026-09-24 (team lead) | T-017 |
+| D-38 | 2026-09-24 | Market model choices in T-018. (1) `MarketType` and `PairFilters` are published at the `market` module root, where TECHNICAL_DESIGN 4.1 already places `PairFilters`, because trading (T-035) will read filters through the module API. (2) A newly registered pair is INACTIVE with both markets off: BR-07 makes a pair visible only once an administrator enables it, so the exchange listing a symbol must not make it appear. (3) `PairFilters` refuses a zero or negative filter and one with more decimals than its column (12 for tick and step, 8 for minimum notional), because a value the database would round is a rule the system would enforce differently from the exchange. (4) `ExchangeSymbolMapper` leaves out non-perpetual futures (the SRS scope is perpetual only, and quarterlies share base and quote with the perpetual) and symbols with unusable filters, and maps any status but TRADING to "not trading" rather than dropping the symbol, so NSF-01 can flag it. (5) `minQty` and the precision fields are not stored: TECHNICAL_DESIGN 7.5 sizes a plan with tick, step and minimum notional only. **The cost, stated:** a symbol dropped by the mapper is invisible to NSF-01 — T-019 should log what it drops | PROPOSED | T-018 |
 **Action:** D-02 and D-03 were confirmed by the team on 2026-09-19 and are `APPROVED`; D-18 on 2026-09-20. D-04 … D-09 still need confirmation; D-06 and D-07 are already load-bearing in committed code (T-008). D-19 and D-20 are load-bearing as of T-007 and need confirmation before the first staging deployment, because D-20 decides how an operator obtains the first administrator. D-21 and D-22 are load-bearing as of T-010; D-21 is the one worth arguing about, because reversing it later means touching every entity that was written under it. D-29 and D-30 are load-bearing as of T-100; D-31 and D-32 as of T-013. D-23 … D-26 are load-bearing as of T-011 and T-012; D-26 is the one to re-read if the refresh windows of SRS 3.2.3 are ever changed, because it infers "Remember me" from the length of the window rather than from a stored flag.
 
 ---
@@ -224,8 +225,8 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 | ID | Task | Owner | Dep | Refs | Done when | Status |
 |---|---|---|---|---|---|---|
 | T-017 | Binance market data client (REST) with resilience policies | BE2 | T-008 | NSF-01, BR-09 | WireMock tests for success, 429, 418, 5xx; request weight respected | **DONE** 2026-09-24 — Spot and futures public REST client; 429, 418, 5xx, timeouts, malformed bodies and the weight budget tested against a local stand-in server (D-36) instead of WireMock; circuit breaker in the client (D-37) |
-| T-018 | Pair and coin model, pair filters (tick, step, min notional) | BE2 | T-005 | BR-07, UC-45 | Rounding helpers tested against real filter values | **NEXT** |
-| T-019 | NSF-01 symbol synchronization job | BE2 | T-017, T-018 | NSF-01 | Daily job upserts filters; a pair that stops trading is flagged | TODO |
+| T-018 | Pair and coin model, pair filters (tick, step, min notional) | BE2 | T-005 | BR-07, UC-45 | Rounding helpers tested against real filter values | **DONE** 2026-09-24 — no migration (V1 already had `coin` and `crypto_pair`); entities, repositories, `PairFilters` with rounding tested against real BTCUSDT/SHIBUSDT filters, `ExchangeSymbolMapper` for T-019 |
+| T-019 | NSF-01 symbol synchronization job | BE2 | T-017, T-018 | NSF-01 | Daily job upserts filters; a pair that stops trading is flagged | **NEXT** |
 | T-020 | NSF-02 historical candle backfill | BE2 | T-017 | NSF-02, BR-08 | Gap detection works; re-running inserts no duplicates | TODO |
 | T-021 | NSF-03 realtime stream ingestion (kline, ticker, mark price) | BE2 | T-017 | NSF-03, BR-08 | Only closed candles stored; reconnect with back-off; gap triggers backfill | TODO |
 | T-022 | Redis price cache and SignalR market hub | BE1 | T-021 | TD 5.6, 9 | Client receives price and candle updates; latency target of SRS 4.2.3 met locally | TODO |
@@ -377,17 +378,20 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 
 ## 7. Detail block — current NEXT task
 
-### T-018 · Pair and coin model, pair filters (tick, step, min notional)
+### T-019 · NSF-01 symbol synchronization job
 
-**Unblocked:** its only dependency, T-005, is DONE. T-019 needs it together with T-017, which is now DONE.
+**Unblocked:** T-017 and T-018 are DONE. **Read Q-15 first**: the "no longer TRADING" flag has no column yet, and
+the proposal is a migration in this task. Q-14 affects symbols spelled differently on the two markets; Q-05 (the
+pair list) is still open, so the job must work on whatever pairs an administrator has registered.
 
-**To do at the start of that session** (written from the task row; the SRS ids have not been read yet): read
-BR-07, UC-45, BR-23, BR-30 and TECHNICAL_DESIGN 5.4 and 6, then replace this block with the real one.
+**To do at the start of that session** (written from the task row): read NSF-01 (SRS 3.3), UC-45, SCR-37 and
+TECHNICAL_DESIGN 7.1, then replace this block.
 
-**What T-017 leaves ready for it:** `market.client.ExchangeSymbol` already carries `tickSize`, `stepSize`,
-`minQuantity` and `minNotional` as `BigDecimal` exactly as the exchange sent them, and `isTrading()`; the model
-of T-018 should take its filters from there (through T-019's job), never from a seed — Q-05 is still open and the
-seed deliberately holds no pair.
+**What T-017 and T-018 leave ready:** `BinanceRestClient.spotExchangeInfo()` / `futuresExchangeInfo()` and their
+caller contract (skip the run and reschedule at or after `retryAt`, never loop or sleep);
+`ExchangeSymbolMapper.toListing(market, symbol)`; `CryptoPair.applyFilters(market, filters)`;
+`CryptoPairRepository.findBySymbol`; `CoinRepository.findBySymbol`; `Coin.fromExchange(symbol)`. The mapper drops
+non-perpetual futures and unusable filters silently — log what is dropped (D-38).
 
 ---
 
@@ -403,6 +407,8 @@ seed deliberately holds no pair.
 | Q-11 | How long a verification mail is throttled before it may be resent | 2026-09-21 | T-011 | Team + BE1 | **ANSWERED BY THE SRS, needs confirming — the question's premise was wrong.** SRS section 3.2.2 states it verbatim: "Resending is limited to once per 60 seconds and 5 times per day per email; a new token invalidates previous unused verification tokens." The row was raised saying the SRS gave no window; it does, and T-011 implements exactly that text rather than a number anyone chose. Two residual points, both recorded rather than guessed: the SRS says *per email* and the implementation counts per account, which coincide while an address identifies one account (A-21 covers neither); and the SRS fixes no boundary for "per day", so the count runs from 00:00 UTC+7 borrowed from BR-50 — **that** is the part still genuinely open, and it is A-21. Close this row once the team confirms the reading |
 | Q-12 | T-015 is named "role policies **and entitlement handler**", but the entitlement handler cannot be built where the backlog places it. `@entitlement.has(authentication, 'AI')` calls `BillingApi.hasActiveEntitlement` (TECHNICAL_DESIGN 7.12), and the `billing` module arrives in P10 (T-065, T-066). T-015's dependency column lists only T-012, which is wrong: the task as written cannot be finished before P10 | 2026-09-21 | T-015 (entitlement half), T-062, T-075 | BE1 + Team | **OPEN** — the role half is done and proved; the two matrix rows that need entitlement (SCR-29 AI Assistant, and Post Video on SCR-26) are enforced at their role level (`/api/v1/ai/**` and `/api/v1/media/**` are TRADER) with the subscription check still to come. Decide which: move the entitlement handler into T-066 where `BillingApi` is born, or open a new P10 task for it and cut T-015 down to role policies. Nothing should build the handler against a stub `BillingApi`, because an entitlement source that always answers "no" is indistinguishable from a working one until P10 lands and would pass its own tests |
 | Q-13 | T-014's "Done when" says "Avatar upload validated", but SRS 3.2.5 stores the avatar (JPG, PNG or WEBP, at most 2 MB) in **Media Storage**, and the Media Storage adapter is T-061 (Cloudinary, signed upload) in P9. Accepting an avatar URL from the client before that exists would let a profile point at any address on the internet; storing the file anywhere else would be a second media store | 2026-09-24 | T-014 (avatar half) | BE2 + Team | RESOLVED 2026-09-24: the avatar is its own task, **T-101** (depends on T-061 and T-014), and T-014 is DONE without it. `UserProfile.changeAvatar` already exists and nothing calls it yet |
+| Q-14 | The logical model keeps **one row per symbol** with Spot and futures as columns, and the schema follows it (`uq_crypto_pair_symbol`; `market_type` is part of the key of `ohlcv`, `technical_indicator` and the plan and watch tables). That is sound while a symbol is spelled the same on both markets, which is true for most pairs. It is **not** true for some: on 2026-09-24 Spot lists `SHIBUSDT` (base `SHIB`) while futures lists `1000SHIBUSDT` (base `1000SHIB`). One row cannot hold both, and T-018 has no way to link them | 2026-09-24 | T-019 (for such symbols), Q-05 | Team | **OPEN** — options: (a) keep the model and treat such a pair as Spot-only or futures-only, choosing the pair list (Q-05) so it does not matter for the demo; (b) add a nullable `futures_symbol` to `crypto_pair` in a new migration so one pair can name its futures contract; (c) one row per market, which changes every foreign key to `crypto_pair` and the logical model. Recommended: (a) now, (b) if a demo pair needs it. The hot-column check is clean and should stay so: `crypto_pair` holds no per-second field; last prices stay in Redis and the snapshot tables |
+| Q-15 | NSF-01 says "a pair whose status is no longer TRADING is flagged on SCR-37", but `crypto_pair` has no column for the exchange's trading status (only the administrator's `pair_status`), so the flag has nowhere to live | 2026-09-24 | T-019 (the flag), T-085 (showing it) | BE2 + Team | **OPEN** — proposed: a new migration in T-019 adding `spot_exchange_status` and `futures_exchange_status` (nullable `varchar(32)`) to `crypto_pair`, written by the daily sync — once a day, so not a hot column. `ExchangeListing.trading` already carries the value |
 | Q-06 | Flutter chart library (ADR-012) | 2026-09-19 | T-090 | FE | OPEN |
 | Q-07 | Hosting for staging (VPS provider and size) and the demo domain. A managed PostgreSQL service usually cannot install TimescaleDB, so self-hosted Docker on a VPS is assumed | 2026-09-19 | T-096 | DO | OPEN |
 | Q-08 | Confirm the database stack: PostgreSQL 16 + TimescaleDB 2.x in Docker, EF Core migrations (earlier drafts mentioned Flyway and PostgreSQL 14/15) | 2026-09-19 | T-004, T-005, T-006, T-007, T-009 | BE1 + BE2 | ANSWERED 2026-09-20: PostgreSQL 16 + TimescaleDB 2.x on `timescale/timescaledb:2.30.1-pg16` pinned for dev, Testcontainers and staging; Flyway SQL migrations with the TimescaleDB DDL in its own migration; staging self-hosted Docker on a VPS, no managed PostgreSQL (D-18) |
@@ -416,6 +422,35 @@ Rule: an AI agent never answers an open question by guessing. It implements what
 ## 9. Session log
 
 Newest first. One block per working session, format in `CLAUDE.md` section 8.
+
+### 2026-09-24 – T-018 Pair and coin model, pair filters
+- Result: **DONE**
+- Housekeeping (separate docs commit `d495166`): D-33, D-34, D-35 ACCEPTED (team lead, by merging PR #3); A-31
+  ACCEPTED; T-017 confirmed merged by content (`BinanceRestClient`, V7) as PR #4, `b52fe40`.
+- Summary: `market.MarketType` and `market.PairFilters` (module root; tick, step, minimum notional; `floorQuantity`
+  per BR-23, `roundPrice` half-up per BR-30, `isBelowMinNotional`); entities `Coin` and `CryptoPair` (+ `PairStatus`)
+  over the V1 tables; `CoinRepository`, `CryptoPairRepository` (by symbol; enabled on one market in display order);
+  `service.ExchangeSymbolMapper` → `ExchangeListing`, a pure function for T-019. No controller: the task defines
+  no read API. No sync job, no seed.
+- Phase 0: `coin` and `crypto_pair` already exist in V1 exactly as the logical model defines them, with PK, FKs
+  to `coin`, `UNIQUE (symbol)`, the status and distinct-coin checks and NUMERIC(28,12)/(28,8) filters — **no
+  migration**. The model is one row per symbol with both markets as columns, so `UNIQUE (symbol, market_type)`
+  does not apply; changing it would touch every foreign key to the pair and is not T-018's call (Q-14). No hot
+  column on the pair table. The exchange trading status has no column (Q-15). `minQty` is not stored, and
+  TECHNICAL_DESIGN 7.5 does not need it.
+- Real data: the filter fixtures were checked against the live exchange information on 2026-09-24 rather than
+  remembered — which corrected two remembered values (BTCUSDT futures minimum notional is 50, SHIBUSDT Spot's is
+  1) and confirmed both risks: futures lists `1000SHIBUSDT` and the quarterly `BTCUSDT_260925`.
+- Files: `market/{MarketType, PairFilters}`, `market/entity/{Coin, CryptoPair, PairStatus, PairSymbols}`,
+  `market/repository/{CoinRepository, CryptoPairRepository}`, `market/service/{ExchangeListing, ExchangeSymbolMapper}`
+- Tests: +56 (848 → 904); suite 904/904; coverage Domain — / Backend 98.95% line (1231/1244), branches 95.18%
+  (336/353). No schema pin changed (no new table or column).
+- BR/UC/NSF covered: BR-07, BR-23, BR-25 (minimum notional), BR-30; UC-45 (model half); NSF-01 (mapping half).
+- Decisions: **D-38** PROPOSED. Open questions: **Q-14**, **Q-15** raised.
+- Next: T-019.
+- Commits, on `feature/T-018-pair-and-coin-model` and **unpushed**: `969358e` feat(market): add pair filters and
+  market type · `9f2b1fd` feat(market): add coin and pair entities and repositories · `f9efb42` feat(market): map
+  binance exchange symbols to listings. Each compiles on its own.
 
 ### 2026-09-24 – T-017 follow-up: rebase, persisted ban, rejection contract, parsing rule
 - Result: **DONE** (T-017)
