@@ -6,10 +6,10 @@ BusinessRule,BR-04,A password reset link is valid for 30 minutes and can be used
 BusinessRule,BR-05,"Each account has exactly one role, TRADER or ADMIN. Self-registered accounts are always TR",,backend\src\test\java\com\cryptopilot\schema\SchemaConstraintTest.java,BR05_aClaimThatIsNotARole_grantsNoAuthority; BR05_aLegalTransition_movesTheAccountToTheExpectedStatus; BR05_aSelfRegisteredAccount_isAlwaysAnActiveTraderWithAnUnverifiedAddress …,COVERED
 BusinessRule,BR-06,A LOCKED or BANNED account cannot log in; changing an account to LOCKED or BANNED revokes ,,backend\src\test\java\com\cryptopilot\user\entity\UserAccountTest.java,BR06_aBannedUnverifiedAccount_isRefusedForItsStatusRatherThanItsAddress; BR06_aLockedOrBannedAccount_cannotLogIn; BR06_aLockedOrBannedAccount_cannotSignIn …,COVERED
 BusinessRule,BR-07,"Only pairs and markets enabled by Admin are shown, collected and available for alerts and ",,,,NOT_COVERED
-BusinessRule,BR-08,Only closed candles are stored and used for indicators. Supported analysis timeframes are ,,,,NOT_COVERED
-BusinessRule,BR-09,Market data comes only from the public Binance Market Data API. The system uses no exchang,,,,NOT_COVERED
+BusinessRule,BR-08,Only closed candles are stored and used for indicators. Supported analysis timeframes are ,,backend\src\test\java\com\cryptopilot\market\client\BinanceRestClientTest.java,BR08_aCandle_isClosedOnlyAfterItsCloseTime,COVERED
+BusinessRule,BR-09,Market data comes only from the public Binance Market Data API. The system uses no exchang,,backend\src\test\java\com\cryptopilot\market\client\BinanceRequestGateTest.java; backend\src\test\java\com\cryptopilot\market\client\BinanceRestClientTest.java,BR09_a418_stopsEveryCallToThatVenueUntilTheBanEnds; BR09_a429WithoutRetryAfter_waitsTheConfiguredDefault; BR09_a429_isWaitedOutForItsRetryAfterAndNeverRetried …,COVERED
 BusinessRule,BR-10,Open interest and long/short ratio history older than 30 days is not available from the so,,,,NOT_COVERED
-BusinessRule,BR-11,The funding time and interval of a futures pair are read from the source (next funding tim,,,,NOT_COVERED
+BusinessRule,BR-11,The funding time and interval of a futures pair are read from the source (next funding tim,,backend\src\test\java\com\cryptopilot\market\client\BinanceRestClientTest.java,BR11_premiumIndex_readsTheNextFundingTimeFromTheSource,COVERED
 BusinessRule,BR-12,"Indicators: SMA20; EMA20, EMA50, EMA200; RSI14 with Wilder smoothing; MACD with EMA12, EMA",,,,NOT_COVERED
 BusinessRule,BR-13,"Setup score = weighted sum of component scores (each 0-100), rounded to an integer. Spot w",,,,NOT_COVERED
 BusinessRule,BR-14,Support is the nearest swing low below the close and resistance the nearest swing high abo,,,,NOT_COVERED
@@ -28,7 +28,7 @@ BusinessRule,BR-26,Futures plans use isolated margin only. Leverage is an intege
 BusinessRule,BR-27,"Estimated liquidation price (isolated, one-way, fees ignored): LONG = entry × (1 − 1/lever",,,,NOT_COVERED
 BusinessRule,BR-28,A LONG futures plan requires stop loss > liquidation price and a SHORT plan requires stop ,,,,NOT_COVERED
 BusinessRule,BR-29,Warnings (thresholds configurable in System Settings): LOW_RR (WARNING) when risk/reward <,,backend\src\test\java\com\cryptopilot\schema\SeedDataTest.java,BR29_warningThreshold_isSeededWithTheValueTheRuleStates,COVERED
-BusinessRule,BR-30,Input ranges: capital > 0; risk % from 0.1 to 10; leverage integer from 1 to the allowed m,T-014,backend\src\test\java\com\cryptopilot\user\controller\ProfileControllerTest.java,BR30_aDefaultCapitalThatIsNotPositive_answersMsg15; BR30_aDefaultRiskAtEitherEnd_isAccepted; BR30_aDefaultRiskOutsideTheRange_answersMsg15 …,COVERED
+BusinessRule,BR-30,Input ranges: capital > 0; risk % from 0.1 to 10; leverage integer from 1 to the allowed m,T-014,backend\src\test\java\com\cryptopilot\user\controller\ProfileControllerTest.java,BR30_aDefaultCapitalThatIsNotPositive_answersMsg15; BR30_aDefaultRiskAtEitherEnd_isAccepted; BR30_aDefaultRiskOutsideTheRange_answersMsg15 …,REGRESSED
 BusinessRule,BR-31,Calculation results are stored as a snapshot when a plan is saved and re-calculated at act,,,,NOT_COVERED
 BusinessRule,BR-32,Plan lifecycle: DRAFT → ACTIVE → EXECUTED; DRAFT or ACTIVE → CANCELLED by the Trader; ACTI,,,,NOT_COVERED
 BusinessRule,BR-33,A LIMIT entry of a LONG plan is filled when the last price is equal to or below the entry ,,,,NOT_COVERED
@@ -60,10 +60,10 @@ BusinessRule,BR-58,"An Admin cannot lock, ban or change the role of their own ac
 BusinessRule,BR-59,A pair or market with open simulated positions cannot be disabled; ACTIVE plans of a disab,,,,NOT_COVERED
 BusinessRule,BR-60,"Screens that show analysis, setup score, trading plans or AI answers display the disclaime",,,,NOT_COVERED
 BusinessRule,BR-61,Only Admin can publish official announcements; official posts are pinned at the top of the,,,,NOT_COVERED
-NonScreenFunction,NSF-01,Symbol Synchronization,,,,NOT_COVERED
-NonScreenFunction,NSF-02,Historical Candle Backfill,,,,NOT_COVERED
+NonScreenFunction,NSF-01,Symbol Synchronization,T-017 (source access only),backend\src\test\java\com\cryptopilot\market\client\BinanceRestClientTest.java,NSF01_spotExchangeInfo_readsStatusAndFilters; NSF01_futuresExchangeInfo_readsContractTypeAndItsMinNotional,PARTIAL
+NonScreenFunction,NSF-02,Historical Candle Backfill,T-017 (source access only),backend\src\test\java\com\cryptopilot\market\client\BinanceRestClientTest.java,NSF02_spotKlines_readTheFieldOrderAndSendTheRange; NSF02_atEightyPercentOfTheBudget_theVenueIsPausedUntilTheNextMinute …,PARTIAL
 NonScreenFunction,NSF-03,Realtime Market Stream Ingestion,,,,NOT_COVERED
-NonScreenFunction,NSF-04,Futures Metrics Collection,,,,NOT_COVERED
+NonScreenFunction,NSF-04,Futures Metrics Collection,T-017 (source access only),backend\src\test\java\com\cryptopilot\market\client\BinanceRestClientTest.java,NSF04_fundingRates_readSettledRatesAndAnAbsentMarkPrice; NSF04_openInterest_readsThePresentValue …,PARTIAL
 NonScreenFunction,NSF-05,Indicator and Setup Score Calculation,,,,NOT_COVERED
 NonScreenFunction,NSF-06,Alert Evaluation,,,,NOT_COVERED
 NonScreenFunction,NSF-07,Simulated Order Matching,,,,NOT_COVERED

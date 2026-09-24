@@ -81,8 +81,8 @@ Only the backend owns the database (single writer). The AI Service has no databa
 | Cache | Redis 7, image `redis:7.4.11-alpine` pinned (Spring Data Redis, Lettuce) | Latest prices only; cache only, so losing it never loses business data (Q-09) |
 | Scheduling | Spring `@Scheduled` | Single instance; ShedLock only if a second instance is ever added |
 | Async side effects | Spring Modulith event publication registry (JDBC) + `@ApplicationModuleListener` | Transactional outbox (ADR-010) |
-| HTTP clients | Spring `RestClient`; JDK `java.net.http.WebSocket` for Binance streams | |
-| Resilience | Timeouts on every client; Spring Framework 7 `@Retryable` / `@ConcurrencyLimit`; circuit breaker added in T-017 after checking Spring Boot 4 compatibility | |
+| HTTP clients | Spring `RestClient` over the JDK `HttpClient` (connect and read timeouts); JDK `java.net.http.WebSocket` for Binance streams | T-017: `market.client.BinanceRestClient` (7.1.2) |
+| Resilience | Timeouts on every client; Spring Framework 7 `RetryTemplate` / `@Retryable` / `@ConcurrencyLimit`; the Binance client's circuit breaker is written in the client (D-37, 7.1.2) because Resilience4j's Boot 4 support was not confirmed | |
 | Validation | Jakarta Bean Validation (`spring-boot-starter-validation`) | Request DTOs |
 | Security | Spring Security, OAuth2 Resource Server (JWT, HS256), `BCryptPasswordEncoder(12)` | |
 | Rate limiting | Bucket4j (in-memory) in a servlet filter | |
@@ -95,7 +95,7 @@ Only the backend owns the database (single writer). The AI Service has no databa
 | AI Service | Node.js LTS, TypeScript, Fastify, zod, @anthropic-ai/sdk, bottleneck | Unchanged |
 | Web | React 18 + TypeScript + Vite, TanStack Query, React Router, React Hook Form + zod, @stomp/stompjs, TradingView Lightweight Charts | |
 | Mobile | Flutter (stable), Riverpod, dio, go_router, stomp_dart_client | Chart library in ADR-012 |
-| Tests | JUnit Jupiter, AssertJ, Mockito — Boot 4 has no single `spring-boot-starter-test`; pull the per-slice starters (`spring-boot-starter-webmvc-test`, `-actuator-test`, `-validation-test`, later `-data-jpa-test`). Plus Testcontainers, WireMock, ArchUnit, Spring Modulith Test, jqwik; Vitest, Playwright, k6 | |
+| Tests | JUnit Jupiter, AssertJ, Mockito — Boot 4 has no single `spring-boot-starter-test`; pull the per-slice starters (`spring-boot-starter-webmvc-test`, `-actuator-test`, `-validation-test`, later `-data-jpa-test`). Plus Testcontainers, WireMock (not yet added — the Binance client is tested against a JDK `com.sun.net.httpserver` stand-in, D-36), ArchUnit, Spring Modulith Test, jqwik; Vitest, Playwright, k6 | |
 
 Library versions are managed by the Spring Boot BOM wherever possible; any extra library version is declared once in the `<properties>` of `backend/pom.xml`.
 
@@ -558,6 +558,62 @@ Algorithm:
 8. Funding settlement (NSF-04): after each `nextFundingTime` passes, read funding rate history (`/fapi/v1/fundingRate`, which returns the settled rate and mark price) and write one `funding_rate_history` row per pair and settlement instant, `INSERT … ON CONFLICT DO NOTHING` (idempotent by the primary key `(pair_id, funding_time)`). These rows are never deleted: a closed trade's P/L is recomputed from them (7.8). The periodic snapshot of step 7 keeps carrying the *predicted* rate; the two are not interchangeable (section 6).
 
 Complexity: O(1) per message; backfill O(N/1000) requests.
+
+#### 7.1.1 Binance limits, verified 2026-09-24 (T-017)
+
+Every value below was read from the official documentation on 2026-09-24, not remembered. The code takes none of
+them as a literal: base URLs and weight budgets are `cryptopilot.market.binance.*` properties, and the current
+use is read from the response header on every call. Re-check the sources when a limit is changed.
+
+| Item | Spot | USD-M Futures | Source |
+|---|---|---|---|
+| REST base URL | `https://api.binance.com` | `https://fapi.binance.com` | [spot general endpoints](https://developers.binance.com/docs/binance-spot-api-docs/rest-api/general-endpoints), [futures general info](https://developers.binance.com/docs/derivatives/usds-margined-futures/general-info) |
+| REQUEST_WEIGHT budget | 6000 per 1 minute, per IP | 2400 per 1 minute, per IP | `rateLimits` of spot `GET /api/v3/exchangeInfo` ([spot](https://developers.binance.com/docs/binance-spot-api-docs/rest-api/general-endpoints)) and of `GET /fapi/v1/exchangeInfo` ([futures](https://developers.binance.com/docs/derivatives/usds-margined-futures/market-data/rest-api/Exchange-Information)) |
+| Used-weight header | `X-MBX-USED-WEIGHT-(intervalNum)(intervalLetter)`, i.e. `X-MBX-USED-WEIGHT-1M` | same | [spot limits](https://developers.binance.com/docs/binance-spot-api-docs/rest-api/limits), [futures general info](https://developers.binance.com/docs/derivatives/usds-margined-futures/general-info) |
+| 429 | Rate limit exceeded; `Retry-After` gives the **seconds** to wait to avoid a ban | 429 on violation; back off | same two pages |
+| 418 | IP auto-banned for continuing after 429; bans scale from 2 minutes to 3 days; `Retry-After` tells when the ban ends | same wording, same range | same two pages |
+| Limits keyed by | IP, not API key | IP | [spot limits](https://developers.binance.com/docs/binance-spot-api-docs/rest-api/limits) |
+| 503 / 5XX | — | "Service unavailable" may be retried with exponential back-off; a timeout with "Unknown error" means the outcome is unknown (relevant to orders only, which this system never sends) | [futures general info](https://developers.binance.com/docs/derivatives/usds-margined-futures/general-info) |
+| Endpoint weights used by T-017 | `exchangeInfo` 20; `klines` 2 (limit max 1000, default 500) | `exchangeInfo` 1; `klines` 1–10 by limit (max 1500); `premiumIndex` 1 with symbol; `/futures/data/globalLongShortAccountRatio` 0 (period 5m…1d, limit max 500, latest 30 days only) | [spot market data](https://developers.binance.com/docs/binance-spot-api-docs/rest-api/market-data-endpoints), [futures market data](https://developers.binance.com/docs/derivatives/usds-margined-futures/market-data/rest-api) |
+| Stream base | `wss://stream.binance.com:9443` or `:443`; combined `/stream?streams=a/b` | `wss://fstream.binance.com` | [spot WSS](https://github.com/binance/binance-spot-api-docs/blob/master/web-socket-streams.md), [futures connect](https://developers.binance.com/docs/derivatives/usds-margined-futures/websocket-market-streams/Connect) |
+| Connection lifetime | 24 hours; disconnected at the 24-hour mark; `serverShutdown` event before a shutdown | 24 hours | same |
+| Ping / pong | Server pings every **20 s**; no pong within **1 minute** → disconnected; pong must copy the ping payload | Server pings every **3 minutes**; no pong within **10 minutes** → disconnected | same |
+| Incoming messages | **5** per second per connection; beyond it disconnected, repeat offenders may be banned | **10** per second | same |
+| Streams per connection | 1024 | 1024 | same |
+| Connection attempts | 300 connections per 5 minutes per IP | not stated on the page read | [spot WSS](https://github.com/binance/binance-spot-api-docs/blob/master/web-socket-streams.md) |
+
+Two consequences for later tasks. **T-021:** step 1 above caps a combined connection at 100 streams, well under
+the 1024 allowed, and the proactive 23-hour reconnect of step 6 stays inside the 24-hour lifetime; the spot pong
+deadline (1 minute) is far tighter than the futures one (10 minutes), so the JDK `WebSocket` must answer pings
+itself on both. **T-017:** step 5's "pause when above 80% of limit" is enforced by the client itself (below).
+
+#### 7.1.2 REST client (T-017)
+
+`market.client.BinanceRestClient` is the only class that calls the Binance REST API, and it is an
+anti-corruption layer: the wire shapes stay package-private and callers receive `ExchangeSymbol`, `Kline`,
+`PremiumIndex`, `FundingRate`, `OpenInterest` and `LongShortRatio`, with every price and quantity parsed from the
+exchange's string straight into `BigDecimal`. Endpoints are the ones T-019, T-020 and T-023 need and no others:
+spot and futures `exchangeInfo` and `klines`; futures `premiumIndex`, `fundingRate`, `openInterest` and
+`globalLongShortAccountRatio`. Public endpoints only, no key (BR-09).
+
+Resilience, per venue (spot and futures have separate IP budgets, so separate state):
+
+1. **Timeouts** on connect and read for every call (`connect-timeout`, `read-timeout`).
+2. **Weight budget.** `X-MBX-USED-WEIGHT-1M` is recorded from every response. When it reaches
+   `weight-pause-ratio` (0.8) of the venue's `request-weight-per-minute`, the client refuses further calls until
+   the next minute begins, with `BinanceClientException` of kind `RATE_LIMITED` and the instant to retry at. The
+   client never sleeps for a budget; the job that called it decides.
+3. **429** — refuse every call until `Retry-After` seconds have passed (or `default-retry-after` when the header
+   is missing). Never retried.
+4. **418** — the IP is banned: refuse every call until `Retry-After`, and log at ERROR, the alert level. Never
+   retried.
+5. **5xx, timeout, connection failure** — retried with Spring Framework 7 `RetryTemplate` (exponential back-off
+   with jitter, `retry.*` properties). A call that still fails counts towards the **circuit breaker**: after
+   `circuit-breaker.failure-threshold` consecutive failed calls the venue is refused for
+   `circuit-breaker.open-duration`, then one trial call is allowed. Written in the client rather than added as
+   Resilience4j, because it is thirty lines and Resilience4j's Spring Boot 4 support was not confirmed.
+6. **Other 4xx** (a bad symbol, a bad interval) — `REJECTED`, never retried, never counted as an outage.
+7. **Malformed body** — `MALFORMED`, never retried.
 
 ### 7.2 Incremental indicators (NSF-05, BR-12)
 

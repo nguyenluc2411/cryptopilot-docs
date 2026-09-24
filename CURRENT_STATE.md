@@ -1,16 +1,17 @@
 # CURRENT_STATE.md — CryptoPilot Project State
 
-**Last updated:** 2026-09-24 · **Document version:** 2.12 · **Phase:** P0 done bar the DO tasks; P1 done bar T-015 (PARTIAL, Q-12) and the web screens
-**Next task:** `T-017` — Binance market data client (REST) with resilience policies (first task of P2 on the critical path). `T-016` (web identity screens) is now unblocked as well.
-T-014 is `DONE`. The avatar was split out into **T-101** (Q-13, resolved), which depends on the Media Storage
-adapter of T-061. A follow-up the same day closed three gaps in what T-014 had built: an access token now dies
-with its session — the `sid` claim is checked on every request against the token table, through a one-minute
-in-memory cache that every session-ending path evicts (D-33, updated); guessing the current password on the
-Security tab ends every session of the account at the fifth wrong answer without locking the sign-in (A-30,
-resolved, migration V6); and device registration is one atomic upsert, so two registrations of the same token
-can no longer fail on the unique index or on a deleted row (D-34, updated). Everything is committed on
-`feature/T-014-profile-and-devices` (8 commits) and **not pushed**. Still open from before: T-015 `PARTIAL`
-(Q-12, entitlement needs `BillingApi` from P10) and T-007 `PARTIAL` (seed sets wait on Q-04 and Q-05).
+**Last updated:** 2026-09-24 · **Document version:** 2.13 · **Phase:** P0 done bar the DO tasks; P1 done bar T-015 (PARTIAL, Q-12) and the web screens; P2 started
+**Next task:** `T-018` — pair and coin model, pair filters (tick, step, min notional). T-019 needs it together with T-017; T-020 and T-023 are unblocked by T-017 as well, and T-016 by T-014.
+T-017 is `DONE`: `market.client.BinanceRestClient` reads the public Spot and USD-M futures REST API — exchange
+information, klines, premium index, funding rates, open interest and the long/short account ratio — with every
+price parsed from the exchange's string straight to `BigDecimal`. Per venue it reads the used weight from every
+response and pauses at 80% of the budget, waits out 429 and 418 for their `Retry-After` (418 logged as an alert),
+retries 5xx and timeouts with back-off, and opens a circuit breaker after repeated failures (D-36, D-37). Every
+Binance limit was verified against the official documentation and recorded with its source in TECHNICAL_DESIGN
+7.1.1. **The WebSocket stream client was not built:** it is T-021 by the task list, not T-017. Branch
+`feature/T-017-binance-market-data-client` (2 commits, cut from `origin/develop`, which does not contain T-014)
+and `feature/T-014-profile-and-devices` (8 commits) are both local and **not pushed**. Still open from before:
+T-015 `PARTIAL` (Q-12) and T-007 `PARTIAL` (Q-04, Q-05).
 
 This file is the single source of truth for *status*. `docs/design/TECHNICAL_DESIGN.md` owns *how*; the SRS owns *what*. Every working session starts by reading this file and ends by updating it (`CLAUDE.md` sections 1 and 8).
 
@@ -59,7 +60,7 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 |---|---|---|---|---|---|
 | P0 Foundation | S0 | Repo, CI, database, docker, architecture tests | 9 | 5 | WIP — T-007 PARTIAL |
 | P1 Identity | S1 | Register, verify, login, tokens, profile, devices | 8 | 6 | WIP — T-015 PARTIAL, T-016 TODO (unblocked) |
-| P2 Market Data | S2 | Pairs, backfill, streams, futures metrics | 8 | 0 | TODO — T-017 NEXT |
+| P2 Market Data | S2 | Pairs, backfill, streams, futures metrics | 8 | 1 | WIP — T-017 DONE, T-018 NEXT |
 | P3 Analysis | S2–S3 | Indicators, S/R, setup score | 5 | 0 | TODO |
 | P4 Market UI | S3 | Public home, market list, spot/futures analysis | 5 | 0 | TODO |
 | P5 Trading Plan | S3–S4 | Risk calculation, warnings, plan lifecycle | 7 | 0 | TODO |
@@ -73,10 +74,10 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 | P13 Administration | S10 | Users, moderation, config, reports, audit | 7 | 0 | TODO |
 | P14 Mobile | S11 | Flutter app, push, offline | 5 | 0 | TODO |
 | P15 Hardening | S12 | E2E, performance, security, deploy, docs | 7 | 0 | TODO |
-| **Total** | | | **101** | **11** | **11%** |
+| **Total** | | | **101** | **12** | **12%** |
 
-**Coverage:** `calculator` packages — no class yet (gate 90%) · Backend 98.42% line (811/824), branches 95.98% (215/224) (gate 70%), measured after the T-014 follow-up · AI Service —% (gate 80%).
-**Test suite:** 792 passed / 792 total after the T-014 follow-up (`./mvnw clean verify`, Spring Boot 4.1.1): 768 after T-014, +24 in the follow-up (8 session cache, 5 session revocation over HTTP, 3 wrong current password over HTTP, 3 account counter, 2 V6 migration, 2 device registration race, 1 password change without `sid`). The suite needs Docker running (Testcontainers) and a signing key (`JWT_SECRET`, supplied by the Surefire configuration, D-20).
+**Coverage:** `calculator` packages — no class yet (gate 90%) · Backend on the T-017 branch 98.65% line (952/965), branches 95.31% (244/256) (gate 70%); on the T-014 branch 98.42% / 95.98% · AI Service —% (gate 80%). The two branches have not been merged together yet, so there is no single figure.
+**Test suite:** T-017 branch 747/747 (`./mvnw clean verify`): the 705 of `develop` plus 42 for the Binance client (37 REST client against a local stand-in server, 4 request gate, 1 candle close). T-014 branch 792/792. Two tests tagged `live` call the real exchange and are excluded from the default build (`-Dgroups=live -Dsurefire.excludedGroups=none` runs them; they passed once on 2026-09-24). The suite needs Docker running (Testcontainers) and a signing key (`JWT_SECRET`, supplied by Surefire, D-20).
 
 > The figure before T-015 was recorded here as 578; the measured baseline was **576** — the "148 shared kernel" was 146. T-015 added 98 tests (80 + 11 + 7 in `ErrorCodeTest` from the two new codes), so 576 + 98 = 674.
 **Merged to `develop`:** everything built so far. `develop` is at `428e66d` (`5311036` plus one docs commit) after a **fast-forward** of the whole
@@ -87,7 +88,7 @@ stands behind this merge is the suite (705/705), the pre-merge hygiene scan and 
 A human pass over `develop..14fe422` is still worth doing. Fast-forward was chosen over a merge commit because
 `develop` was strictly behind, so the history is linear and no commit names the branch it arrived on. `main` is
 untouched.
-**Not merged:** `feature/T-014-profile-and-devices`, 8 commits on top of `develop` (`9972550` … `16db72c`), local only.
+**Not merged:** `feature/T-014-profile-and-devices`, 8 commits on top of `develop` (`9972550` … `16db72c`), and `feature/T-017-binance-market-data-client`, 2 commits on top of `develop` (`43bb438`, `0d0ee0b`); both local only. They touch different modules and should merge without conflict; `pom.xml` and `application.yml` are the only files T-017 shares with anything.
 **Deployed:** dev — · staging —
 
 ### Critical path
@@ -140,6 +141,8 @@ Decisions that bind the code. An AI agent must follow `APPROVED` rows and must n
 | D-33 | 2026-09-24 | Every access token carries a `sid` claim: the family id of the refresh token issued beside it. SRS 3.2.5 says a password change revokes all **other** sessions, and an access token that names only an account cannot say which session is "this one". The claim grants nothing and identifies a sign-in, not a person; the name is OpenID Connect's for a session identifier. A token without it (issued before T-014) is read as naming no session, and then every session is revoked — the stronger reading of the rule, costing the caller one sign-in. **Rejected:** sending the refresh token in the password-change body, because it puts the one long-lived credential into a second endpoint; revoking every session including the caller's and issuing a new pair in the response, because it contradicts "other" and turns a password change into a sign-in. **Extended in the T-014 follow-up:** the claim is also checked on every request — `SessionLivenessValidator` refuses a token whose family holds no unused refresh token, through `LiveSessions`, an in-memory answer cache of at most one minute evicted per account after the commit of every path that ends sessions. **Rejected:** a query per request with no cache, which puts a database read in front of every endpoint; Redis, which is not a dependency yet and would be the only reason to add it now. **The cost, stated:** one more claim in a token every request carries; rotation must keep the family, which it already does (TD 7.15); every future path that ends sessions (BR-06 in T-083) must evict, or its sessions live on for up to a minute; and the cache is per process, so a second instance needs the shared cache | PROPOSED | T-014 |
 | D-34 | 2026-09-24 | Device tokens. A token is unique across accounts, so registering one decides by who holds it: nobody → a new row; the caller → the same row reactivated and seen now; another account → the row becomes a new device of the caller's (new key, new creation instant). **Since the T-014 follow-up all three cases are one statement,** `INSERT ... ON CONFLICT (fcm_token) DO UPDATE` over `uq_user_device_fcm_token`, because the read-then-delete-then-insert it replaced failed two registrations arriving together (unique violation, or a delete of a row already gone) — `DeviceRegistrationConcurrencyTest` failed on the old code and passes on the new. Deactivation is by device key from the signed-in app (`DELETE /me/devices/{id}`, never the token in a URL) and by token from `POST /auth/logout`, whose optional `fcmToken` is deactivated only if it belongs to the account the refresh token belongs to. **Rejected:** moving the row to the new account, which would hand one account's device history to another; relying on the app calling `DELETE` before logout alone, because an app whose access token has expired would have to refresh first just to be silenced. **The cost, stated:** two ways to deactivate, and the logout body is now wider than the refresh body (`LogoutRequest` vs `RefreshRequest`) | PROPOSED | T-014 |
 | D-35 | 2026-09-24 | A wrong current password on the Security tab is its own error code, `CURRENT_PASSWORD_INCORRECT`, 400 with MSG08 — not `INVALID_CREDENTIALS`, which is 401. A 401 on a request that carried a valid access token tells a client its session is over and would send somebody who mistyped back to SCR-04. Same message, different status | PROPOSED | T-014 |
+| D-36 | 2026-09-24 | The Binance client is tested against a local stand-in built on the JDK's `com.sun.net.httpserver`, not WireMock. The task row and TECHNICAL_DESIGN 11.1 name WireMock, but it is not in `pom.xml`, and every case T-017 needs — a status, headers, a body, a delay, a count of requests — is thirty lines on the JDK server. **Rejected:** adding WireMock now, a dependency for canned answers; `MockRestServiceServer`, because it replaces the HTTP layer and so cannot produce a real read timeout or a refused connection. **The cost, stated:** a small test helper (`StubExchange`) to maintain; the payment adapters (T-067, T-068) may still want WireMock for signature fixtures, and that is the moment to decide again | PROPOSED | T-017 |
+| D-37 | 2026-09-24 | Resilience of the Binance client is built from what the stack already has: Spring Framework 7 `RetryTemplate` for transient failures, and a circuit breaker of about thirty lines in `BinanceRequestGate` (consecutive failed calls open it for a fixed time, then one trial call). TECHNICAL_DESIGN 1.3 left the breaker to T-017 "after checking Spring Boot 4 compatibility"; Resilience4j's Boot 4 support was not confirmed, and the breaker needed here is small. The same gate enforces the weight budget and the 429/418 waits per venue, and it **refuses** rather than sleeps: a refusal carries the instant to retry at, and the job that called decides. **The cost, stated:** a breaker the project owns and tests itself; if a second integration (AI Service, payment) needs one, move to Resilience4j then rather than copy this one | PROPOSED | T-017 |
 **Action:** D-02 and D-03 were confirmed by the team on 2026-09-19 and are `APPROVED`; D-18 on 2026-09-20. D-04 … D-09 still need confirmation; D-06 and D-07 are already load-bearing in committed code (T-008). D-19 and D-20 are load-bearing as of T-007 and need confirmation before the first staging deployment, because D-20 decides how an operator obtains the first administrator. D-21 and D-22 are load-bearing as of T-010; D-21 is the one worth arguing about, because reversing it later means touching every entity that was written under it. D-29 and D-30 are load-bearing as of T-100; D-31 and D-32 as of T-013. D-23 … D-26 are load-bearing as of T-011 and T-012; D-26 is the one to re-read if the refresh windows of SRS 3.2.3 are ever changed, because it infers "Remember me" from the length of the window rather than from a stored flag.
 
 ---
@@ -228,8 +231,8 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 
 | ID | Task | Owner | Dep | Refs | Done when | Status |
 |---|---|---|---|---|---|---|
-| T-017 | Binance market data client (REST) with resilience policies | BE2 | T-008 | NSF-01, BR-09 | WireMock tests for success, 429, 418, 5xx; request weight respected | **NEXT** |
-| T-018 | Pair and coin model, pair filters (tick, step, min notional) | BE2 | T-005 | BR-07, UC-45 | Rounding helpers tested against real filter values | TODO |
+| T-017 | Binance market data client (REST) with resilience policies | BE2 | T-008 | NSF-01, BR-09 | WireMock tests for success, 429, 418, 5xx; request weight respected | **DONE** 2026-09-24 — Spot and futures public REST client; 429, 418, 5xx, timeouts, malformed bodies and the weight budget tested against a local stand-in server (D-36) instead of WireMock; circuit breaker in the client (D-37) |
+| T-018 | Pair and coin model, pair filters (tick, step, min notional) | BE2 | T-005 | BR-07, UC-45 | Rounding helpers tested against real filter values | **NEXT** |
 | T-019 | NSF-01 symbol synchronization job | BE2 | T-017, T-018 | NSF-01 | Daily job upserts filters; a pair that stops trading is flagged | TODO |
 | T-020 | NSF-02 historical candle backfill | BE2 | T-017 | NSF-02, BR-08 | Gap detection works; re-running inserts no duplicates | TODO |
 | T-021 | NSF-03 realtime stream ingestion (kline, ticker, mark price) | BE2 | T-017 | NSF-03, BR-08 | Only closed candles stored; reconnect with back-off; gap triggers backfill | TODO |
@@ -382,25 +385,17 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 
 ## 7. Detail block — current NEXT task
 
-### T-017 · Binance market data client (REST) with resilience policies
+### T-018 · Pair and coin model, pair filters (tick, step, min notional)
 
-**Unblocked:** its only dependency, T-008, is DONE. No alignment item or open question lists T-017 in its
-"Blocks" column. It is the first task of P2 and sits on the critical path (`P2 → P3 → P5 → P6`).
+**Unblocked:** its only dependency, T-005, is DONE. T-019 needs it together with T-017, which is now DONE.
 
-**To do at the start of that session** (this block is written from the task row and has not read the SRS
-ids yet): read SRS NSF-01 to NSF-04 (section 3.3), BR-09 and SRS 4.2.3, and TECHNICAL_DESIGN 7.1 and the
-`market` rows of 4.1, then replace this block with the real one.
+**To do at the start of that session** (written from the task row; the SRS ids have not been read yet): read
+BR-07, UC-45, BR-23, BR-30 and TECHNICAL_DESIGN 5.4 and 6, then replace this block with the real one.
 
-**What is known already**
-
-- WireMock is named in the "Done when" column and in TD 11.1 but is **not** in `pom.xml` yet; check TD 1.3
-  lists it before adding it (CLAUDE.md section 4).
-- R-02: request weights and IP limits of the exchange are the main risk of P2; the client has to read the
-  weight headers rather than assume a budget.
-- The enabled pair list is still Q-05, so tests must use recorded exchange responses and no seeded pairs.
-
-**Carried over from T-014:** decimals are now written as strings everywhere (`common.config.JacksonConfig`),
-so market DTOs need nothing per field.
+**What T-017 leaves ready for it:** `market.client.ExchangeSymbol` already carries `tickSize`, `stepSize`,
+`minQuantity` and `minNotional` as `BigDecimal` exactly as the exchange sent them, and `isTrading()`; the model
+of T-018 should take its filters from there (through T-019's job), never from a seed — Q-05 is still open and the
+seed deliberately holds no pair.
 
 ---
 
@@ -429,6 +424,42 @@ Rule: an AI agent never answers an open question by guessing. It implements what
 ## 9. Session log
 
 Newest first. One block per working session, format in `CLAUDE.md` section 8.
+
+### 2026-09-24 – T-017 Binance market data client (REST)
+- Result: **DONE**
+- Summary: new `market` module with `market.client.BinanceRestClient`, an anti-corruption layer over the public
+  Spot and USD-M futures REST API: `spotExchangeInfo`, `futuresExchangeInfo`, `klines` (both venues),
+  `premiumIndex`, `fundingRates`, `openInterest`, `longShortAccountRatios` — the endpoints T-019, T-020 and
+  T-023 need and no others. Wire JSON stays in `BinanceResponseParser`; callers get `ExchangeSymbol`, `Kline`,
+  `PremiumIndex`, `FundingRate`, `OpenInterest`, `LongShortRatio`, every decimal parsed from the string with
+  `stringValue()` so a JSON number in a price field is refused, not read through a double. Per venue,
+  `BinanceRequestGate` pauses at 80% of the weight budget until the next minute, waits out 429 and 418 for their
+  `Retry-After` (418 logged at ERROR as an alert, never retried), and opens a circuit breaker after repeated
+  failed calls; 5xx and timeouts are retried by Spring's `RetryTemplate`; connect and read timeouts on every call.
+  Hosts, budgets, timeouts, retry and breaker settings are `cryptopilot.market.binance.*`.
+- Scope held to the task row: **no WebSocket client** — streams, ping/pong, reconnect with jitter, resubscribe and
+  gap backfill are T-021 (NSF-03), which depends on this task. The limits T-021 needs were verified and recorded
+  in TECHNICAL_DESIGN 7.1.1 for it. No persistence, no Redis, no broadcast.
+- Phase 0: every Binance limit re-read from developers.binance.com and the official spot docs repository on
+  2026-09-24, with sources, in TECHNICAL_DESIGN 7.1.1 (Spot 6000 and futures 2400 weight per minute, the
+  `X-MBX-USED-WEIGHT-1M` header, 429 and 418 with `Retry-After`, bans from 2 minutes to 3 days; streams valid 24 h,
+  spot pings every 20 s with a 1-minute pong deadline, futures every 3 minutes with 10 minutes, 5 and 10 incoming
+  messages per second, 1024 streams per connection). T-014 carry-over check: `AuthService.refresh` marks the old
+  refresh token used and inserts its successor inside one `@Transactional` method — already correct, no change.
+- Files: `market/client/*` (client, parser, gate, properties, exception, six domain records, two enums),
+  `market/config/BinanceClientConfig`, `application.yml`, `pom.xml` (Surefire excludes the `live` tag)
+- Tests: +42 (705 → 747 on this branch); suite 747/747; coverage Domain — / Backend 98.65% line (952/965),
+  branches 95.31% (244/256). Two `live` tests excluded from the build, run once by hand against the real exchange
+  and passed.
+- BR/UC/NSF covered: BR-09 (public endpoints only, tested), BR-08 (`Kline.isClosedAt`), BR-10, BR-11 (next funding
+  time read from the source); source access for NSF-01, NSF-02 and NSF-04 (their jobs are T-019, T-020, T-023).
+- Decisions: **D-36** (a JDK stand-in server instead of WireMock), **D-37** (resilience from Spring's
+  `RetryTemplate` plus an in-client breaker; the client refuses rather than sleeps), both PROPOSED.
+- Open questions: none new.
+- Next: T-018 (pair and coin model). Also unblocked: T-020, T-023 (by T-017) and T-016 (by T-014).
+- Commits, on `feature/T-017-binance-market-data-client` and **unpushed**: `43bb438` feat(market): add binance
+  spot and futures rest client · `0d0ee0b` test(market): add a live smoke test excluded from the default build.
+  `43bb438` compiles on its own.
 
 ### 2026-09-24 – T-014 follow-up: session revocation, A-30, device upsert, avatar split
 - Result: **DONE** (T-014)
@@ -1466,6 +1497,6 @@ Kept current as tasks close (`/end-session` step 5). Each row: BR/UC/NSF/SCR id 
 |---|---|---|
 | Business rules BR-01 … BR-61 | 61 | 17 (BR-01, BR-02, BR-03, BR-04, BR-05, BR-06, BR-15, BR-17, BR-21, BR-29, BR-36, BR-37, BR-44, BR-45, BR-46, BR-49, BR-54), as `check_traceability.py` reports them. T-005, T-006 and T-007 cover the database and seed halves; T-010 adds the domain half of BR-01, BR-04, BR-05 and BR-06. **BR-01, BR-02, BR-03 and BR-06 are now proved end to end**, from the endpoint to the row: T-011 added BR-02, T-012 added BR-03 and closed BR-01 in both directions |
 | Use cases UC-01 … UC-52 | 52 | 8 (UC-01, UC-02 from T-011; UC-03, UC-05 from T-012; UC-04 from T-013; UC-06 (avatar in T-101), UC-07, UC-08 from T-014), counted by hand from the test names — `check_traceability.py` reads `BR` ids only, so the `UseCase`, `NonScreenFunction` and `Screen` rows of `traceability.csv` stay empty until it learns the other three prefixes |
-| Non-screen functions NSF-01 … NSF-18 | 18 | 0 |
+| Non-screen functions NSF-01 … NSF-18 | 18 | 0 complete; source access for NSF-01, NSF-02 and NSF-04 built and tested in T-017, their jobs still to come |
 | Screens SCR-01 … SCR-44 | 44 | 0 |
 | Messages MSG01 … MSG45 | 45 | 15 appear in assertions (MSG01 … MSG11, MSG41, MSG43, MSG44, MSG45), also counted by hand. Every one is returned as a code and never as text, so the sentences stay in SRS section 5.3 and the client owns them (TECHNICAL_DESIGN 5.1); MSG39 and MSG43 are named by an `ErrorCode` as the nearest existing message rather than the right one — A-15 and A-17 |
