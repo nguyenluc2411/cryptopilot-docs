@@ -88,7 +88,7 @@ stands behind this merge is the suite (705/705), the pre-merge hygiene scan and 
 A human pass over `develop..14fe422` is still worth doing. Fast-forward was chosen over a merge commit because
 `develop` was strictly behind, so the history is linear and no commit names the branch it arrived on. `main` is
 untouched.
-**Not merged:** `feature/T-014-profile-and-devices`, 8 commits on top of `develop` (`9972550` … `16db72c`), and `feature/T-017-binance-market-data-client`, 2 commits on top of `develop` (`43bb438`, `0d0ee0b`); both local only. They touch different modules and should merge without conflict; `pom.xml` and `application.yml` are the only files T-017 shares with anything.
+**Not merged:** `feature/T-014-profile-and-devices`, 8 commits on top of `develop` (`9972550` … `16db72c`), **pushed and open as PR #3 into `develop`** (2026-09-24, awaiting the team lead's review), and `feature/T-017-binance-market-data-client`, 2 commits on top of `develop` (`43bb438`, `0d0ee0b`); both local only. They touch different modules and should merge without conflict; `pom.xml` and `application.yml` are the only files T-017 shares with anything.
 **Deployed:** dev — · staging —
 
 ### Critical path
