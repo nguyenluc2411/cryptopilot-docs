@@ -1,12 +1,14 @@
 # CURRENT_STATE.md — CryptoPilot Project State
 
-**Last updated:** 2026-09-24 · **Document version:** 2.18 · **Phase:** P0 done bar T-001, T-004 and the rest of T-009; P1 done bar T-015 (PARTIAL, Q-12) and the web screens; P2 in progress
-**Next task:** `T-021` — NSF-03 realtime stream ingestion (dependency T-017 DONE). Also unblocked: T-023, T-016; T-025 and T-026 now that T-020 is DONE.
-T-020 is `DONE` and **merged** (PR #8, `d46cc22`, CI green): NSF-02 backfills the 15m/1h/4h/1d series of every pair
-TRADING on each market (D-42) to the depths of D-41, resumable from the stored data, idempotent, within 50 % of each
-venue's weight budget, after each symbol sync and hourly. The 13 demo pairs of Q-05 are the sync seeds in dev and
-prod. The coverage gate is now line ≥ 95 %, branch ≥ 90 % (interim coverage-drop gate of T-009). Still open: T-015
-`PARTIAL` (Q-12), T-007 `PARTIAL` (Q-04 only now), T-009 `PARTIAL`.
+**Last updated:** 2026-09-24 · **Document version:** 2.19 · **Phase:** P0 done bar T-001, T-004 and the rest of T-009; P1 done bar T-015 (PARTIAL, Q-12) and the web screens; P2 in progress
+**Next task:** `T-023` — NSF-04 futures metrics (dependency T-017 DONE). T-022 and T-024 follow once the T-021 branch
+is merged. Also unblocked: T-016, T-025, T-026.
+T-021 is `DONE` on the local branch `feature/T-021-stream-ingestion` (3 commits, **not pushed**, waiting for the team
+lead's review): NSF-03 streams the 15m/1h/4h/1d klines, the Spot ticker and the futures mark price of every pair
+enabled and TRADING on each market (D-44), stores closed candles only, detects gaps and has NSF-02 fill them (A-33),
+reconnects with back-off 1–60 s, renews before 24 h, caches latest prices in memory and writes minute snapshots.
+Futures streams now need the `/market` route (D-43): the unrouted host was retired on 2026-04-23. **In dev nothing is
+streamed until a pair is activated** (Q-16). Still open: T-015 `PARTIAL` (Q-12), T-007 `PARTIAL` (Q-04), T-009 `PARTIAL`.
 
 This file is the single source of truth for *status*. `docs/design/TECHNICAL_DESIGN.md` owns *how*; the SRS owns *what*. Every working session starts by reading this file and ends by updating it (`CLAUDE.md` sections 1 and 8).
 
@@ -55,7 +57,7 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 |---|---|---|---|---|---|
 | P0 Foundation | S0 | Repo, CI, database, docker, architecture tests | 9 | 5 | WIP — T-007, T-009 PARTIAL |
 | P1 Identity | S1 | Register, verify, login, tokens, profile, devices | 8 | 6 | WIP — T-015 PARTIAL, T-016 TODO (unblocked) |
-| P2 Market Data | S2 | Pairs, backfill, streams, futures metrics | 8 | 4 | WIP — T-017 to T-020 DONE; T-021 NEXT |
+| P2 Market Data | S2 | Pairs, backfill, streams, futures metrics | 8 | 5 | WIP — T-017 to T-021 DONE (T-021 not merged); T-023 NEXT |
 | P3 Analysis | S2–S3 | Indicators, S/R, setup score | 5 | 0 | TODO |
 | P4 Market UI | S3 | Public home, market list, spot/futures analysis | 5 | 0 | TODO |
 | P5 Trading Plan | S3–S4 | Risk calculation, warnings, plan lifecycle | 7 | 0 | TODO |
@@ -69,14 +71,14 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 | P13 Administration | S10 | Users, moderation, config, reports, audit | 7 | 0 | TODO |
 | P14 Mobile | S11 | Flutter app, push, offline | 5 | 0 | TODO |
 | P15 Hardening | S12 | E2E, performance, security, deploy, docs | 7 | 0 | TODO |
-| **Total** | | | **101** | **15** | **15%** |
+| **Total** | | | **101** | **16** | **16%** |
 
-**Coverage:** `calculator` packages — no class yet (gate 90%) · Backend 99.12% line (1573/1587), branches 95.05% (442/465) on `develop` (**gate raised to line 95 %, branch 90 %**, T-020 / T-009 interim coverage-drop gate), identical in CI · AI Service —% (gate 80%).
-**Test suite:** `develop` 960/960 locally and in CI (`build-and-test`). Two `live` tests are excluded everywhere. Needs Docker and `JWT_SECRET` (supplied by Surefire, D-20); the test database is started with `max_connections=300` (D-40).
+**Coverage:** `calculator` packages — no class yet (gate 90%) · Backend 99.17% line (2142/2160), branches 94.44% (595/630) on `feature/T-021-stream-ingestion` (gate line 95 %, branch 90 %); `develop` 99.12% / 95.05% · AI Service —% (gate 80%).
+**Test suite:** 1036/1036 on `feature/T-021-stream-ingestion` (`./mvnw verify`, local); `develop` 960/960 locally and in CI. Two `live` tests are excluded everywhere. Needs Docker and `JWT_SECRET` (supplied by Surefire, D-20); the test database runs with `max_connections=300` (D-40).
 
 > The figure before T-015 was recorded here as 578; the measured baseline was **576** — the "148 shared kernel" was 146. T-015 added 98 tests (80 + 11 + 7 in `ErrorCodeTest` from the two new codes), so 576 + 98 = 674.
 **Merged to `develop`:** everything up to T-020. `develop` is at `d46cc22` (PR #8, T-020), after `4e22fed` (PR #7, CI), `c5356e2` (PR #6), `13dca29` (PR #5), `b52fe40` (PR #4), `a345dc9` (PR #3) — all merge commits, remote branches kept, every PR from #7 on green in `build-and-test`.
-**Not merged:** nothing. `backup/T-017-pre-rebase` is a local branch kept for the team lead to delete.
+**Not merged:** `feature/T-021-stream-ingestion` — `94d9e55`, `6f8b353`, `1d52f69`, local only, no migration. `backup/T-017-pre-rebase` is a local branch kept for the team lead to delete.
 **Deployed:** dev — · staging —
 
 ### Critical path
@@ -136,6 +138,8 @@ Decisions that bind the code. An AI agent must follow `APPROVED` rows and must n
 | D-40 | 2026-09-24 | CI build-and-test (T-009 slice). (1) The workflow is `.github/workflows/ci.yml` (TD 12 said `backend.yml`; TD updated) with one job named **`build-and-test`**, stable so it can be required. (2) It runs the local command, `./mvnw -B -ntp verify` — no CI-only profile, no skipped test, same JaCoCo gate. (3) No secret, no Docker login: Testcontainers uses the runner's Docker; `live` tests stay excluded. (4) Reports uploaded even on failure; a newer push cancels an older PR run, never a `develop` run. (5) Two test fixes the runner forced, neither weakening: the test database starts with `max_connections=300`, because the TimescaleDB image tunes the limit to the machine (`001_timescaledb_tune.sh`) and ten cached contexts of ten connections exceeded it on the runner; and the read-timeout test counts retries on the client (its refusal reports "after 3 attempts") instead of on the stand-in server, which never sees an attempt abandoned before it read it. **The cost, stated:** every new distinct test configuration adds a context and a pool of ten connections — keep test configurations few | ACCEPTED 2026-09-24 (team lead) | T-009 |
 | D-41 | 2026-09-24 | NSF-02 depth and pages. NSF-02 names no depth, so: **1d 1000 days, 4h 730 days, 1h 180 days, 15m 60 days** — each beyond the 200 closed candles NSF-05 needs; ≈ 15,460 rows per (pair, market), ≈ 402,000 for the 13 demo pairs on both markets. Only the four BR-08 timeframes, each fetched natively; 1m is never stored. **Pages:** Spot 1000 (weight 2 at any limit), futures 500 (weight 2; 1000 costs 5, above 1000 costs 10 — measured 2026-09-24, TD 7.1.1). Initial load ≈ 442 weight on Spot and ≈ 832 on futures; hourly catch-up ≈ 52 requests per market. **Pacing:** the backfill stops at 50 % of a venue's budget (configurable, max 80) and continues the next minute, leaving room for NSF-01 under the client's 80 % gate. All in `cryptopilot.market.backfill.*` | PROPOSED | T-020 |
 | D-42 | 2026-09-24 | NSF-02 targets every pair whose exchange status on the market is TRADING, whatever `pair_status` and the market switches say: a chart and the indicators need history before an administrator activates a pair, and activation stays manual (BR-07). NOT_TRADING, DELISTED and a null status (not listed there, Q-14) are skipped. **The cost, stated:** registered but never-activated pairs are backfilled too — with the seed list that is the 13 demo pairs, by design | PROPOSED | T-020 |
+| D-43 | 2026-09-24 | NSF-03 connects to `wss://stream.binance.com:9443` (Spot) and `wss://fstream.binance.com/market` (futures). Binance split USDⓈ-M streams into `/public`, `/market` and `/private` routes; klines and mark prices are `/market` streams, and since 2026-04-23 the unrouted host only carries `/public` ones. **Checked live on 2026-09-24:** `fstream.binance.com/stream?streams=btcusdt@kline_1m/btcusdt@markPrice@1s` accepted the connection and sent 0 messages in 6 s; the same streams under `/market/stream` sent 23. The route is part of the configured URL (`cryptopilot.market.stream.futures-url`), not appended in code. TECHNICAL_DESIGN 7.1 and 7.1.1 said `wss://fstream.binance.com` and are corrected. **Also:** `kline_1m`, listed in 7.1 for matching and alerts, is not subscribed yet — nothing reads it; T-042 adds one stream name. Five streams per pair and market: 15m, 1h, 4h, 1d klines plus `@ticker` (Spot) or `@markPrice@1s` (futures) | PROPOSED | T-021 |
+| D-44 | 2026-09-24 | NSF-03 streams a pair on a market when an administrator enabled it there (`ACTIVE` and the market switch, BR-07) **and** its exchange status there is TRADING — unlike the backfill (D-42), which also fills pairs not yet activated. Pairs are re-read after each symbol sync and every 5 minutes; a changed set replaces that market's connections and drops the old pairs' latest prices. **Latest prices** live in memory (`LatestMarketData`) until T-022 moves them to Redis; losing them loses nothing. **Snapshots** are written every minute at the whole minute from values at most 2 minutes old; a stream outage leaves a hole rather than repeating a stale price; the futures row leaves open interest and ratios to NSF-04 (T-023). **Closed candles** go through 4 ordered partitions (bounded queues, virtual threads) so the socket reader never blocks | PROPOSED | T-021 |
 **Action:** D-02 and D-03 were confirmed by the team on 2026-09-19 and are `APPROVED`; D-18 on 2026-09-20. D-04 … D-09 still need confirmation; D-06 and D-07 are already load-bearing in committed code (T-008). D-19 and D-20 are load-bearing as of T-007 and need confirmation before the first staging deployment, because D-20 decides how an operator obtains the first administrator. D-21 and D-22 are load-bearing as of T-010; D-21 is the one worth arguing about, because reversing it later means touching every entity that was written under it. D-29 and D-30 are load-bearing as of T-100; D-31 and D-32 as of T-013. D-23 … D-26 are load-bearing as of T-011 and T-012; D-26 is the one to re-read if the refresh windows of SRS 3.2.3 are ever changed, because it infers "Remember me" from the length of the window rather than from a stored flag.
 
 ---
@@ -177,7 +181,7 @@ Deviations found while designing. Each needs team approval, then the SRS and the
 | A-30 | BR-03 locks an account after five consecutive failed **logins**. SRS 3.2.5 asks for the current password on the Security tab and says nothing about what a wrong one counts towards, so a stolen access token (fifteen minutes) can guess the current password on `PUT /me/password` with no lockout at all | Read as: a wrong current password does not count towards BR-03 — the caller is already signed in, and BR-03's words are about signing in. `BR03_aWrongCurrentPassword_doesNotCountTowardsTheLockout` pins that reading. Confirm, or state that it counts; the other defence is the per-user Bucket4j limit of TECHNICAL_DESIGN 5.3, which is not built yet | BR-03, SRS 3.2.5 | RESOLVED 2026-09-24 — decided by the team lead in the T-014 follow-up: a separate per-account counter (`failed_password_change_count`, V6) with BR-03's threshold of five; the fifth ends every session of the account, the caller's included, and restarts the count; the sign-in is not locked; a successful change resets it. BR-03 itself is unchanged. Recorded in TECHNICAL_DESIGN 7.15 and 13 | — |
 | A-31 | `binance_ban` (V7) is not in the logical model. It holds when a Binance IP ban ends, so that a restart does not forget it | Treat it as a technical table outside the ERD, exactly as A-09 treats `event_publication` and `flyway_schema_history`; `BaselineSchemaTest` now counts it with them | SRS 3.1.5 | ACCEPTED 2026-09-24 (team lead) | — |
 | A-32 | `PairFilters.roundPrice` rounds a trader's price to the nearest tick, halves up (BR-30, TECHNICAL_DESIGN 5.4). That is right for an entry or a displayed price, but not neutral for a **stop loss**: rounding a stop away from the entry widens |E − S| and so, for a quantity already floored by BR-23, raises the risk amount of BR-24 above the risk % the trader chose (BR-30) | The trading-plan task (T-035, with T-037/T-038) must choose the rounding direction of the stop explicitly so that the risk never exceeds the configured limit — round the stop **towards** the entry (LONG: up, SHORT: down) or recompute the quantity from the rounded stop — and test it at the tick boundary. `roundPrice` stays half-up for entry and display; the stop gets its own method in that task | BR-23, BR-24, BR-30; TECHNICAL_DESIGN 5.4, 7.5 | ACCEPTED 2026-09-24 (team lead) | T-035 |
-| A-33 | T-020's "Done when" says "Gap detection works", and NSF-02 says the backfill runs "when a gap is detected". Read for T-020 as: the gap between the latest stored candle and now — after downtime, a restart, an interrupted run — is detected from the data on every run and filled. A hole *inside* a stored series has two sources: the exchange itself (maintenance; nothing to fetch) and the realtime stream (NSF-03), whose gap detection is TECHNICAL_DESIGN 7.1 step 4 and belongs to T-021, which hands the range to this backfill | Confirm the reading; T-021 adds a range backfill for the stream's `GapDetected` | NSF-02, NSF-03 | PENDING | T-021 |
+| A-33 | T-020's "Done when" says "Gap detection works", and NSF-02 says the backfill runs "when a gap is detected". Read as: NSF-02 fills the tail gap (latest stored candle → now) on every run (T-020), and NSF-03 detects every other gap (T-021) and hands it to NSF-02 | **Implemented in T-021:** each closed candle is compared with the latest stored one of its series (read from `ohlcv` the first time); a later one names the missing open times in `GapDetected`, which `CandleBackfillJob` queues and fills with a bounded range (`startTime`/`endTime`) before its catch-up. An empty series reports its whole D-41 depth, since the tail backfill would otherwise resume after the streamed candle. A reconnection after a loss starts a catch-up run at once (SRS 4.2: within 10 minutes). Queued gaps are in memory: after a restart the stream finds anything still missing behind the latest candle again, but a hole left *inside* a series by a gap that failed just before a restart is not found again — acceptable for the demo, needs a scan if the team wants it closed | NSF-02, NSF-03 | PENDING (confirm) | — |
 | A-12 | `futures_market_data` mixes periodic snapshots (90 days, NSF-17) with funding settlements the P/L must keep for ever (BR-37, A-05). A TimescaleDB retention policy drops whole chunks and cannot filter by column, so no policy on that table can keep one kind and drop the other | Split the settlements into `funding_rate_history (pair_id, funding_time, funding_rate, mark_price)`, primary key `(pair_id, funding_time)`, no retention policy and deliberately not a hypertable; `futures_market_data` keeps periodic snapshots only and drops `snapshot_type`. Done in `V2__timescale_hypertables.sql` beside the policies that force it | NSF-17, BR-37, A-05, logical model | APPROVED 2026-09-20 | — |
 
 ---
@@ -231,9 +235,9 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 | T-018 | Pair and coin model, pair filters (tick, step, min notional) | BE2 | T-005 | BR-07, UC-45 | Rounding helpers tested against real filter values | **DONE** 2026-09-24 — no migration (V1 already had `coin` and `crypto_pair`); entities, repositories, `PairFilters` with rounding tested against real BTCUSDT/SHIBUSDT filters, `ExchangeSymbolMapper` for T-019 |
 | T-019 | NSF-01 symbol synchronization job | BE2 | T-017, T-018 | NSF-01 | Daily job upserts filters; a pair that stops trading is flagged | **DONE** 2026-09-24 — V8 status columns; per-market reconciliation of registered pairs + seed symbols, idempotent; job at start-up and 00:05 UTC honouring the caller contract. Local branch, not pushed |
 | T-020 | NSF-02 historical candle backfill | BE2 | T-017 | NSF-02, BR-08 | Gap detection works; re-running inserts no duplicates | **DONE** 2026-09-24, merged (PR #8) — no migration; pairs TRADING per market (D-42), D-41 depths, resume from stored data, ON CONFLICT DO NOTHING, 50 % weight share, after sync and hourly. "Gap detection" read as A-33 |
-| T-021 | NSF-03 realtime stream ingestion (kline, ticker, mark price) | BE2 | T-017 | NSF-03, BR-08 | Only closed candles stored; reconnect with back-off; gap triggers backfill | **NEXT** |
+| T-021 | NSF-03 realtime stream ingestion (kline, ticker, mark price) | BE2 | T-017 | NSF-03, BR-08 | Only closed candles stored; reconnect with back-off; gap triggers backfill | **DONE** 2026-09-24, local branch, not pushed — no migration; combined streams per market (≤ 100 per connection), closed candles only, gap → NSF-02 range fill, back-off 1–60 s, 23 h renewal, idle watchdog, in-memory latest prices, minute snapshots (D-43, D-44, A-33) |
 | T-022 | Redis price cache and SignalR market hub | BE1 | T-021 | TD 5.6, 9 | Client receives price and candle updates; latency target of SRS 4.2.3 met locally | TODO |
-| T-023 | NSF-04 futures metrics (open interest, long/short, funding settlement) | BE2 | T-017 | NSF-04, BR-10, BR-11 | Funding time read from the source, never assumed to be 8h | TODO |
+| T-023 | NSF-04 futures metrics (open interest, long/short, funding settlement) | BE2 | T-017 | NSF-04, BR-10, BR-11 | Funding time read from the source, never assumed to be 8h | **NEXT** |
 | T-024 | Market data API: pairs, candles, snapshots | BE2 | T-020, T-021 | UC-09 | OpenAPI documented; pagination and timeframe validation tested | TODO |
 
 ### P3 — Analysis (Sprints 2–3)
@@ -381,17 +385,17 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 
 ## 7. Detail block — current NEXT task
 
-### T-021 · NSF-03 realtime stream ingestion
+### T-023 · NSF-04 futures metrics
 
-**Unblocked:** T-017 is DONE. **To do at the start of that session:** read NSF-03, BR-08, TECHNICAL_DESIGN 7.1
-steps 1–4 and 6 and the WebSocket limits of 7.1.1, then replace this block. Settle **A-33** there: the stream's
-gap detection hands its range to the NSF-02 backfill.
+**Unblocked:** T-017 is DONE. **To do at the start of that session:** read NSF-04, BR-10, BR-11, TECHNICAL_DESIGN 7.1
+step 8 and 7.8, then replace this block.
 
-**Ready from T-017 to T-020:** the verified stream limits (24 h lifetime, spot pong within 1 minute, 1024
-streams per connection, 5/10 incoming messages per second); `OhlcvRepository.insertAll` (ON CONFLICT DO NOTHING);
-`CandleBackfillService` (resume from the latest stored candle); the `SymbolsSynchronised` event; the job pattern
-(TaskScheduler, continue at an instant, never sleep); `MarketInterval` includes `ONE_MINUTE` for the matching
-engine's `kline_1m`, which is streamed but not stored.
+**Ready from T-017 to T-021:** `BinanceRestClient.openInterest`, `longShortAccountRatios`, `fundingRates` (settled
+rates with their mark price), `premiumIndex`; the job pattern and caller contract (T-019, T-020);
+`funding_rate_history` (V2, never deleted); `futures_market_data` rows written every minute by NSF-03 with open
+interest and ratios left empty for NSF-04 (D-44) — decide whether NSF-04 fills the latest minute row or writes its own
+5-minute rows (same key `(pair_id, snapshot_time)`); the stream's `MarkPriceMessage.nextFundingTime` in
+`LatestMarketData` gives the next settlement without assuming 8 h.
 
 ---
 
@@ -409,6 +413,7 @@ engine's `kline_1m`, which is streamed but not stored.
 | Q-13 | T-014's "Done when" says "Avatar upload validated", but SRS 3.2.5 stores the avatar (JPG, PNG or WEBP, at most 2 MB) in **Media Storage**, and the Media Storage adapter is T-061 (Cloudinary, signed upload) in P9. Accepting an avatar URL from the client before that exists would let a profile point at any address on the internet; storing the file anywhere else would be a second media store | 2026-09-24 | T-014 (avatar half) | BE2 + Team | RESOLVED 2026-09-24: the avatar is its own task, **T-101** (depends on T-061 and T-014), and T-014 is DONE without it. `UserProfile.changeAvatar` already exists and nothing calls it yet |
 | Q-14 | The logical model keeps **one row per symbol** with Spot and futures as columns, and the schema follows it (`uq_crypto_pair_symbol`; `market_type` is part of the key of `ohlcv`, `technical_indicator` and the plan and watch tables). That is sound while a symbol is spelled the same on both markets, which is true for most pairs. It is **not** true for some: on 2026-09-24 Spot lists `SHIBUSDT` (base `SHIB`) while futures lists `1000SHIBUSDT` (base `1000SHIB`). One row cannot hold both, and T-018 has no way to link them | 2026-09-24 | T-019 (for such symbols), Q-05 | Team | **DECIDED 2026-09-24 (team lead):** a pair whose Spot and futures symbols differ is enabled on one venue only; no `futures_symbol` column for now. The sync treats the two spellings as two different symbols and never links them |
 | Q-15 | NSF-01 says "a pair whose status is no longer TRADING is flagged on SCR-37", but `crypto_pair` has no column for the exchange's trading status (only the administrator's `pair_status`), so the flag has nowhere to live | 2026-09-24 | T-019 (the flag), T-085 (showing it) | BE2 + Team | **DECIDED 2026-09-24 (team lead):** T-019 adds venue trading-status columns to `crypto_pair` as a normalized enum TRADING / NOT_TRADING / DELISTED, plus the raw Binance status text beside it. The CHECK constraint names only the normalized values, never Binance vocabulary |
+| Q-16 | NSF-03 streams only pairs an administrator activated (BR-07, D-44), and nothing activates a pair yet: the admin screen is later (UC-45), and the T-020 instructions said not to activate the demo pairs. So in dev no stream opens and no price, snapshot or live candle appears, although the backfill fills history. Should dev (only) activate the 13 demo pairs on both markets — by a dev-profile setting or a one-off SQL — until UC-45 exists? | 2026-09-24 | Demo of T-022, T-024 | Team lead | OPEN |
 | Q-06 | Flutter chart library (ADR-012) | 2026-09-19 | T-090 | FE | OPEN |
 | Q-07 | Hosting for staging (VPS provider and size) and the demo domain. A managed PostgreSQL service usually cannot install TimescaleDB, so self-hosted Docker on a VPS is assumed | 2026-09-19 | T-096 | DO | OPEN |
 | Q-08 | Confirm the database stack: PostgreSQL 16 + TimescaleDB 2.x in Docker, EF Core migrations (earlier drafts mentioned Flyway and PostgreSQL 14/15) | 2026-09-19 | T-004, T-005, T-006, T-007, T-009 | BE1 + BE2 | ANSWERED 2026-09-20: PostgreSQL 16 + TimescaleDB 2.x on `timescale/timescaledb:2.30.1-pg16` pinned for dev, Testcontainers and staging; Flyway SQL migrations with the TimescaleDB DDL in its own migration; staging self-hosted Docker on a VPS, no managed PostgreSQL (D-18) |
@@ -422,6 +427,29 @@ Rule: an AI agent never answers an open question by guessing. It implements what
 ## 9. Session log
 
 Newest first. One block per working session, format in `CLAUDE.md` section 8.
+
+### 2026-09-24 – T-021 NSF-03 realtime stream ingestion
+- Result: **DONE** (local branch `feature/T-021-stream-ingestion`, not pushed, awaiting review)
+- Phase 0: SRS NSF-03 and 3.3.4 read; streams re-verified live — Spot payloads as documented, futures klines and mark
+  price only under `wss://fstream.binance.com/market` since 2026-04-23 (the unrouted host sent 0 messages): D-43.
+  The JDK `WebSocket` answers pings itself (tested). No migration: `ohlcv`, `spot_market_data`,
+  `futures_market_data` exist (V1/V2).
+- Summary: client — `BinanceStreamClient`, `BinanceStreamShard` (combined stream, back-off 1–60 s with jitter, 23 h
+  overlapping renewal, 60 s idle watchdog), `BinanceStreamParser`, `StreamMessage`, `ReconnectBackoff`,
+  `BinanceStreamProperties`; service — `StreamCandleService` (targets, closed-candle storage, gap detection),
+  `LatestMarketData`, `MarketSnapshotService`, `CandleBackfillService.fillGap`; job — `MarketStreamSupervisor`,
+  `ClosedCandlePipeline`, `MarketSnapshotJob`, `CandleBackfillJob` gap queue and reconnection trigger; events
+  `CandleClosed`, `GapDetected`, `MarketStreamReconnected`. On in dev and prod.
+- Tests: +76 (960 → 1036); suite 1036/1036 (`./mvnw verify`); coverage Backend 99.17% line (2142/2160), branches
+  94.44% (595/630). Stream tests run through the real JDK client against a local RFC 6455 stand-in (no new
+  dependency); stable over 3 repeated runs.
+- BR/UC/NSF covered: NSF-03; NSF-02 (gap backfill); BR-07; BR-08.
+- Decisions: **D-43**, **D-44** PROPOSED; **A-33** implemented (to confirm); **Q-16** raised.
+- Open questions: Q-16.
+- Next: T-023 (T-022 and T-024 after the merge).
+- Commits (local): `94d9e55` feat(market): read Binance market streams with reconnect and renewal · `6f8b353`
+  feat(market): cache latest prices and write periodic snapshots · `1d52f69` feat(market): store streamed candles
+  and backfill detected gaps.
 
 ### 2026-09-24 – T-020 NSF-02 historical candle backfill
 - Result: **DONE**, merged (PR #8, `d46cc22`, `build-and-test` green on the first run, 4 min 21 s)
