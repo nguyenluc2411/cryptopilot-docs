@@ -79,7 +79,7 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 
 > The figure before T-015 was recorded here as 578; the measured baseline was **576** — the "148 shared kernel" was 146. T-015 added 98 tests (80 + 11 + 7 in `ErrorCodeTest` from the two new codes), so 576 + 98 = 674.
 **Merged to `develop`:** everything up to T-014. `develop` is at `a345dc9`, the merge commit of PR #3 (T-014), reviewed and merged by the team lead on 2026-09-24.
-**Not merged:** `feature/T-017-binance-market-data-client`, 5 commits on top of `a345dc9` (`ae20240`, `ab2d44e`, `a80a752`, `0575a0a`, `97f980d`), local only, never pushed. It adds migration **V7** (`binance_ban`), which must not be edited once merged.
+**Not merged:** `feature/T-017-binance-market-data-client`, 5 commits on top of `a345dc9` (`ae20240`, `ab2d44e`, `a80a752`, `0575a0a`, `97f980d`), **pushed and open as PR #4 into `develop`** (2026-09-24, awaiting the team lead's review). It adds migration **V7** (`binance_ban`), which must not be edited once merged.
 **Deployed:** dev — · staging —
 
 ### Critical path
