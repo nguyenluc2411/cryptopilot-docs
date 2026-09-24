@@ -78,8 +78,8 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 **Test suite:** T-018 branch 904/904 (`./mvnw clean verify`): the 848 of `develop` (T-014 and T-017 merged) + 56 (21 pair filters, 17 pair and coin objects, 12 exchange symbol mapping, 6 repository against PostgreSQL). Two `live` tests are excluded from the build. Needs Docker and `JWT_SECRET` (supplied by Surefire, D-20).
 
 > The figure before T-015 was recorded here as 578; the measured baseline was **576** — the "148 shared kernel" was 146. T-015 added 98 tests (80 + 11 + 7 in `ErrorCodeTest` from the two new codes), so 576 + 98 = 674.
-**Merged to `develop`:** everything up to T-017. `develop` is at `b52fe40`, the merge commit of PR #4 (T-017), after `a345dc9` of PR #3 (T-014); both reviewed and merged by the team lead on 2026-09-24.
-**Not merged:** `feature/T-018-pair-and-coin-model`, 3 commits on top of `b52fe40` (`969358e`, `9f2b1fd`, `f9efb42`), local only, no upstream. No migration. `backup/T-017-pre-rebase` is a local branch kept for the team lead to delete.
+**Merged to `develop`:** everything up to T-018. `develop` is at `13dca29`, the merge commit of PR #5 (T-018, merged 2026-09-24 with a merge commit, remote branch kept, as PR #3 and #4). Full suite on `develop` after the merge: 904 run, 903 passed, 1 failed — `BinanceRestClientTest.NSF02_aResponseSlowerThanTheReadTimeout_timesOut`, a timing-sensitive assertion (100 ms read timeout, exact request count) that passed 5 of 5 times when re-run alone; fixed on the T-019 branch. No CI and no branch protection exist (T-009 not done; branch protection needs GitHub Pro for a private repository), so merges rest on the local suite and the team lead's review.
+**Not merged:** nothing. `backup/T-017-pre-rebase` is a local branch kept for the team lead to delete.
 **Deployed:** dev — · staging —
 
 ### Critical path
