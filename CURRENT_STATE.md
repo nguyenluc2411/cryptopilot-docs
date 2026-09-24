@@ -1,14 +1,12 @@
 # CURRENT_STATE.md — CryptoPilot Project State
 
-**Last updated:** 2026-09-24 · **Document version:** 2.16 · **Phase:** P0 done bar the DO tasks; P1 done bar T-015 (PARTIAL, Q-12) and the web screens; P2 in progress
-**Next task:** `T-020` — NSF-02 historical candle backfill (its dependency T-017 is DONE). Also unblocked: T-021, T-023, T-016.
-T-018 is **merged** (PR #5, `13dca29`). T-019 is `DONE` on the local branch `feature/T-019-symbol-sync-job`
-(4 commits, not pushed, no upstream): NSF-01 reconciles each market's exchange information with the registered
-pairs plus configured seed symbols, in one transaction per market; V8 adds the normalized exchange status
-(TRADING / NOT_TRADING / DELISTED), the raw Binance text and `last_synced_at`; the job runs at start-up and at
-00:05 UTC and honours the client's caller contract. Q-14 and Q-15 were decided by the team lead and applied.
-"Admin is notified" is a WARN log until the notification module exists. Still open: T-015 `PARTIAL` (Q-12),
-T-007 `PARTIAL` (Q-04, Q-05 — a pair list is now proposed in Q-05).
+**Last updated:** 2026-09-24 · **Document version:** 2.17 · **Phase:** P0 done bar T-001, T-004 and the rest of T-009; P1 done bar T-015 (PARTIAL, Q-12) and the web screens; P2 in progress
+**Next task:** `T-020` — NSF-02 historical candle backfill (after Q-05 is decided, so the backfill has pairs to fill). Also unblocked: T-021, T-023, T-016.
+T-019 is **merged** (PR #6, `c5356e2`). **CI exists now:** `.github/workflows/ci.yml`, job **`build-and-test`**, runs
+`./mvnw -B -ntp verify` on every pull request into `develop`/`main` and every push to `develop`; merged as PR #7
+(`4e22fed`) and green on `develop` itself (run on `4e22fed`, 3 min 26 s). T-009 is `PARTIAL`: image build/push and a
+coverage-drop gate remain. Making `build-and-test` a required check is the team lead's step (branch protection needs
+GitHub Pro on a private repository). Still open: T-015 `PARTIAL` (Q-12), T-007 `PARTIAL` (Q-04, Q-05).
 
 This file is the single source of truth for *status*. `docs/design/TECHNICAL_DESIGN.md` owns *how*; the SRS owns *what*. Every working session starts by reading this file and ends by updating it (`CLAUDE.md` sections 1 and 8).
 
@@ -55,7 +53,7 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 
 | Phase | Sprint | Scope | Tasks | Done | Status |
 |---|---|---|---|---|---|
-| P0 Foundation | S0 | Repo, CI, database, docker, architecture tests | 9 | 5 | WIP — T-007 PARTIAL |
+| P0 Foundation | S0 | Repo, CI, database, docker, architecture tests | 9 | 5 | WIP — T-007, T-009 PARTIAL |
 | P1 Identity | S1 | Register, verify, login, tokens, profile, devices | 8 | 6 | WIP — T-015 PARTIAL, T-016 TODO (unblocked) |
 | P2 Market Data | S2 | Pairs, backfill, streams, futures metrics | 8 | 3 | WIP — T-017, T-018, T-019 DONE; T-020 NEXT |
 | P3 Analysis | S2–S3 | Indicators, S/R, setup score | 5 | 0 | TODO |
@@ -73,12 +71,12 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 | P15 Hardening | S12 | E2E, performance, security, deploy, docs | 7 | 0 | TODO |
 | **Total** | | | **101** | **14** | **14%** |
 
-**Coverage:** `calculator` packages — no class yet (gate 90%) · Backend 99.07% line (1389/1402), branches 95.16% (393/413) on the T-019 branch (gate 70%) · AI Service —% (gate 80%).
-**Test suite:** T-019 branch 939/939 (`./mvnw clean verify`): 904 of `develop` (T-018 merged) + 35 (12 synchronisation service, 10 job, 11 V8 migration, 2 pair status; the flaky timeout test was changed, not added). Two `live` tests are excluded from the build. Needs Docker and `JWT_SECRET` (supplied by Surefire, D-20).
+**Coverage:** `calculator` packages — no class yet (gate 90%) · Backend 99.07% line (1389/1402), branches 95.16% (393/413) on `develop` (gate 70%), identical in CI · AI Service —% (gate 80%).
+**Test suite:** `develop` 939/939 (`./mvnw clean verify` locally, `./mvnw -B -ntp verify` in CI — same count, same coverage). Two `live` tests are excluded everywhere. Needs Docker and `JWT_SECRET` (supplied by Surefire, D-20); the test database is started with `max_connections=300` (D-40).
 
 > The figure before T-015 was recorded here as 578; the measured baseline was **576** — the "148 shared kernel" was 146. T-015 added 98 tests (80 + 11 + 7 in `ErrorCodeTest` from the two new codes), so 576 + 98 = 674.
-**Merged to `develop`:** everything up to T-018. `develop` is at `13dca29`, the merge commit of PR #5 (T-018, merged 2026-09-24 with a merge commit, remote branch kept, as PR #3 and #4). Full suite on `develop` after the merge: 904 run, 903 passed, 1 failed — `BinanceRestClientTest.NSF02_aResponseSlowerThanTheReadTimeout_timesOut`, a timing-sensitive assertion (100 ms read timeout, exact request count) that passed 5 of 5 times when re-run alone; fixed on the T-019 branch. No CI and no branch protection exist (T-009 not done; branch protection needs GitHub Pro for a private repository), so merges rest on the local suite and the team lead's review.
-**Not merged:** `feature/T-019-symbol-sync-job`, 4 commits on top of `13dca29` (`3329415`, `d6cc646`, `b9bee82`, `aee4efa`), **pushed and open as PR #6 into `develop`** (2026-09-24, awaiting the team lead's review). Adds migration **V8**. `backup/T-017-pre-rebase` is a local branch kept for the team lead to delete.
+**Merged to `develop`:** everything up to T-019, plus the CI slice of T-009. `develop` is at `4e22fed` (PR #7, CI), after `c5356e2` (PR #6, T-019), `13dca29` (PR #5), `b52fe40` (PR #4), `a345dc9` (PR #3) — all merge commits, remote branches kept. From PR #7 on, every pull request runs `build-and-test`.
+**Not merged:** nothing. `backup/T-017-pre-rebase` is a local branch kept for the team lead to delete.
 **Deployed:** dev — · staging —
 
 ### Critical path
@@ -135,6 +133,7 @@ Decisions that bind the code. An AI agent must follow `APPROVED` rows and must n
 | D-37 | 2026-09-24 | Resilience of the Binance client is built from what the stack already has: Spring Framework 7 `RetryTemplate` for transient failures, and a circuit breaker of about thirty lines in `BinanceRequestGate` (consecutive failed calls open it for a fixed time, then one trial call). TECHNICAL_DESIGN 1.3 left the breaker to T-017 "after checking Spring Boot 4 compatibility"; Resilience4j's Boot 4 support was not confirmed, and the breaker needed here is small. The same gate enforces the weight budget and the 429/418 waits per venue, and it **refuses** rather than sleeps: a refusal carries the instant to retry at, and the job that called decides. **Extended in the T-017 follow-up:** a 418 is also written to `binance_ban` (V7) through the `BinanceBanStore` port and read back the first time each venue is used after a start, so a restart never forgets a ban and repeats the offence that lengthens the next one (2 minutes to 3 days); a 429 stays in memory. The rejection contract is one final `BinanceClientException` whose Javadoc binds callers: skip the run and reschedule at or after `retryAt` for RATE_LIMITED, BANNED and CIRCUIT_OPEN, wait for the next run on UNAVAILABLE, log a defect on REJECTED and MALFORMED, never loop or sleep in the calling thread. Only 5xx, timeouts and refused connections feed the breaker. **The cost, stated:** a breaker the project owns and tests itself; if a second integration (AI Service, payment) needs one, move to Resilience4j then rather than copy this one | ACCEPTED 2026-09-24 (team lead) | T-017 |
 | D-38 | 2026-09-24 | Market model choices in T-018. (1) `MarketType` and `PairFilters` are published at the `market` module root, where TECHNICAL_DESIGN 4.1 already places `PairFilters`, because trading (T-035) will read filters through the module API. (2) A newly registered pair is INACTIVE with both markets off: BR-07 makes a pair visible only once an administrator enables it, so the exchange listing a symbol must not make it appear. (3) `PairFilters` refuses a zero or negative filter and one with more decimals than its column (12 for tick and step, 8 for minimum notional), because a value the database would round is a rule the system would enforce differently from the exchange. (4) `ExchangeSymbolMapper` leaves out non-perpetual futures (the SRS scope is perpetual only, and quarterlies share base and quote with the perpetual) and symbols with unusable filters, and maps any status but TRADING to "not trading" rather than dropping the symbol, so NSF-01 can flag it. (5) `minQty` and the precision fields are not stored: TECHNICAL_DESIGN 7.5 sizes a plan with tick, step and minimum notional only. **The cost, stated:** a symbol dropped by the mapper is invisible to NSF-01 — T-019 should log what it drops | ACCEPTED 2026-09-24 (team lead) | T-018 |
 | D-39 | 2026-09-24 | NSF-01 as built in T-019. (1) **Universe:** the pairs already in `crypto_pair` plus `cryptopilot.market.sync.seed-symbols` (empty until Q-05); the exchange's ~500 symbols per market are never copied in, and a seed is created only if listed and trading, INACTIVE with both markets off (BR-07). Every registered pair is updated, enabled or not, so enabling one later starts from current filters. (2) **Absent from a market:** DELISTED if it had a status there or the market is switched on; otherwise it never was on that market (Q-14) and keeps no status. Never deleted. (3) **Idempotent** except `last_synced_at`, which moves every run on purpose, to show staleness. (4) **Runs** at every start (NSF-01 says "at start-up", not "when never synced") and on `0 5 0 * * *` in `UTC`, from properties; **disabled by default** and enabled in the `dev` and `prod` profiles, so a test context never calls the exchange. (5) **Caller contract:** RATE_LIMITED/BANNED/CIRCUIT_OPEN schedule one retry at `retryAt` (a new one replaces a pending one); UNAVAILABLE waits for the next run; REJECTED/MALFORMED are logged as defects. (6) **Single instance**, no ShedLock (TD 1.3). (7) "Admin is notified" is a WARN log (`NSF-01 FLAG`) until the notification module (P8) can deliver it. **The cost, stated:** a symbol dropped by the mapper leaves a WARN only; a second instance would double the daily read | PROPOSED | T-019 |
+| D-40 | 2026-09-24 | CI build-and-test (T-009 slice). (1) The workflow is `.github/workflows/ci.yml` (TD 12 said `backend.yml`; TD updated) with one job named **`build-and-test`**, stable so it can be required. (2) It runs the local command, `./mvnw -B -ntp verify` — no CI-only profile, no skipped test, same JaCoCo gate. (3) No secret, no Docker login: Testcontainers uses the runner's Docker; `live` tests stay excluded. (4) Reports uploaded even on failure; a newer push cancels an older PR run, never a `develop` run. (5) Two test fixes the runner forced, neither weakening: the test database starts with `max_connections=300`, because the TimescaleDB image tunes the limit to the machine (`001_timescaledb_tune.sh`) and ten cached contexts of ten connections exceeded it on the runner; and the read-timeout test counts retries on the client (its refusal reports "after 3 attempts") instead of on the stand-in server, which never sees an attempt abandoned before it read it. **The cost, stated:** every new distinct test configuration adds a context and a pool of ten connections — keep test configurations few | PROPOSED | T-009 |
 **Action:** D-02 and D-03 were confirmed by the team on 2026-09-19 and are `APPROVED`; D-18 on 2026-09-20. D-04 … D-09 still need confirmation; D-06 and D-07 are already load-bearing in committed code (T-008). D-19 and D-20 are load-bearing as of T-007 and need confirmation before the first staging deployment, because D-20 decides how an operator obtains the first administrator. D-21 and D-22 are load-bearing as of T-010; D-21 is the one worth arguing about, because reversing it later means touching every entity that was written under it. D-29 and D-30 are load-bearing as of T-100; D-31 and D-32 as of T-013. D-23 … D-26 are load-bearing as of T-011 and T-012; D-26 is the one to re-read if the refresh windows of SRS 3.2.3 are ever changed, because it infers "Remember me" from the length of the window rather than from a stored flag.
 
 ---
@@ -196,7 +195,7 @@ Deviations found while designing. Each needs team approval, then the SRS and the
 | T-006 | TimescaleDB hypertables, indexes and retention policies | BE2 | T-005 | TD 6 | `ohlcv` and snapshot tables are hypertables; documented indexes created; retention jobs configured | DONE |
 | T-007 | Seed data (roles, coins, pairs, strategies, packages, system settings, admin account) | BE2 | T-005, T-006 | SRS 5.1 | Seed is idempotent; a fresh database is usable for manual testing | **PARTIAL** 2026-09-21 |
 | T-008 | Common building blocks: `BaseEntity`, `ErrorCode`, `BusinessException`, `GlobalExceptionHandler` (ProblemDetail), `Clock` bean, UUID v7, rounding helpers | BE1 | T-002, T-003 | TD 5.1, 5.2, 5.4 | Error codes map to SRS MSG codes; unit tests cover the mapping; the JaCoCo bundle gate holds with real classes present | DONE |
-| T-009 | CI pipeline: build, unit + architecture tests, integration tests, coverage gate, image build | DO | T-002, T-004 | TD 12 | Pipeline green on `develop`; gate blocks a coverage drop | TODO |
+| T-009 | CI pipeline: build, unit + architecture tests, integration tests, coverage gate, image build | DO | T-002, T-004 | TD 12 | Pipeline green on `develop`; gate blocks a coverage drop | **PARTIAL** 2026-09-24 — build-and-test done (`.github/workflows/ci.yml`, PR #7, green on `develop`). Open: container image build and push (needs T-004 and registry secrets), a gate that blocks a coverage **drop** (today only the 70% minimum), and requiring `build-and-test` in branch protection (team lead) |
 
 **T-007 — seed sets withheld, and what each one waits on.** Each of these lands in its own versioned
 migration (`V4__…`) as soon as its question is answered; none of them is guessed in the meantime.
@@ -419,6 +418,25 @@ Rule: an AI agent never answers an open question by guessing. It implements what
 ## 9. Session log
 
 Newest first. One block per working session, format in `CLAUDE.md` section 8.
+
+### 2026-09-24 – T-019 merged; T-009 CI build-and-test (PARTIAL)
+- Result: T-019 **merged** (PR #6, `c5356e2`, merged by the team lead after the suite passed twice in a row locally,
+  939/939 both times); T-009 **PARTIAL** (PR #7, `4e22fed`).
+- Summary: `.github/workflows/ci.yml`, job `build-and-test` on `ubuntu-latest` — checkout, Temurin 21 with the Maven
+  cache, `./mvnw -B -ntp verify` in `backend/`, surefire and JaCoCo reports as artifacts even on failure, per-ref
+  concurrency cancelling older PR runs, 30-minute timeout, `contents: read`. Triggers: pull requests into `develop`
+  and `main`, pushes to `develop`.
+- CI attempts on PR #7: (1) failed — "too many clients already": the TimescaleDB image tunes `max_connections` to
+  the runner, lower than on a laptop; fixed by pinning `max_connections=300` in `TestcontainersConfig`. (2) failed —
+  the read-timeout test counted 2 of 3 attempts on the stand-in server even after waiting; an attempt abandoned
+  before the server reads it never reaches the handler; fixed by asserting the client's own "failed after 3
+  attempts". (3) green, 4 min 26 s, 939/939, 99.07% / 95.16%. `develop` run after the merge: green, 3 min 26 s.
+- Files: `.github/workflows/ci.yml`; test-only: `support/TestcontainersConfig`, `BinanceRestClientTest`.
+- Tests: 939/939 locally and in CI; coverage Backend 99.07% line (1389/1402), branches 95.16% (393/413).
+- Decisions: **D-40** PROPOSED. Open: the rest of T-009 (image, coverage-drop gate, required check).
+- Next: T-020 after Q-05.
+- Commits (merged): `89a45d5` ci: add build and test workflow for pull requests · `38f269d` test: pin max
+  connections of the test database · `eba1961` test(market): count timeout retries on the client side.
 
 ### 2026-09-24 – T-018 merged; T-019 NSF-01 symbol synchronization job
 - Result: T-018 **merged** (PR #5); T-019 **DONE** (local branch, not pushed)
