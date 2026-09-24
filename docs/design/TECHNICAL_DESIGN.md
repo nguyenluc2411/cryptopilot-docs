@@ -82,7 +82,7 @@ Only the backend owns the database (single writer). The AI Service has no databa
 | Scheduling | Spring `@Scheduled` | Single instance; ShedLock only if a second instance is ever added |
 | Async side effects | Spring Modulith event publication registry (JDBC) + `@ApplicationModuleListener` | Transactional outbox (ADR-010) |
 | HTTP clients | Spring `RestClient` over the JDK `HttpClient` (connect and read timeouts); JDK `java.net.http.WebSocket` for Binance streams | T-017: `market.client.BinanceRestClient` (7.1.2) |
-| Resilience | Timeouts on every client; Spring Framework 7 `RetryTemplate` / `@Retryable` / `@ConcurrencyLimit`; the Binance client's circuit breaker is written in the client (D-37, 7.1.2) because Resilience4j's Boot 4 support was not confirmed | |
+| Resilience | Timeouts on every client; Spring Framework 7 `RetryTemplate` / `@Retryable` / `@ConcurrencyLimit`; the Binance client's circuit breaker is written in the client (D-37, accepted 2026-09-24, 7.1.2) because Resilience4j's Boot 4 support was not confirmed; its IP ban is persisted in `binance_ban` | |
 | Validation | Jakarta Bean Validation (`spring-boot-starter-validation`) | Request DTOs |
 | Security | Spring Security, OAuth2 Resource Server (JWT, HS256), `BCryptPasswordEncoder(12)` | |
 | Rate limiting | Bucket4j (in-memory) in a servlet filter | |
@@ -95,7 +95,7 @@ Only the backend owns the database (single writer). The AI Service has no databa
 | AI Service | Node.js LTS, TypeScript, Fastify, zod, @anthropic-ai/sdk, bottleneck | Unchanged |
 | Web | React 18 + TypeScript + Vite, TanStack Query, React Router, React Hook Form + zod, @stomp/stompjs, TradingView Lightweight Charts | |
 | Mobile | Flutter (stable), Riverpod, dio, go_router, stomp_dart_client | Chart library in ADR-012 |
-| Tests | JUnit Jupiter, AssertJ, Mockito — Boot 4 has no single `spring-boot-starter-test`; pull the per-slice starters (`spring-boot-starter-webmvc-test`, `-actuator-test`, `-validation-test`, later `-data-jpa-test`). Plus Testcontainers, WireMock (not yet added — the Binance client is tested against a JDK `com.sun.net.httpserver` stand-in, D-36), ArchUnit, Spring Modulith Test, jqwik; Vitest, Playwright, k6 | |
+| Tests | JUnit Jupiter, AssertJ, Mockito — Boot 4 has no single `spring-boot-starter-test`; pull the per-slice starters (`spring-boot-starter-webmvc-test`, `-actuator-test`, `-validation-test`, later `-data-jpa-test`). Plus Testcontainers, WireMock (not yet added — the Binance client is tested against a JDK `com.sun.net.httpserver` stand-in, D-36, accepted 2026-09-24), ArchUnit, Spring Modulith Test, jqwik; Vitest, Playwright, k6 | |
 
 Library versions are managed by the Spring Boot BOM wherever possible; any extra library version is declared once in the `<properties>` of `backend/pom.xml`.
 
@@ -613,7 +613,25 @@ Resilience, per venue (spot and futures have separate IP budgets, so separate st
    `circuit-breaker.open-duration`, then one trial call is allowed. Written in the client rather than added as
    Resilience4j, because it is thirty lines and Resilience4j's Spring Boot 4 support was not confirmed.
 6. **Other 4xx** (a bad symbol, a bad interval) — `REJECTED`, never retried, never counted as an outage.
-7. **Malformed body** — `MALFORMED`, never retried.
+7. **Malformed body** — `MALFORMED`, never retried. The string-only rule is for decimals only (prices,
+   quantities, rates, ratios, open interest); the fields the documentation sends as JSON numbers — times and
+   the kline trade count — are read as integers, and fields the client does not read are ignored whatever
+   their type. MALFORMED and REJECTED never count towards the breaker: the exchange answered, so the host is
+   up, and an answered request ends a run of failures. Only 5xx, timeouts and refused connections count.
+
+**IP bans survive a restart (T-017 follow-up).** A 418 is written to `binance_ban` (V7, one row per market,
+`banned_until`, `reason`, `updated_at`) before the refusal is returned, through the `BinanceBanStore` port
+(`market.service.PersistentBinanceBans`), and read back the first time each venue is used after a start; a
+ban already ended is ignored. Bans grow from 2 minutes to 3 days with every repeat (7.1.1), so a restart that
+forgot one and called again would make the next one longer. `binance_ban` is a technical table, like
+`event_publication`, not a business entity. A 429 back-off stays in memory.
+
+**The caller contract.** Every public method returns data or throws the one final type
+`BinanceClientException` with a kind: `RATE_LIMITED`, `BANNED`, `CIRCUIT_OPEN` (each with `retryAt`, the
+instant a call may succeed), `UNAVAILABLE`, `REJECTED`, `MALFORMED` (no `retryAt`). Scheduled callers (T-019,
+T-020, T-023) **skip the run and reschedule at or after `retryAt`**; on `UNAVAILABLE` they wait for their next
+run; on `REJECTED`/`MALFORMED` they log a defect. They never loop on a refusal and never sleep in the calling
+thread (Nygard 2018, ch. 5, Fail Fast).
 
 ### 7.2 Incremental indicators (NSF-05, BR-12)
 
