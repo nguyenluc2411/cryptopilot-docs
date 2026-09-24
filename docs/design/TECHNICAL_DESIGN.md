@@ -555,6 +555,11 @@ Algorithm:
 5. Backfill: REST klines with `startTime`, `limit = 1000`, loop until `endTime`; keep only closed candles (`closeTime < now`); upsert; honour `X-MBX-USED-WEIGHT` headers (pause when above 80% of limit).
 6. Reconnect: exponential back-off 1 s, 2 s, 4 s … max 60 s with jitter; proactively reconnect each shard every 23 h; after reconnect run gap detection for all its streams.
 7. Snapshots: every 60 s write one `spot_market_data` / `futures_market_data` PERIODIC row per pair from the Redis cache.
+8a. Symbol synchronisation (NSF-01, T-019): at start-up and daily at 00:05 UTC, per market in one transaction,
+   `exchangeInfo` is reconciled with the registered pairs plus `cryptopilot.market.sync.seed-symbols`: filters
+   replaced, the exchange status normalized to TRADING / NOT_TRADING / DELISTED in `*_exchange_status` with the raw
+   text in `*_exchange_status_raw` (V8), a pair gone from a market it was on marked DELISTED (never deleted), seeds
+   created INACTIVE. Idempotent except `last_synced_at`. Refusals follow the caller contract of 7.1.2 (D-39).
 8. Funding settlement (NSF-04): after each `nextFundingTime` passes, read funding rate history (`/fapi/v1/fundingRate`, which returns the settled rate and mark price) and write one `funding_rate_history` row per pair and settlement instant, `INSERT … ON CONFLICT DO NOTHING` (idempotent by the primary key `(pair_id, funding_time)`). These rows are never deleted: a closed trade's P/L is recomputed from them (7.8). The periodic snapshot of step 7 keeps carrying the *predicted* rate; the two are not interchangeable (section 6).
 
 Complexity: O(1) per message; backfill O(N/1000) requests.

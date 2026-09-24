@@ -1,15 +1,14 @@
 # CURRENT_STATE.md — CryptoPilot Project State
 
-**Last updated:** 2026-09-24 · **Document version:** 2.15 · **Phase:** P0 done bar the DO tasks; P1 done bar T-015 (PARTIAL, Q-12) and the web screens; P2 in progress
-**Next task:** `T-019` — NSF-01 symbol synchronization job (both dependencies, T-017 and T-018, are DONE). Read **Q-15** first: the exchange's trading status has no column yet. Also unblocked: T-020, T-023, T-016.
-T-018 is `DONE`: `Coin` and `CryptoPair` map the `coin` and `crypto_pair` tables that V1 already created, so **no
-migration was needed**; `PairFilters` (module root) carries a market's tick, step and minimum notional, floors a
-quantity (BR-23) and rounds a price (BR-30), tested against the real Binance filters of BTCUSDT and SHIBUSDT;
-`ExchangeSymbolMapper` turns T-017's `ExchangeSymbol` into an `ExchangeListing` for T-019. The model keeps one row
-per symbol with both markets side by side (logical model), not one row per market; a Spot/futures symbol mismatch
-(`SHIBUSDT` vs `1000SHIBUSDT`) is raised as **Q-14**. `feature/T-018-pair-and-coin-model` holds 3 commits on
-`develop` (`b52fe40`, T-017 merged as PR #4) and is **not pushed**; its upstream was removed at creation.
-Still open from before: T-015 `PARTIAL` (Q-12) and T-007 `PARTIAL` (Q-04, Q-05).
+**Last updated:** 2026-09-24 · **Document version:** 2.16 · **Phase:** P0 done bar the DO tasks; P1 done bar T-015 (PARTIAL, Q-12) and the web screens; P2 in progress
+**Next task:** `T-020` — NSF-02 historical candle backfill (its dependency T-017 is DONE). Also unblocked: T-021, T-023, T-016.
+T-018 is **merged** (PR #5, `13dca29`). T-019 is `DONE` on the local branch `feature/T-019-symbol-sync-job`
+(4 commits, not pushed, no upstream): NSF-01 reconciles each market's exchange information with the registered
+pairs plus configured seed symbols, in one transaction per market; V8 adds the normalized exchange status
+(TRADING / NOT_TRADING / DELISTED), the raw Binance text and `last_synced_at`; the job runs at start-up and at
+00:05 UTC and honours the client's caller contract. Q-14 and Q-15 were decided by the team lead and applied.
+"Admin is notified" is a WARN log until the notification module exists. Still open: T-015 `PARTIAL` (Q-12),
+T-007 `PARTIAL` (Q-04, Q-05 — a pair list is now proposed in Q-05).
 
 This file is the single source of truth for *status*. `docs/design/TECHNICAL_DESIGN.md` owns *how*; the SRS owns *what*. Every working session starts by reading this file and ends by updating it (`CLAUDE.md` sections 1 and 8).
 
@@ -58,7 +57,7 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 |---|---|---|---|---|---|
 | P0 Foundation | S0 | Repo, CI, database, docker, architecture tests | 9 | 5 | WIP — T-007 PARTIAL |
 | P1 Identity | S1 | Register, verify, login, tokens, profile, devices | 8 | 6 | WIP — T-015 PARTIAL, T-016 TODO (unblocked) |
-| P2 Market Data | S2 | Pairs, backfill, streams, futures metrics | 8 | 2 | WIP — T-017, T-018 DONE; T-019 NEXT |
+| P2 Market Data | S2 | Pairs, backfill, streams, futures metrics | 8 | 3 | WIP — T-017, T-018, T-019 DONE; T-020 NEXT |
 | P3 Analysis | S2–S3 | Indicators, S/R, setup score | 5 | 0 | TODO |
 | P4 Market UI | S3 | Public home, market list, spot/futures analysis | 5 | 0 | TODO |
 | P5 Trading Plan | S3–S4 | Risk calculation, warnings, plan lifecycle | 7 | 0 | TODO |
@@ -72,14 +71,14 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 | P13 Administration | S10 | Users, moderation, config, reports, audit | 7 | 0 | TODO |
 | P14 Mobile | S11 | Flutter app, push, offline | 5 | 0 | TODO |
 | P15 Hardening | S12 | E2E, performance, security, deploy, docs | 7 | 0 | TODO |
-| **Total** | | | **101** | **13** | **13%** |
+| **Total** | | | **101** | **14** | **14%** |
 
-**Coverage:** `calculator` packages — no class yet (gate 90%) · Backend 98.95% line (1231/1244), branches 95.18% (336/353) on the T-018 branch (gate 70%); `develop` 98.88% / 95.78% · AI Service —% (gate 80%).
-**Test suite:** T-018 branch 904/904 (`./mvnw clean verify`): the 848 of `develop` (T-014 and T-017 merged) + 56 (21 pair filters, 17 pair and coin objects, 12 exchange symbol mapping, 6 repository against PostgreSQL). Two `live` tests are excluded from the build. Needs Docker and `JWT_SECRET` (supplied by Surefire, D-20).
+**Coverage:** `calculator` packages — no class yet (gate 90%) · Backend 99.07% line (1389/1402), branches 95.16% (393/413) on the T-019 branch (gate 70%) · AI Service —% (gate 80%).
+**Test suite:** T-019 branch 939/939 (`./mvnw clean verify`): 904 of `develop` (T-018 merged) + 35 (12 synchronisation service, 10 job, 11 V8 migration, 2 pair status; the flaky timeout test was changed, not added). Two `live` tests are excluded from the build. Needs Docker and `JWT_SECRET` (supplied by Surefire, D-20).
 
 > The figure before T-015 was recorded here as 578; the measured baseline was **576** — the "148 shared kernel" was 146. T-015 added 98 tests (80 + 11 + 7 in `ErrorCodeTest` from the two new codes), so 576 + 98 = 674.
 **Merged to `develop`:** everything up to T-018. `develop` is at `13dca29`, the merge commit of PR #5 (T-018, merged 2026-09-24 with a merge commit, remote branch kept, as PR #3 and #4). Full suite on `develop` after the merge: 904 run, 903 passed, 1 failed — `BinanceRestClientTest.NSF02_aResponseSlowerThanTheReadTimeout_timesOut`, a timing-sensitive assertion (100 ms read timeout, exact request count) that passed 5 of 5 times when re-run alone; fixed on the T-019 branch. No CI and no branch protection exist (T-009 not done; branch protection needs GitHub Pro for a private repository), so merges rest on the local suite and the team lead's review.
-**Not merged:** nothing. `backup/T-017-pre-rebase` is a local branch kept for the team lead to delete.
+**Not merged:** `feature/T-019-symbol-sync-job`, 4 commits on top of `13dca29` (`3329415`, `d6cc646`, `b9bee82`, `aee4efa`), local only, no upstream. Adds migration **V8**. `backup/T-017-pre-rebase` is a local branch kept for the team lead to delete.
 **Deployed:** dev — · staging —
 
 ### Critical path
@@ -135,6 +134,7 @@ Decisions that bind the code. An AI agent must follow `APPROVED` rows and must n
 | D-36 | 2026-09-24 | The Binance client is tested against a local stand-in built on the JDK's `com.sun.net.httpserver`, not WireMock. The task row and TECHNICAL_DESIGN 11.1 name WireMock, but it is not in `pom.xml`, and every case T-017 needs — a status, headers, a body, a delay, a count of requests — is thirty lines on the JDK server. **Rejected:** adding WireMock now, a dependency for canned answers; `MockRestServiceServer`, because it replaces the HTTP layer and so cannot produce a real read timeout or a refused connection. **The cost, stated:** a small test helper (`StubExchange`) to maintain; the payment adapters (T-067, T-068) may still want WireMock for signature fixtures, and that is the moment to decide again | ACCEPTED 2026-09-24 (team lead) | T-017 |
 | D-37 | 2026-09-24 | Resilience of the Binance client is built from what the stack already has: Spring Framework 7 `RetryTemplate` for transient failures, and a circuit breaker of about thirty lines in `BinanceRequestGate` (consecutive failed calls open it for a fixed time, then one trial call). TECHNICAL_DESIGN 1.3 left the breaker to T-017 "after checking Spring Boot 4 compatibility"; Resilience4j's Boot 4 support was not confirmed, and the breaker needed here is small. The same gate enforces the weight budget and the 429/418 waits per venue, and it **refuses** rather than sleeps: a refusal carries the instant to retry at, and the job that called decides. **Extended in the T-017 follow-up:** a 418 is also written to `binance_ban` (V7) through the `BinanceBanStore` port and read back the first time each venue is used after a start, so a restart never forgets a ban and repeats the offence that lengthens the next one (2 minutes to 3 days); a 429 stays in memory. The rejection contract is one final `BinanceClientException` whose Javadoc binds callers: skip the run and reschedule at or after `retryAt` for RATE_LIMITED, BANNED and CIRCUIT_OPEN, wait for the next run on UNAVAILABLE, log a defect on REJECTED and MALFORMED, never loop or sleep in the calling thread. Only 5xx, timeouts and refused connections feed the breaker. **The cost, stated:** a breaker the project owns and tests itself; if a second integration (AI Service, payment) needs one, move to Resilience4j then rather than copy this one | ACCEPTED 2026-09-24 (team lead) | T-017 |
 | D-38 | 2026-09-24 | Market model choices in T-018. (1) `MarketType` and `PairFilters` are published at the `market` module root, where TECHNICAL_DESIGN 4.1 already places `PairFilters`, because trading (T-035) will read filters through the module API. (2) A newly registered pair is INACTIVE with both markets off: BR-07 makes a pair visible only once an administrator enables it, so the exchange listing a symbol must not make it appear. (3) `PairFilters` refuses a zero or negative filter and one with more decimals than its column (12 for tick and step, 8 for minimum notional), because a value the database would round is a rule the system would enforce differently from the exchange. (4) `ExchangeSymbolMapper` leaves out non-perpetual futures (the SRS scope is perpetual only, and quarterlies share base and quote with the perpetual) and symbols with unusable filters, and maps any status but TRADING to "not trading" rather than dropping the symbol, so NSF-01 can flag it. (5) `minQty` and the precision fields are not stored: TECHNICAL_DESIGN 7.5 sizes a plan with tick, step and minimum notional only. **The cost, stated:** a symbol dropped by the mapper is invisible to NSF-01 — T-019 should log what it drops | ACCEPTED 2026-09-24 (team lead) | T-018 |
+| D-39 | 2026-09-24 | NSF-01 as built in T-019. (1) **Universe:** the pairs already in `crypto_pair` plus `cryptopilot.market.sync.seed-symbols` (empty until Q-05); the exchange's ~500 symbols per market are never copied in, and a seed is created only if listed and trading, INACTIVE with both markets off (BR-07). Every registered pair is updated, enabled or not, so enabling one later starts from current filters. (2) **Absent from a market:** DELISTED if it had a status there or the market is switched on; otherwise it never was on that market (Q-14) and keeps no status. Never deleted. (3) **Idempotent** except `last_synced_at`, which moves every run on purpose, to show staleness. (4) **Runs** at every start (NSF-01 says "at start-up", not "when never synced") and on `0 5 0 * * *` in `UTC`, from properties; **disabled by default** and enabled in the `dev` and `prod` profiles, so a test context never calls the exchange. (5) **Caller contract:** RATE_LIMITED/BANNED/CIRCUIT_OPEN schedule one retry at `retryAt` (a new one replaces a pending one); UNAVAILABLE waits for the next run; REJECTED/MALFORMED are logged as defects. (6) **Single instance**, no ShedLock (TD 1.3). (7) "Admin is notified" is a WARN log (`NSF-01 FLAG`) until the notification module (P8) can deliver it. **The cost, stated:** a symbol dropped by the mapper leaves a WARN only; a second instance would double the daily read | PROPOSED | T-019 |
 **Action:** D-02 and D-03 were confirmed by the team on 2026-09-19 and are `APPROVED`; D-18 on 2026-09-20. D-04 … D-09 still need confirmation; D-06 and D-07 are already load-bearing in committed code (T-008). D-19 and D-20 are load-bearing as of T-007 and need confirmation before the first staging deployment, because D-20 decides how an operator obtains the first administrator. D-21 and D-22 are load-bearing as of T-010; D-21 is the one worth arguing about, because reversing it later means touching every entity that was written under it. D-29 and D-30 are load-bearing as of T-100; D-31 and D-32 as of T-013. D-23 … D-26 are load-bearing as of T-011 and T-012; D-26 is the one to re-read if the refresh windows of SRS 3.2.3 are ever changed, because it infers "Remember me" from the length of the window rather than from a stored flag.
 
 ---
@@ -227,8 +227,8 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 |---|---|---|---|---|---|---|
 | T-017 | Binance market data client (REST) with resilience policies | BE2 | T-008 | NSF-01, BR-09 | WireMock tests for success, 429, 418, 5xx; request weight respected | **DONE** 2026-09-24 — Spot and futures public REST client; 429, 418, 5xx, timeouts, malformed bodies and the weight budget tested against a local stand-in server (D-36) instead of WireMock; circuit breaker in the client (D-37) |
 | T-018 | Pair and coin model, pair filters (tick, step, min notional) | BE2 | T-005 | BR-07, UC-45 | Rounding helpers tested against real filter values | **DONE** 2026-09-24 — no migration (V1 already had `coin` and `crypto_pair`); entities, repositories, `PairFilters` with rounding tested against real BTCUSDT/SHIBUSDT filters, `ExchangeSymbolMapper` for T-019 |
-| T-019 | NSF-01 symbol synchronization job | BE2 | T-017, T-018 | NSF-01 | Daily job upserts filters; a pair that stops trading is flagged | **NEXT** |
-| T-020 | NSF-02 historical candle backfill | BE2 | T-017 | NSF-02, BR-08 | Gap detection works; re-running inserts no duplicates | TODO |
+| T-019 | NSF-01 symbol synchronization job | BE2 | T-017, T-018 | NSF-01 | Daily job upserts filters; a pair that stops trading is flagged | **DONE** 2026-09-24 — V8 status columns; per-market reconciliation of registered pairs + seed symbols, idempotent; job at start-up and 00:05 UTC honouring the caller contract. Local branch, not pushed |
+| T-020 | NSF-02 historical candle backfill | BE2 | T-017 | NSF-02, BR-08 | Gap detection works; re-running inserts no duplicates | **NEXT** |
 | T-021 | NSF-03 realtime stream ingestion (kline, ticker, mark price) | BE2 | T-017 | NSF-03, BR-08 | Only closed candles stored; reconnect with back-off; gap triggers backfill | TODO |
 | T-022 | Redis price cache and SignalR market hub | BE1 | T-021 | TD 5.6, 9 | Client receives price and candle updates; latency target of SRS 4.2.3 met locally | TODO |
 | T-023 | NSF-04 futures metrics (open interest, long/short, funding settlement) | BE2 | T-017 | NSF-04, BR-10, BR-11 | Funding time read from the source, never assumed to be 8h | TODO |
@@ -379,20 +379,16 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 
 ## 7. Detail block — current NEXT task
 
-### T-019 · NSF-01 symbol synchronization job
+### T-020 · NSF-02 historical candle backfill
 
-**Unblocked:** T-017 and T-018 are DONE. **Read Q-15 first**: the "no longer TRADING" flag has no column yet, and
-the proposal is a migration in this task. Q-14 affects symbols spelled differently on the two markets; Q-05 (the
-pair list) is still open, so the job must work on whatever pairs an administrator has registered.
+**Unblocked:** T-017 is DONE. **To do at the start of that session** (written from the task row): read NSF-02,
+BR-08 and TECHNICAL_DESIGN 7.1 steps 4–5, then replace this block.
 
-**To do at the start of that session** (written from the task row): read NSF-01 (SRS 3.3), UC-45, SCR-37 and
-TECHNICAL_DESIGN 7.1, then replace this block.
-
-**What T-017 and T-018 leave ready:** `BinanceRestClient.spotExchangeInfo()` / `futuresExchangeInfo()` and their
-caller contract (skip the run and reschedule at or after `retryAt`, never loop or sleep);
-`ExchangeSymbolMapper.toListing(market, symbol)`; `CryptoPair.applyFilters(market, filters)`;
-`CryptoPairRepository.findBySymbol`; `CoinRepository.findBySymbol`; `Coin.fromExchange(symbol)`. The mapper drops
-non-perpetual futures and unusable filters silently — log what is dropped (D-38).
+**What T-017 to T-019 leave ready:** `BinanceRestClient.klines(venue, symbol, interval, start, end, limit)` with
+`Kline.isClosedAt(now)` (store closed candles only, BR-08) and the caller contract; `CryptoPairRepository`
+(`findEnabledOn(market)` is the backfill universe); the `SymbolSyncJob` pattern (TaskScheduler, one retry at
+`retryAt`, never sleep). `ohlcv` is a hypertable keyed `(pair_id, market_type, timeframe, open_time)`, so inserts
+can be `ON CONFLICT DO NOTHING`.
 
 ---
 
@@ -404,7 +400,7 @@ non-perpetual futures and unusable filters silently — log what is dropped (D-3
 | Q-02 | Confirm the quantitative targets of SRS 4.2 (availability, response times, capacity) | 2026-09-18 | T-094 | Team + supervisor | OPEN |
 | Q-03 | Confirm the backend runtime — affects every project file and the deployment image | 2026-09-19 | T-002 | Team | RESOLVED 2026-09-19: Java 21 LTS + Spring Boot 4.1.x + Maven (D-02, ADR-002) |
 | Q-04 | Number and pricing of subscription packages for the demo | 2026-09-18 | T-007 (seed withheld), T-066 | Team | **OPEN** — needs, per package: code, display name, price in VND, duration in days, daily AI question quota and whether it allows video posts (BR-43, BR-50, BR-55). Until then `subscription_package` stays empty; a placeholder price would be copied into orders by BR-56 and outlive itself |
-| Q-05 | Which 30–50 pairs are enabled at release | 2026-09-18 | T-007 (seed withheld), T-019 | Team | **OPEN** — needs the list of symbols, which of them are spot, futures or both, and the display order. The tick and step sizes are *not* wanted from the team: they come from the exchange through the NSF-01 job. Until then `coin` and `crypto_pair` stay empty, because a guessed filter becomes a wrong position size (BR-23, BR-30) |
+| Q-05 | Which 30–50 pairs are enabled at release | 2026-09-18 | T-007 (seed withheld), T-019 | Team | **OPEN** — needs the list of symbols, which of them are spot, futures or both, and the display order. The tick and step sizes are *not* wanted from the team: they come from the exchange through the NSF-01 job. Until then `coin` and `crypto_pair` stay empty, because a guessed filter becomes a wrong position size (BR-23, BR-30) **Proposal from live data, 2026-09-24 (not a decision):** 357 USDT pairs are TRADING with the same symbol on Spot and USD-M perpetual futures; the 20 with the highest Spot 24h quote volume, stablecoins excluded, are BTC, ETH, ZEC, NEAR, XRP, SOL, DOGE, UNI, BNB, SUI, BCH, WLD, BABY, AVAX, LTC, ADA, TAO, LINK, ENA, ARB (each against USDT). Symbols spelled differently on futures (`1000PEPEUSDT`, `1000BONKUSDT`, …) are left out per Q-14. Once decided, the list goes into `cryptopilot.market.sync.seed-symbols` |
 | Q-11 | How long a verification mail is throttled before it may be resent | 2026-09-21 | T-011 | Team + BE1 | **ANSWERED BY THE SRS, needs confirming — the question's premise was wrong.** SRS section 3.2.2 states it verbatim: "Resending is limited to once per 60 seconds and 5 times per day per email; a new token invalidates previous unused verification tokens." The row was raised saying the SRS gave no window; it does, and T-011 implements exactly that text rather than a number anyone chose. Two residual points, both recorded rather than guessed: the SRS says *per email* and the implementation counts per account, which coincide while an address identifies one account (A-21 covers neither); and the SRS fixes no boundary for "per day", so the count runs from 00:00 UTC+7 borrowed from BR-50 — **that** is the part still genuinely open, and it is A-21. Close this row once the team confirms the reading |
 | Q-12 | T-015 is named "role policies **and entitlement handler**", but the entitlement handler cannot be built where the backlog places it. `@entitlement.has(authentication, 'AI')` calls `BillingApi.hasActiveEntitlement` (TECHNICAL_DESIGN 7.12), and the `billing` module arrives in P10 (T-065, T-066). T-015's dependency column lists only T-012, which is wrong: the task as written cannot be finished before P10 | 2026-09-21 | T-015 (entitlement half), T-062, T-075 | BE1 + Team | **OPEN** — the role half is done and proved; the two matrix rows that need entitlement (SCR-29 AI Assistant, and Post Video on SCR-26) are enforced at their role level (`/api/v1/ai/**` and `/api/v1/media/**` are TRADER) with the subscription check still to come. Decide which: move the entitlement handler into T-066 where `BillingApi` is born, or open a new P10 task for it and cut T-015 down to role policies. Nothing should build the handler against a stub `BillingApi`, because an entitlement source that always answers "no" is indistinguishable from a working one until P10 lands and would pass its own tests |
 | Q-13 | T-014's "Done when" says "Avatar upload validated", but SRS 3.2.5 stores the avatar (JPG, PNG or WEBP, at most 2 MB) in **Media Storage**, and the Media Storage adapter is T-061 (Cloudinary, signed upload) in P9. Accepting an avatar URL from the client before that exists would let a profile point at any address on the internet; storing the file anywhere else would be a second media store | 2026-09-24 | T-014 (avatar half) | BE2 + Team | RESOLVED 2026-09-24: the avatar is its own task, **T-101** (depends on T-061 and T-014), and T-014 is DONE without it. `UserProfile.changeAvatar` already exists and nothing calls it yet |
@@ -423,6 +419,29 @@ Rule: an AI agent never answers an open question by guessing. It implements what
 ## 9. Session log
 
 Newest first. One block per working session, format in `CLAUDE.md` section 8.
+
+### 2026-09-24 – T-018 merged; T-019 NSF-01 symbol synchronization job
+- Result: T-018 **merged** (PR #5); T-019 **DONE** (local branch, not pushed)
+- Phase M: BR-30 in `PairFilters.roundPrice` verified correct ("all prices > 0 and rounded to the tick size"), no
+  fix commit; A-32 added; D-38 ACCEPTED. PR #5 opened and merged with a merge commit, remote branch kept, as PR #3
+  and #4. Gates: no CI checks exist (T-009), mergeable CLEAN, no required review (branch protection needs GitHub
+  Pro for a private repository — API 403). `develop` suite after merge: 904 run, 1 flaky failure
+  (`NSF02_aResponseSlowerThanTheReadTimeout_timesOut`, passed 5/5 alone) — fixed on the T-019 branch by awaiting
+  the late request. Docs repo pushed.
+- Phase H: Q-14 and Q-15 DECIDED (team lead); branch created from `origin/develop`, upstream removed.
+- Summary: V8 (`spot/futures_exchange_status` normalized with a CHECK of TRADING/NOT_TRADING/DELISTED only,
+  `*_raw` text, `last_synced_at`); `CryptoPair` records them; `SymbolSyncWriter` reconciles one market in one
+  transaction; `SymbolSyncService` reads the exchange outside the transaction; `SymbolSyncJob` runs at start-up
+  and on cron, one retry per market at `retryAt`. See D-39.
+- Tests: +35 (904 → 939); suite 939/939; coverage Domain — / Backend 99.07% line (1389/1402), branches 95.16%
+  (393/413). Fixtures are trimmed real exchange information of 2026-09-24.
+- BR/UC/NSF covered: NSF-01 (sync, flag); BR-07 (seeds INACTIVE, never activated); Q-14, Q-15 applied.
+- Decisions: **D-39** PROPOSED. Q-05 proposal recorded (not decided).
+- Next: T-020.
+- Commits, on `feature/T-019-symbol-sync-job` and **unpushed**: `3329415` test(market): await late requests in the
+  read timeout test · `d6cc646` feat(market): add exchange trading status columns to pairs · `b9bee82`
+  feat(market): synchronise pair filters and exchange status · `aee4efa` feat(market): schedule the symbol
+  synchronisation. Each compiles on its own.
 
 ### 2026-09-24 – T-018 Pair and coin model, pair filters
 - Result: **DONE**
