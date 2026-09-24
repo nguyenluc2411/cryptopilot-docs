@@ -78,7 +78,7 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 
 > The figure before T-015 was recorded here as 578; the measured baseline was **576** — the "148 shared kernel" was 146. T-015 added 98 tests (80 + 11 + 7 in `ErrorCodeTest` from the two new codes), so 576 + 98 = 674.
 **Merged to `develop`:** everything up to T-018. `develop` is at `13dca29`, the merge commit of PR #5 (T-018, merged 2026-09-24 with a merge commit, remote branch kept, as PR #3 and #4). Full suite on `develop` after the merge: 904 run, 903 passed, 1 failed — `BinanceRestClientTest.NSF02_aResponseSlowerThanTheReadTimeout_timesOut`, a timing-sensitive assertion (100 ms read timeout, exact request count) that passed 5 of 5 times when re-run alone; fixed on the T-019 branch. No CI and no branch protection exist (T-009 not done; branch protection needs GitHub Pro for a private repository), so merges rest on the local suite and the team lead's review.
-**Not merged:** `feature/T-019-symbol-sync-job`, 4 commits on top of `13dca29` (`3329415`, `d6cc646`, `b9bee82`, `aee4efa`), local only, no upstream. Adds migration **V8**. `backup/T-017-pre-rebase` is a local branch kept for the team lead to delete.
+**Not merged:** `feature/T-019-symbol-sync-job`, 4 commits on top of `13dca29` (`3329415`, `d6cc646`, `b9bee82`, `aee4efa`), **pushed and open as PR #6 into `develop`** (2026-09-24, awaiting the team lead's review). Adds migration **V8**. `backup/T-017-pre-rebase` is a local branch kept for the team lead to delete.
 **Deployed:** dev — · staging —
 
 ### Critical path
