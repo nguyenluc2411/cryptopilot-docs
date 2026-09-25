@@ -1,10 +1,11 @@
 # CURRENT_STATE.md — CryptoPilot Project State
 
-**Last updated:** 2026-09-25 · **Document version:** 2.24 · **Phase:** P0 done bar T-001 (PARTIAL, Q-17), T-004 and the rest of T-009; P1 done bar T-015 (PARTIAL, Q-12) and the web screens; P2 done bar T-022
-**Next task:** `T-022` — Redis price cache and SignalR market hub (dependency T-021 DONE). Also unblocked: T-025, T-026, T-016.
-T-024 is merged (PR #13, `319a240`). T-102 is `DONE` on PR #14 (CI green, not merged): the two flaky stream shard cases are
-deterministic. D-50 keeps market data public (Q-19 closed). Still open: T-001 `PARTIAL` (Q-17), T-015 `PARTIAL` (Q-12),
-T-007 `PARTIAL` (Q-04), T-009 `PARTIAL`.
+**Last updated:** 2026-09-25 · **Document version:** 2.25 · **Phase:** P0 done bar T-001 (PARTIAL, Q-17), T-004 and the rest of T-009; P1 done bar T-015 (PARTIAL, Q-12) and the web screens; P2 done (T-022 on PR #15); P3 next
+**Next task:** `T-025` — Incremental indicator engine (dependency T-020 DONE). Also unblocked: T-026, T-016, T-035, T-053.
+T-022 is `DONE` on PR #15 (2 commits, CI green, not merged): the Redis latest-price cache (TD 5.6) and the STOMP market
+topics (TD 9), fed from NSF-03 without touching its DB writes; measured live at 0.30 s source → client. T-102 is merged
+(PR #14, `06258cc`): no `Thread.sleep` left in the market tests. Still open: T-001 `PARTIAL` (Q-17), T-015 `PARTIAL`
+(Q-12), T-007 `PARTIAL` (Q-04), T-009 `PARTIAL`.
 
 This file is the single source of truth for *status*. `docs/design/TECHNICAL_DESIGN.md` owns *how*; the SRS owns *what*. Every working session starts by reading this file and ends by updating it (`CLAUDE.md` sections 1 and 8).
 
@@ -53,8 +54,8 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 |---|---|---|---|---|---|
 | P0 Foundation | S0 | Repo, CI, database, docker, architecture tests | 9 | 5 | WIP — T-001, T-007, T-009 PARTIAL |
 | P1 Identity | S1 | Register, verify, login, tokens, profile, devices | 8 | 6 | WIP — T-015 PARTIAL, T-016 TODO (unblocked) |
-| P2 Market Data | S2 | Pairs, backfill, streams, futures metrics | 8 | 7 | WIP — T-017 to T-021, T-023 and T-024 DONE and merged; T-022 NEXT |
-| P3 Analysis | S2–S3 | Indicators, S/R, setup score | 5 | 0 | TODO |
+| P2 Market Data | S2 | Pairs, backfill, streams, futures metrics | 8 | 8 | DONE — T-017 to T-021, T-023, T-024 merged; T-022 on PR #15 |
+| P3 Analysis | S2–S3 | Indicators, S/R, setup score | 5 | 0 | NEXT — T-025 |
 | P4 Market UI | S3 | Public home, market list, spot/futures analysis | 5 | 0 | TODO |
 | P5 Trading Plan | S3–S4 | Risk calculation, warnings, plan lifecycle | 7 | 0 | TODO |
 | P6 Matching | S4–S5 | Simulated fills, exits, liquidation, funding | 6 | 0 | TODO |
@@ -67,14 +68,14 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 | P13 Administration | S10 | Users, moderation, config, reports, audit | 7 | 0 | TODO |
 | P14 Mobile | S11 | Flutter app, push, offline | 5 | 0 | TODO |
 | P15 Hardening | S12 | E2E, performance, security, deploy, docs | 7 | 0 | TODO |
-| **Total** | | | **102** | **19** | **19%** |
+| **Total** | | | **102** | **20** | **20%** |
 
-**Coverage:** `calculator` packages — `market.calculator` 100% line (16/16), 100% branch (12/12) (gate 90%) · Backend on `develop` and PR #14 (measured 2026-09-25): 99.50% line (2812/2826), 94.91% branches (764/805) — gate line 95 %, branch 90 % · AI Service —% (gate 80%).
-**Test suite:** `develop` (`319a240`) and PR #14: 1150/1150, locally and in CI. The 2-test gap between Maven's total and the XML report headers is Surefire's header of `RoundingTest` (32 vs 34 test cases). The two flaky `BinanceStreamShardTest` cases are deterministic on PR #14 (T-102); the same pattern remains in other cases of that class and in `ClosedCandlePipelineTest` (reported, not changed). Two `live` tests are excluded everywhere. Needs Docker and `JWT_SECRET` (supplied by Surefire, D-20); the test database runs with `max_connections=300` (D-40).
+**Coverage:** `calculator` packages — `market.calculator` 100% line (16/16), 100% branch (12/12) (gate 90%) · Backend on PR #15 (measured 2026-09-25): 99.52% line (3089/3104), 94.25% branches (836/887); on `develop` (`06258cc`): 99.50% line, 95.03% branches — gate line 95 %, branch 90 % · AI Service —% (gate 80%).
+**Test suite:** `develop` (`06258cc`) 1150/1150; PR #15 1177/1177 (+27), locally and in CI. The 2-test gap between Maven's total and the XML report headers is Surefire's header of `RoundingTest`. No `Thread.sleep` in the market tests (T-102); the tests of T-022 wait on events only. Two `live` tests are excluded everywhere. Needs Docker (PostgreSQL + TimescaleDB and Redis 7.4.11 containers) and `JWT_SECRET` (supplied by Surefire, D-20); the test database runs with `max_connections=300` (D-40).
 
 > The figure before T-015 was recorded here as 578; the measured baseline was **576** — the "148 shared kernel" was 146. T-015 added 98 tests (80 + 11 + 7 in `ErrorCodeTest` from the two new codes), so 576 + 98 = 674.
-**Merged to `develop`:** everything up to T-024. `develop` is at `319a240` (PR #13, T-024), after `f47c127` (PR #12, D-48), `f3bd58b` (PR #11, T-023) … — all merge commits, remote branches kept.
-**Not merged:** PR #14 `fix/T-102-flaky-stream-shard-test` (`318878a`; `build-and-test` 1150/1150, `secret-scan` 115 commits, no leak). `backup/T-017-pre-rebase` is a local branch kept for the team lead to delete.
+**Merged to `develop`:** everything up to T-024 and T-102. `develop` is at `06258cc` (PR #14, T-102), after `319a240` (PR #13, T-024), `f47c127` (PR #12, D-48) … — all merge commits, remote branches kept.
+**Not merged:** PR #15 `feature/T-022-price-cache-market-hub` (`7409ab8`, `14a2f54`; `build-and-test` 1177/1177, `secret-scan` 118 commits, no leak). `backup/T-017-pre-rebase` is a local branch kept for the team lead to delete.
 **Deployed:** dev — · staging —
 
 ### Critical path
@@ -142,6 +143,7 @@ Decisions that bind the code. An AI agent must follow `APPROVED` rows and must n
 | D-48 | 2026-09-25 | **Service interfaces and DTO package split** (team lead, decided before the number of services grows, so that every later task follows one convention). Every `@Service` becomes an interface `FooService` in `service/` (only the methods called from outside the class) and `FooServiceImpl` in `service/impl/` with the original annotations; everything injects the interface. API records split into `dto/request/` and `dto/response/`; internal records (service, job, repository results) move to `model/`; client records stay in `client/`. A bean implementing a port declared in `client` or another module needs no second interface. DTOs may use entity enums only; `market.client` classes stay inside `market`. Enforced by ArchUnit. **Supersedes** TECHNICAL_DESIGN 3.3 "class, no interface unless there are two implementations"; TD 3.1, 3.3, 4.1 and CLAUDE.md section 5 updated. No behaviour change | PROPOSED | team lead |
 | D-49 | 2026-09-25 | **Market data API shapes (T-024).** Five public GETs under `/api/v1/market` (SRS 3.1.3, T-015's raw-data rule): `pairs` paged with `PageResponse` in display order then symbol (in memory: 30–50 rows); `{market}/{symbol}/candles` with `tf` ∈ BR-08, `limit` ≤ 1000 (default 500), optional `from`/`to` (range ≤ 1000 candles, `to` never in the future), newest `limit` of the range returned oldest first, paged backwards by open time; `spot/{symbol}/stats` and `futures/{symbol}/stats` as two paths (not one polymorphic body), each block with the instant of the row that holds it plus `serverTime`; `futures/{symbol}/metrics` with explicit `from`/`to` instead of TD 8's `range=` (default 1 day, at most 7 days) and `availableFrom` per series (BR-10). Sparse series list only instants with a value; absent values are omitted, never zero (D-45). Limits in `cryptopilot.market.api.*`. MSG01 for invalid input, MSG41 for a pair not enabled on the market (all alike, BR-07) | PROPOSED | T-024 |
 | D-50 | 2026-09-25 | **Market data stays public, futures metrics included** (team decision, closes Q-19). Every `GET /api/v1/market/**` endpoint — pairs, candles, Spot and futures stats, and the futures metrics (open interest, long/short ratio, settled funding) — is open to a Guest. SRS 3.3.3 says what SCR-11 *displays*, not who may call the API behind it; the access rule for the API is SRS 3.1.3 "Query Public Data" and T-015's rule that raw market data is public while the computed analysis (`/analysis/**`) is Trader-only. No change to the filter chain | PROPOSED | Q-19, T-024 |
+| D-51 | 2026-09-25 | **Realtime payloads and hub rules (T-022)**, where TD 9 is silent. Payloads are JSON with decimals as strings and absent fields omitted: ticker `{market, symbol, sourceTime, …Spot fields | …futures fields}`, kline `{market, symbol, timeframe, openTime, closeTime, open, high, low, close, baseVolume, quoteVolume, closed, sourceTime}`, overview `{market, serverTime, tickers[]}`. Kline topics throttled like tickers (1 s) but one update per candle, so a close is never coalesced away; only BR-08 timeframes have a kline topic. SUBSCRIBE is admitted only to the public market topics, SEND refused; JWT on CONNECT arrives with the first user destination. Receive order not preserved (it swallows the ERROR frame of a refused subscription). Cache flush every 250 ms (TD names only the TTL). Redis excluded from the health check (cache only, ADR-005) | PROPOSED | T-022 |
 **Action:** D-02 and D-03 were confirmed by the team on 2026-09-19 and are `APPROVED`; D-18 on 2026-09-20. D-04 … D-09 still need confirmation; D-06 and D-07 are already load-bearing in committed code (T-008). D-19 and D-20 are load-bearing as of T-007 and need confirmation before the first staging deployment, because D-20 decides how an operator obtains the first administrator. D-21 and D-22 are load-bearing as of T-010; D-21 is the one worth arguing about, because reversing it later means touching every entity that was written under it. D-29 and D-30 are load-bearing as of T-100; D-31 and D-32 as of T-013. D-23 … D-26 are load-bearing as of T-011 and T-012; D-26 is the one to re-read if the refresh windows of SRS 3.2.3 are ever changed, because it infers "Remember me" from the length of the window rather than from a stored flag.
 
 ---
@@ -238,7 +240,7 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 | T-019 | NSF-01 symbol synchronization job | BE2 | T-017, T-018 | NSF-01 | Daily job upserts filters; a pair that stops trading is flagged | **DONE** 2026-09-24 — V8 status columns; per-market reconciliation of registered pairs + seed symbols, idempotent; job at start-up and 00:05 UTC honouring the caller contract. Local branch, not pushed |
 | T-020 | NSF-02 historical candle backfill | BE2 | T-017 | NSF-02, BR-08 | Gap detection works; re-running inserts no duplicates | **DONE** 2026-09-24, merged (PR #8) — no migration; pairs TRADING per market (D-42), D-41 depths, resume from stored data, ON CONFLICT DO NOTHING, 50 % weight share, after sync and hourly. "Gap detection" read as A-33 |
 | T-021 | NSF-03 realtime stream ingestion (kline, ticker, mark price) | BE2 | T-017 | NSF-03, BR-08 | Only closed candles stored; reconnect with back-off; gap triggers backfill | **DONE** 2026-09-24, merged (PR #9) — no migration; combined streams per market (≤ 100 per connection, futures under `/market`), closed candles only, gap → NSF-02 range fill plus a start-up scan of 7 days, back-off 1–60 s, 23 h renewal, idle watchdog, in-memory latest prices, minute snapshots, dev-only demo activation (D-43, D-44, A-33, Q-16) |
-| T-022 | Redis price cache and SignalR market hub | BE1 | T-021 | TD 5.6, 9 | Client receives price and candle updates; latency target of SRS 4.2.3 met locally | **NEXT** |
+| T-022 | Redis price cache and STOMP market hub (TD 9; the title said SignalR, from the .NET draft) | BE1 | T-021 | TD 5.6, 9 | Client receives price and candle updates; latency target of SRS 4.2.3 met locally | **DONE** 2026-09-25, PR #15 (CI green) — Redis `px:{market}:{symbol}` TTL 5 min, never overwritten by an older value, explicit FOUND/EXPIRED/MISSING/UNAVAILABLE; STOMP `/ws` with the three public topic families, 1 s / 2 s pushes (TD 9), D-51 payloads; NSF-03 DB writes untouched. Latency measured live: median 0.30 s source → client (SRS 4.2.3 ≤ 2 s) |
 | T-023 | NSF-04 futures metrics (open interest, long/short, funding settlement) | BE2 | T-017 | NSF-04, BR-10, BR-11 | Funding time read from the source, never assumed to be 8h | **DONE** 2026-09-25, merged (PR #11, `f3bd58b`) — no migration; 5-minute OI (with value) and long/short ratios from the history endpoints into `futures_market_data` at the source's instant, own columns only, no forward fill, current minute never written (D-45); settlements into `funding_rate_history` once per instant, due from `nextFundingTime` and `fundingInfo`, no assumed interval (D-46); refused calls write nothing |
 | T-024 | Market data API: pairs, candles, snapshots | BE2 | T-020, T-021 | UC-09 | OpenAPI documented; pagination and timeframe validation tested | **DONE** 2026-09-25, merged (PR #13, `319a240`) — five public GET endpoints (D-49), pagination and timeframe validation tested; OpenAPI documented: springdoc 3.1.1 at `/v3/api-docs` and `/swagger-ui.html`, off in `prod`, 18 paths / 19 operations; every binding error answers MSG01 |
 
@@ -246,7 +248,7 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 
 | ID | Task | Owner | Dep | Refs | Done when | Status |
 |---|---|---|---|---|---|---|
-| T-025 | Incremental indicator engine (SMA, EMA, RSI, MACD, Bollinger, volume SMA) | BE1 | T-020 | BR-12, TD 7.2 | Golden-data tests within 1e-8; incremental equals batch (property test) | TODO |
+| T-025 | Incremental indicator engine (SMA, EMA, RSI, MACD, Bollinger, volume SMA) | BE1 | T-020 | BR-12, TD 7.2 | Golden-data tests within 1e-8; incremental equals batch (property test) | **NEXT** |
 | T-026 | Swing support/resistance detector | BE1 | T-020 | BR-14, TD 7.3 | Unconfirmed candles ignored; equal lows are not swings | TODO |
 | T-027 | Setup score calculator v1.0 with components and version | BE1 | T-025, T-026, A-07 | BR-13, TD 7.4 | Fixture tests for up-trend, down-trend and range; spot has no derivatives component | TODO |
 | T-028 | NSF-05 indicator pipeline and persistence | BE1 | T-025…T-027 | NSF-05 | Computed within 10s of candle close; idempotent upsert by PK | TODO |
@@ -318,7 +320,7 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 | T-064 | Violation reports | BE2 | T-060 | UC-33, BR-46 | One report per user per post; self-reporting rejected | TODO |
 | T-065 | Web: community feed, post detail, editor, report dialog | FE | T-063, T-064 | SCR-24…27 | Official posts pinned; media preview | TODO |
 | T-101 | Profile avatar upload | BE2 | T-061, T-014 | UC-06, SRS 3.2.5 | The avatar of SCR-07 is uploaded through the Media Storage seam (JPG, PNG or WEBP, at most 2 MB, checked server-side); `PUT /me/profile` accepts only a reference from that store, never an arbitrary URL; replacing or removing an avatar deletes the old file | TODO |
-| T-102 | Stabilise the flaky stream shard test | BE2 | T-021 | NSF-03 | `BinanceStreamShardTest.NSF03_aFailedRenewal_keepsTheOldConnection_andTriesAgain` and `NSF03_theShard_connectsToTheCombinedStreamUnderTheConfiguredRoute` (2 of 5 isolated runs failed on 2026-09-25, "expected [false] …") pass 50 consecutive runs; the assertion reads a snapshot of the recorded list instead of the live one (it failed once on 2026-09-25 with "expected [false, false] … [false, false]", a race between the check and the message), no assertion weakened | **DONE** 2026-09-25, PR #14 (CI green) — both cases wait for the callback they assert on; the renewal case runs on a virtual-time `ManualScheduler` through the shard's existing scheduler parameter; no production code, timeout or assertion changed. 0/200 isolated each, 10/10 full suites |
+| T-102 | Stabilise the flaky stream shard test | BE2 | T-021 | NSF-03 | `BinanceStreamShardTest.NSF03_aFailedRenewal_keepsTheOldConnection_andTriesAgain` and `NSF03_theShard_connectsToTheCombinedStreamUnderTheConfiguredRoute` (2 of 5 isolated runs failed on 2026-09-25, "expected [false] …") pass 50 consecutive runs; the assertion reads a snapshot of the recorded list instead of the live one (it failed once on 2026-09-25 with "expected [false, false] … [false, false]", a race between the check and the message), no assertion weakened | **DONE** 2026-09-25, merged (PR #14, `06258cc`) — extended to every case of the pattern; both cases wait for the callback they assert on; the renewal case runs on a virtual-time `ManualScheduler` through the shard's existing scheduler parameter; no production code, timeout or assertion changed. 0/200 isolated each, 10/10 full suites |
 
 ### P10 — Billing (Sprint 8)
 
@@ -388,13 +390,14 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 
 ## 7. Detail block — current NEXT task
 
-### T-022 · Redis price cache and SignalR market hub
+### T-025 · Incremental indicator engine
 
-**Unblocked:** T-021 is DONE. **To do at the start of that session:** read TD 5.6 and 9, SRS 4.2.3, D-44, D-45 and the
-realtime rules of ADR-005 (STOMP over Spring WebSocket, Redis as cache only), then replace this block.
+**Unblocked:** T-020 is DONE. **To do at the start of that session:** read BR-12, TD 7.2 (incremental indicators,
+golden data within 1e-8, incremental equals batch), NSF-05, D-48 (calculator stays pure Java, `market.calculator`), then
+replace this block.
 
-**Ready:** `LatestMarketData` (in memory, the thing T-022 moves to Redis), the stream supervisor and snapshot job of NSF-03,
-and the public read API of T-024 (PR #13) that a client polls when realtime is lost (SRS 3.3.1).
+**Ready:** closed candles in `ohlcv` (NSF-02/03), `OhlcvRepository.closedCandles`, the `CandleClosed` event, the
+`calculator` package rules of ArchUnit and its 90 % coverage gate.
 
 ---
 
@@ -429,6 +432,37 @@ Rule: an AI agent never answers an open question by guessing. It implements what
 ## 9. Session log
 
 Newest first. One block per working session, format in `CLAUDE.md` section 8.
+
+### 2026-09-25 – T-102 extended and merged; T-022 Redis price cache and STOMP market hub
+- Result: T-102 **DONE**, merged (PR #14, `06258cc`); T-022 **DONE** on PR #15 (CI green, not merged)
+- T-102, cases fixed: `NSF03_aDroppedConnection…`, `NSF03_aCloseFromTheExchange…` (wait for the first callback, not
+  `isConnected`); `NSF03_renewal_opens…`, `NSF03_aSilentConnection…`, `NSF03_aConnectionThatKeepsTalking…` (virtual time:
+  `ManualScheduler` now moves a `MutableTestClock`, made volatile); `NSF03_closingTheShard…`, `NSF03_startingTwice…`
+  (`CountingHttpClient` counts the attempts a shard starts synchronously, instead of sleeping);
+  `ClosedCandlePipelineTest.NSF03_aFullPartition…` (the refused submit returns while the consumer is held, not "< 100 ms");
+  `FuturesMetricsJobTest.NSF04_aRunWhileTheLastIsGoing…` (stub service on a latch); `StubExchange` holds an answer until
+  released instead of sleeping; `await` polls with `yield`. No production code, timeout, retry or assertion changed.
+- T-102, slow-callback check: every callback +50 ms — 0 failures before and after; first callback +400 ms — before, 3
+  failures (`aDroppedConnection`, `aCloseFromTheExchange`, `aSilentConnection`: order `[true, false]`), after 0. Not a
+  production race: `MarketStreamSupervisor` reacts only to `afterLoss == true`, so the order of two connections' callbacks
+  changes nothing. 200 isolated runs of each of the 12 fixed cases: 0 failures; 10 full suites: 10/10 (1150 each).
+  Remaining real time, justified: the shard tests' real executor for event-waited back-offs of 20 ms and 23 h renewals; the
+  JDK `HttpClient` read timeout (100 ms) of the read-timeout case; `await`'s 5 s guard.
+- T-022 analysis: TD 9 and ADR-005 prescribe Spring WebSocket + STOMP at `/ws` (the task title's "SignalR" is a leftover),
+  destinations `/topic/ticker|kline|overview…`, 1 s / 2 s throttling; TD 5.6 the Redis key and the 5-minute TTL; TD silent on
+  payloads (D-51). Redis was in the dev compose file, not in tests: a Redis 7.4.11 Testcontainer added.
+- T-022 built: `PriceCacheService` (+impl, job), `MarketBroadcastService` (+impl, job), `MarketUpdateService` fan-out hooked
+  into `MarketStreamSupervisor` after storage, `common.config.WebSocketConfig` + `RealtimeProperties`, `GET /ws` open in
+  the filter chain; `spring-boot-starter-websocket` and `-data-redis` (both in TD 1.3).
+- Live check (dev, real Binance): 26 keys `px:*` with TTL; source → client median 0.30 s, max 0.33 s; 1.00 s between two
+  messages of a destination; clock offset vs Binance 0.06 s. Swagger/`/v3/api-docs` unaffected.
+- Found: `setPreserveReceiveOrder(true)` swallows the ERROR frame of a refused subscription — not used (D-51).
+- Tests: +27 (1150 → 1177); suite 1177/1177 locally and in CI; coverage 99.52% line / 94.25% branch (measured).
+- Decisions: **D-51** PROPOSED. Open questions: none new.
+- P2 Market Data: 8/8 (T-022 pending merge). Next: T-025.
+- Commits: `884c75b` test(market): make remaining stream and pipeline tests deterministic (the requested subject was 76
+  characters; `(T-102)` moved to the footer for the 72-character hook) · `7409ab8` feat(market): add Redis price cache ·
+  `14a2f54` feat(market): add market hub.
 
 ### 2026-09-25 – PR #13 merged; D-50; Swagger UI checked; T-102 flaky stream shard test
 - Result: **DONE** — PR #14 open, CI green; not merged
