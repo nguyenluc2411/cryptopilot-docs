@@ -673,6 +673,8 @@ Complexity: O(1) per candle per indicator (Bollinger O(20)); memory O(200) per s
 
 References: Wilder 1978 (RSI, smoothing); Appel 2005 (MACD); Bollinger 2001; Murphy 1999 (moving averages).
 
+Implementation (T-025, D-52): `market.calculator` holds one class per indicator and `IndicatorEngine`, which takes a candle only when it opens exactly one interval after the last one — the same candle again is `DUPLICATE`, an earlier one `OUT_OF_ORDER`, a later one `GAP`, and none of the three touches the state. `IndicatorService` (`service/impl/IndicatorServiceImpl`) keeps one engine per series; the first candle after start-up, and an out-of-order or gap candle, rebuild the series from the latest `cryptopilot.market.indicators.history-candles` (1000) stored candles up to the later of the offered and the last taken candle; a hole in the stored candles restarts the warm-up after it. Warm-up values are `null` (`IndicatorSnapshot`), never 0. MACD follows this table (EMA12 seeded at candle 12, not aligned with EMA26 as TA-Lib's `MACD` function does); an RSI with `AG = AL = 0` is 100 as the table states (Q-20). σ is computed shifted by the window's first value so equal closes give exactly 0. Persistence (rounded to 10 dp) and the `CandleClosed` hook are T-028.
+
 ### 7.3 Swing support/resistance (BR-14)
 
 1. Over the last 200 closed candles, candle i is a swing low if `low_i < low_{i±1}` and `low_i < low_{i±2}`; swing high symmetric with `high`.
@@ -966,6 +968,8 @@ Overall backend line coverage ≥ 70% (SRS 4.2.5; the JaCoCo bundle gate is set 
 
 ### 11.2 Golden indicator data
 `tools/golden/` contains a script that generates reference SMA/EMA/RSI/MACD/Bollinger values from a public OHLCV sample using an established library (e.g. TA-Lib, whose EMA and RSI seeding match 7.2). The generated CSV and the library version are committed under `backend/src/test/resources/golden`; tests compare after the warm-up period.
+
+Since T-025: `tools/golden/generate_indicator_fixture.py` writes `btcusdt-1h-talib.csv` (1200 closed BTCUSDT 1h candles, TA-Lib 0.8.1) and `btcusdt-1h-talib.versions.txt`. MACD is assembled from TA-Lib EMAs per 7.2 rather than taken from TA-Lib's `MACD`. The tests compare every candle, including the warm-up (empty cell = `null`), within `max(1e-8·|expected|, 1e-8)`; incremental-equals-batch (11.4) is checked against a batch reference written in the tests over the fixture and 12 seeded generated series instead of a property-testing library (D-52).
 
 ### 11.3 Test data builders
 `TradingPlanBuilder`, `CandleSeriesBuilder`, `PairFiltersBuilder`, `FixedClock` (a `Clock.fixed(...)` factory), `FakePriceFeed` live in `src/test/java/com/cryptopilot/support`. No test depends on real network access. Integration tests share one Testcontainers setup (`@ServiceConnection`).

@@ -1,10 +1,10 @@
 # CURRENT_STATE.md — CryptoPilot Project State
 
-**Last updated:** 2026-09-25 · **Document version:** 2.25 · **Phase:** P0 done bar T-001 (PARTIAL, Q-17), T-004 and the rest of T-009; P1 done bar T-015 (PARTIAL, Q-12) and the web screens; P2 done (T-022 on PR #15); P3 next
-**Next task:** `T-025` — Incremental indicator engine (dependency T-020 DONE). Also unblocked: T-026, T-016, T-035, T-053.
-T-022 is `DONE` on PR #15 (2 commits, CI green, not merged): the Redis latest-price cache (TD 5.6) and the STOMP market
-topics (TD 9), fed from NSF-03 without touching its DB writes; measured live at 0.30 s source → client. T-102 is merged
-(PR #14, `06258cc`): no `Thread.sleep` left in the market tests. Still open: T-001 `PARTIAL` (Q-17), T-015 `PARTIAL`
+**Last updated:** 2026-09-25 · **Document version:** 2.26 · **Phase:** P0 done bar T-001 (PARTIAL, Q-17), T-004 and the rest of T-009; P1 done bar T-015 (PARTIAL, Q-12) and the web screens; P2 done and merged; P3 in progress (T-025 on PR #16)
+**Next task:** `T-026` — Swing support/resistance detector (dependency T-020 DONE). Also unblocked: T-016, T-035, T-053. T-027 waits on Q-01 and A-07.
+T-022 is merged (PR #15, `0510ae4`, CI 1178/1178). T-025 is `DONE` on PR #16 (2 commits, not merged): the incremental
+indicator engine of TD 7.2 in `market.calculator` and `IndicatorService`, checked against TA-Lib golden data and a batch
+reference; persistence and the `CandleClosed` hook stay with T-028. Still open: T-001 `PARTIAL` (Q-17), T-015 `PARTIAL`
 (Q-12), T-007 `PARTIAL` (Q-04), T-009 `PARTIAL`.
 
 This file is the single source of truth for *status*. `docs/design/TECHNICAL_DESIGN.md` owns *how*; the SRS owns *what*. Every working session starts by reading this file and ends by updating it (`CLAUDE.md` sections 1 and 8).
@@ -54,8 +54,8 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 |---|---|---|---|---|---|
 | P0 Foundation | S0 | Repo, CI, database, docker, architecture tests | 9 | 5 | WIP — T-001, T-007, T-009 PARTIAL |
 | P1 Identity | S1 | Register, verify, login, tokens, profile, devices | 8 | 6 | WIP — T-015 PARTIAL, T-016 TODO (unblocked) |
-| P2 Market Data | S2 | Pairs, backfill, streams, futures metrics | 8 | 8 | DONE — T-017 to T-021, T-023, T-024 merged; T-022 on PR #15 |
-| P3 Analysis | S2–S3 | Indicators, S/R, setup score | 5 | 0 | NEXT — T-025 |
+| P2 Market Data | S2 | Pairs, backfill, streams, futures metrics | 8 | 8 | DONE — T-017 to T-024 merged (T-022 PR #15, `0510ae4`) |
+| P3 Analysis | S2–S3 | Indicators, S/R, setup score | 5 | 1 | WIP — T-025 DONE (PR #16); NEXT T-026; T-027 waits on Q-01, A-07 |
 | P4 Market UI | S3 | Public home, market list, spot/futures analysis | 5 | 0 | TODO |
 | P5 Trading Plan | S3–S4 | Risk calculation, warnings, plan lifecycle | 7 | 0 | TODO |
 | P6 Matching | S4–S5 | Simulated fills, exits, liquidation, funding | 6 | 0 | TODO |
@@ -144,6 +144,7 @@ Decisions that bind the code. An AI agent must follow `APPROVED` rows and must n
 | D-49 | 2026-09-25 | **Market data API shapes (T-024).** Five public GETs under `/api/v1/market` (SRS 3.1.3, T-015's raw-data rule): `pairs` paged with `PageResponse` in display order then symbol (in memory: 30–50 rows); `{market}/{symbol}/candles` with `tf` ∈ BR-08, `limit` ≤ 1000 (default 500), optional `from`/`to` (range ≤ 1000 candles, `to` never in the future), newest `limit` of the range returned oldest first, paged backwards by open time; `spot/{symbol}/stats` and `futures/{symbol}/stats` as two paths (not one polymorphic body), each block with the instant of the row that holds it plus `serverTime`; `futures/{symbol}/metrics` with explicit `from`/`to` instead of TD 8's `range=` (default 1 day, at most 7 days) and `availableFrom` per series (BR-10). Sparse series list only instants with a value; absent values are omitted, never zero (D-45). Limits in `cryptopilot.market.api.*`. MSG01 for invalid input, MSG41 for a pair not enabled on the market (all alike, BR-07) | PROPOSED | T-024 |
 | D-50 | 2026-09-25 | **Market data stays public, futures metrics included** (team decision, closes Q-19). Every `GET /api/v1/market/**` endpoint — pairs, candles, Spot and futures stats, and the futures metrics (open interest, long/short ratio, settled funding) — is open to a Guest. SRS 3.3.3 says what SCR-11 *displays*, not who may call the API behind it; the access rule for the API is SRS 3.1.3 "Query Public Data" and T-015's rule that raw market data is public while the computed analysis (`/analysis/**`) is Trader-only. No change to the filter chain | PROPOSED | Q-19, T-024 |
 | D-51 | 2026-09-25 | **Realtime payloads and hub rules (T-022)**, where TD 9 is silent. Payloads are JSON with decimals as strings and absent fields omitted: ticker `{market, symbol, sourceTime, …Spot fields | …futures fields}`, kline `{market, symbol, timeframe, openTime, closeTime, open, high, low, close, baseVolume, quoteVolume, closed, sourceTime}`, overview `{market, serverTime, tickers[]}`. Kline topics throttled like tickers (1 s) but one update per candle, so a close is never coalesced away; only BR-08 timeframes have a kline topic. SUBSCRIBE is admitted only to the public market topics, SEND refused; JWT on CONNECT arrives with the first user destination. Spring's receive-order option not used (it swallows the ERROR frame of a refused subscription); instead the inbound channel runs on one thread, FIFO, which keeps a SUBSCRIBE and its UNSUBSCRIBE in order — on the default pool they could swap and leave a subscription registered for good (reproduced 3/3 with 300 back-to-back pairs, fixed in `21d25f8`, 50/50 after). Cache flush every 250 ms (TD names only the TTL). Redis excluded from the health check (cache only, ADR-005) | PROPOSED | T-022 |
+| D-52 | 2026-09-25 | **Indicator variants and test method (T-025)**, where TD 7.2 or 11.2 leave a choice. (1) MACD exactly as TD 7.2's table: each EMA seeded on its own (EMA12 at candle 12, EMA26 at 26), line from candle 26, signal seeded with the mean of the first 9 lines (candle 34) — not TA-Lib's `MACD` function, which starts EMA12 later so both begin together; the golden fixture builds MACD from TA-Lib EMAs for that reason. (2) RSI with `AG = AL = 0` (no movement over the seed or after smoothing) is 100, as the table says for `AL = 0`; TA-Lib answers 0 and many platforms 50 — Q-20. (3) Bollinger σ computed shifted by the window's first value, so equal closes give σ = 0 exactly and the bands coincide. (4) Tolerance `max(1e-8·|expected|, 1e-8)` (TD 7.2's 1e-8, made absolute near zero for the MACD histogram); largest observed 4.1e-10. (5) "Incremental equals batch (property test)" done with a batch reference written in the tests over the fixture and 12 seeded generated series (3 price scales, flat stretches), not a property-testing library (none in TD 1.3). (6) A duplicate is only the last candle again; any earlier open time is `OUT_OF_ORDER` and triggers a rebuild up to the latest candle taken, never setting the series back. (7) Rebuild from stored candles restarts the warm-up after a hole rather than computing across it. No indicator library in production code | PROPOSED | T-025 |
 **Action:** D-02 and D-03 were confirmed by the team on 2026-09-19 and are `APPROVED`; D-18 on 2026-09-20. D-04 … D-09 still need confirmation; D-06 and D-07 are already load-bearing in committed code (T-008). D-19 and D-20 are load-bearing as of T-007 and need confirmation before the first staging deployment, because D-20 decides how an operator obtains the first administrator. D-21 and D-22 are load-bearing as of T-010; D-21 is the one worth arguing about, because reversing it later means touching every entity that was written under it. D-29 and D-30 are load-bearing as of T-100; D-31 and D-32 as of T-013. D-23 … D-26 are load-bearing as of T-011 and T-012; D-26 is the one to re-read if the refresh windows of SRS 3.2.3 are ever changed, because it infers "Remember me" from the length of the window rather than from a stored flag.
 
 ---
@@ -248,8 +249,8 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 
 | ID | Task | Owner | Dep | Refs | Done when | Status |
 |---|---|---|---|---|---|---|
-| T-025 | Incremental indicator engine (SMA, EMA, RSI, MACD, Bollinger, volume SMA) | BE1 | T-020 | BR-12, TD 7.2 | Golden-data tests within 1e-8; incremental equals batch (property test) | **NEXT** |
-| T-026 | Swing support/resistance detector | BE1 | T-020 | BR-14, TD 7.3 | Unconfirmed candles ignored; equal lows are not swings | TODO |
+| T-025 | Incremental indicator engine (SMA, EMA, RSI, MACD, Bollinger, volume SMA) | BE1 | T-020 | BR-12, TD 7.2 | Golden-data tests within 1e-8; incremental equals batch (property test) | **DONE** 2026-09-25, PR #16 (not merged) — `market.calculator` SMA/EMA/Wilder RSI/MACD/Bollinger/volume SMA + `IndicatorEngine` (O(1) per candle, `null` during warm-up, DUPLICATE / OUT_OF_ORDER / GAP refused), `IndicatorService` rebuilding from the latest 1000 stored candles; TA-Lib 0.8.1 golden fixture of 1200 real candles within 1e-8 (max 4.1e-10), batch parity, restart within 5e-4 on EMA200 (8.7e-6 observed). D-52, Q-20 |
+| T-026 | Swing support/resistance detector | BE1 | T-020 | BR-14, TD 7.3 | Unconfirmed candles ignored; equal lows are not swings | **NEXT** |
 | T-027 | Setup score calculator v1.0 with components and version | BE1 | T-025, T-026, A-07 | BR-13, TD 7.4 | Fixture tests for up-trend, down-trend and range; spot has no derivatives component | TODO |
 | T-028 | NSF-05 indicator pipeline and persistence | BE1 | T-025…T-027 | NSF-05 | Computed within 10s of candle close; idempotent upsert by PK | TODO |
 | T-029 | Analysis API and STOMP push | BE1 | T-028 | UC-10, UC-11 | Insufficient history returns nulls, never a wrong value | TODO |
@@ -390,14 +391,17 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 
 ## 7. Detail block — current NEXT task
 
-### T-025 · Incremental indicator engine
+### T-026 · Swing support/resistance detector
 
-**Unblocked:** T-020 is DONE. **To do at the start of that session:** read BR-12, TD 7.2 (incremental indicators,
-golden data within 1e-8, incremental equals batch), NSF-05, D-48 (calculator stays pure Java, `market.calculator`), then
-replace this block.
+**Unblocked:** T-020 is DONE. **To do at the start of that session:** read BR-14, TD 7.3 (swing lows and highs over the
+last 200 closed candles, strict inequality against two neighbours on each side, the last two candles unconfirmed and
+ignored, nearest support below and resistance above the close, `null` when none), D-48 (calculator stays pure Java in
+`market.calculator`), then replace this block. Do not touch the setup score (T-027, Q-01) or persistence (T-028).
 
-**Ready:** closed candles in `ohlcv` (NSF-02/03), `OhlcvRepository.closedCandles`, the `CandleClosed` event, the
-`calculator` package rules of ArchUnit and its 90 % coverage gate.
+**Ready:** closed candles in `ohlcv` (NSF-02/03), `OhlcvRepository.closedCandles`, the `CandleClosed` event, and from
+T-025 the per-series pattern (`IndicatorEngine`, `IndicatorService`, DUPLICATE / OUT_OF_ORDER / GAP, rebuild from the
+latest stored candles) and the golden fixture under `backend/src/test/resources/golden` (its 1200 candles carry closes
+only; S/R needs highs and lows, so the fixture script would need those columns).
 
 ---
 
@@ -419,6 +423,7 @@ replace this block.
 | Q-17 | Branch protection for `develop` and `main` (T-001) cannot be configured: `cryptopilot_project` is private on GitHub Free, and the API refuses branch protection and rulesets with 403 "Upgrade to GitHub Pro or make this repository public". Options: GitHub Pro / Team (or the free GitHub Education pack, which includes Pro), make the code repository public (the documents live in their own repository and would stay private), or keep review before merge as the only guard | 2026-09-25 | T-001, T-009 (required check) | Team lead | **SUPERSEDED 2026-09-25 by D-47 (PROPOSED)**: make the code repository public, keep the documents repository private, then enable rulesets. Readiness done on `chore/public-readiness` (not pushed); visibility not changed |
 | Q-18 | T-024's criterion "OpenAPI documented": TECHNICAL_DESIGN 1.3 lists springdoc-openapi and section 8 promises `/v3/api-docs` and Swagger UI (off in `prod`), but the project has no springdoc and the team lead ruled out adding a library in T-024. Add springdoc (the version line for Spring Boot 4) in a small task of its own, or drop the criterion? Until then the contract is proved by the MockMvc tests only | 2026-09-25 | T-024 (criterion), every later API task | Team lead | **CLOSED 2026-09-25** by TD 1.3/8, on the team lead's instruction: springdoc-openapi 3.1.1 added in T-024 (PR #13, `d99e690`) |
 | Q-19 | The futures metrics (open interest, long/short ratio, settled funding) are served under the public `GET /api/v1/market/**`, following T-015's rule that raw market data is public and only the computed analysis (`/analysis/**`) is Trader-only. SRS 3.3.3 shows them only on SCR-11, which 3.1.3 places in the Trader area, while "Query Public Data (market overview)" is open to a Guest. Keep them public, or move `/market/futures/*/metrics` behind the Trader role? | 2026-09-25 | T-024 (access rule), T-034 | Team lead | **CLOSED 2026-09-25 by D-50** (team decision: keep all market data public, futures metrics included) |
+| Q-20 | RSI of a series that has not moved: with `AG = AL = 0` the ratio `AG/AL` is 0/0. TD 7.2 states "if `AL = 0` then RSI = 100", which read literally gives 100; TA-Lib gives 0, and many charting platforms 50 (neutral). It happens only on a completely flat stretch of 14+ candles (an illiquid pair or a halted market) | 2026-09-25 | T-025 (value), T-027 (momentum score reads RSI) | Team | **OPEN** — T-025 implements the TD text (100) and a test pins it (`BR12_constantCloses_giveZeroDeviationAndTheRsiOfNoLoss`), D-52. Changing it to 50 is one line in `WilderRsi` and that test |
 | Q-06 | Flutter chart library (ADR-012) | 2026-09-19 | T-090 | FE | OPEN |
 | Q-07 | Hosting for staging (VPS provider and size) and the demo domain. A managed PostgreSQL service usually cannot install TimescaleDB, so self-hosted Docker on a VPS is assumed. **Realtime constraint (T-022, 2026-09-25):** the STOMP market topics run on Spring's simple in-memory broker inside the backend process (`/topic`, `/queue`; publish order kept per session; inbound channel on one thread), so the backend runs as **one instance**; scaling out needs a STOMP broker relay (e.g. RabbitMQ) in place of the simple broker (ADR-005). The Redis cache is already external and shared | 2026-09-19 | T-096 | DO | OPEN |
 | Q-08 | Confirm the database stack: PostgreSQL 16 + TimescaleDB 2.x in Docker, EF Core migrations (earlier drafts mentioned Flyway and PostgreSQL 14/15) | 2026-09-19 | T-004, T-005, T-006, T-007, T-009 | BE1 + BE2 | ANSWERED 2026-09-20: PostgreSQL 16 + TimescaleDB 2.x on `timescale/timescaledb:2.30.1-pg16` pinned for dev, Testcontainers and staging; Flyway SQL migrations with the TimescaleDB DDL in its own migration; staging self-hosted Docker on a VPS, no managed PostgreSQL (D-18) |
@@ -432,6 +437,38 @@ Rule: an AI agent never answers an open question by guessing. It implements what
 ## 9. Session log
 
 Newest first. One block per working session, format in `CLAUDE.md` section 8.
+
+### 2026-09-25 – PR #15 merged; T-025 Incremental indicator engine
+- Result: PR #15 **MERGED** (`0510ae4`); T-025 **DONE** on PR #16 (CI green, not merged)
+- PR #15 finish: SUBSCRIBE then UNSUBSCRIBE of one destination back to back, without the receive-order option,
+  reproduced a leaked subscription 3/3 (Spring's inbound pool can swap the two frames). Fixed inside the hub: inbound
+  channel on one thread, FIFO; ERROR frames of refused subscriptions still sent; 50/50 after (`21d25f8`, D-51).
+  Q-07: simple broker is in-process, so the backend runs as one instance; scale-out needs a STOMP broker relay.
+  T-022, T-029, T-089 renamed away from "SignalR" (TD 9). CI at merge 1178/1178.
+- T-025 summary: `market.calculator` — `RollingWindow`, `SimpleMovingAverage`, `ExponentialMovingAverage` (SMA seed,
+  α = 2/(n+1)), `WilderRsi` (mean seed, Wilder smoothing, AL = 0 → 100), `Macd` 12/26/9 (signal from candle 34),
+  `BollingerBands` 20/2 (population σ, shifted so flat closes give 0), `IndicatorEngine` (O(1) per candle, Bollinger
+  O(20); DUPLICATE / OUT_OF_ORDER / GAP refused without touching state; `null` during warm-up). `IndicatorService` +
+  `IndicatorServiceImpl` (D-48): one engine per (pair, market, timeframe); first candle after start-up restores, an
+  out-of-order or gap candle is logged and rebuilt, from the latest `history-candles` = 1000 stored candles; a hole in
+  the stored candles restarts the warm-up. Numeric type `double` (TD 5.4 exception), rounding to 10 dp left to T-028.
+  No endpoint, no hub topic, no persistence, no `CandleClosed` hook (T-028); no indicator library in production.
+- Files: `backend/.../market/calculator/*`, `market/model/{IndicatorSnapshot,IndicatorOutcome,IndicatorUpdate,SeriesKey}`,
+  `market/service/IndicatorService`, `service/impl/IndicatorServiceImpl`, `market/config/Indicator{Properties,Config}`,
+  `application.yml`, `tools/golden/generate_indicator_fixture.py`, `backend/src/test/resources/golden/`.
+- Tests: 45 added (27 engine, 8 calculators by hand, 10 service on TimescaleDB); suite 1223/1223 locally and in CI;
+  coverage 99.55 % line / 94.76 % branch (before 99.52 / 94.25, no drop); new classes 100 / 100.
+  Golden: 1200 real BTCUSDT 1h candles, TA-Lib 0.8.1, tolerance `max(1e-8·|e|, 1e-8)`, max observed 4.1e-10.
+  Batch parity: fixture + 12 seeded series. Restart: bit-identical replay; service restart through the DB within 5e-4
+  on EMA200 (8.7e-6 observed) and 1e-8 elsewhere. No `Thread.sleep`, no timers, no network in tests.
+- BR/UC/NSF covered: BR-12 (NSF-05 calculation half; pipeline and persistence T-028)
+- Decisions: **D-52** PROPOSED (MACD per TD not TA-Lib alignment; RSI flat = 100; shifted σ; tolerance; batch
+  reference instead of a property library; duplicate = last candle only; warm-up restarts after a stored hole)
+- Open questions: **Q-20** (RSI when AG = AL = 0: 100 per TD, TA-Lib 0, others 50)
+- CI: PR #16 `build-and-test` pass (4m9s, 1223 tests, coverage checks met), `secret-scan` pass (121 commits, no leaks)
+- Next: T-026
+- Commits: `2da2e06` feat(market): add incremental indicator engine; `f8694af` feat(market): add indicator service
+  restored from stored candles
 
 ### 2026-09-25 – T-102 extended and merged; T-022 Redis price cache and STOMP market hub
 - Result: T-102 **DONE**, merged (PR #14, `06258cc`); T-022 **DONE** on PR #15 (CI green, not merged)
