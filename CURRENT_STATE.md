@@ -1,14 +1,13 @@
 # CURRENT_STATE.md — CryptoPilot Project State
 
-**Last updated:** 2026-09-24 · **Document version:** 2.20 · **Phase:** P0 done bar T-001, T-004 and the rest of T-009; P1 done bar T-015 (PARTIAL, Q-12) and the web screens; P2 in progress
-**Next task:** `T-023` — NSF-04 futures metrics (dependency T-017 DONE). Also unblocked now that T-021 is merged: T-022,
-T-024 (T-020, T-021), T-016, T-025, T-026.
-T-021 is `DONE` and **merged** (PR #9, `30dd43a`, CI green): NSF-03 streams the 15m/1h/4h/1d klines, the Spot ticker and
-the futures mark price of every pair enabled and TRADING on each market (D-44), stores closed candles only, detects gaps
-and has NSF-02 fill them, reconnects with back-off 1–60 s, renews before 24 h, caches latest prices in memory and writes
-minute snapshots. Futures streams use the `/market` route (D-43). In `dev` the demo pairs are activated at start-up
-(Q-16); a start-up scan refills holes of the last 7 days (A-33). Still open: T-015 `PARTIAL` (Q-12), T-007 `PARTIAL`
-(Q-04), T-009 `PARTIAL`.
+**Last updated:** 2026-09-25 · **Document version:** 2.21 · **Phase:** P0 done bar T-001 (PARTIAL, Q-17), T-004 and the rest of T-009; P1 done bar T-015 (PARTIAL, Q-12) and the web screens; P2 in progress (T-022, T-024 left)
+**Next task:** `T-024` — Market data API: pairs, candles, snapshots (dependencies T-020, T-021 DONE). Also unblocked: T-022, T-025, T-026, T-016.
+T-023 is `DONE` on the local branch `feature/T-023-futures-metrics` (`b3aafef`, `46cf093`), **not pushed, not merged**: NSF-04
+collects open interest (with its value) and the long/short account ratios every 5 minutes into `futures_market_data` at the
+source's 5-minute instant (D-45: same row as NSF-03, own columns only, no forward fill), and stores each funding settlement
+once in `funding_rate_history`, due from the source's next funding time and `fundingInfo` interval — a symbol with no stated
+interval is checked every run, never given 8 h (D-46, BR-11). No migration. Still open: T-001 `PARTIAL` (Q-17), T-015 `PARTIAL`
+(Q-12), T-007 `PARTIAL` (Q-04), T-009 `PARTIAL`.
 
 This file is the single source of truth for *status*. `docs/design/TECHNICAL_DESIGN.md` owns *how*; the SRS owns *what*. Every working session starts by reading this file and ends by updating it (`CLAUDE.md` sections 1 and 8).
 
@@ -57,7 +56,7 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 |---|---|---|---|---|---|
 | P0 Foundation | S0 | Repo, CI, database, docker, architecture tests | 9 | 5 | WIP — T-001, T-007, T-009 PARTIAL |
 | P1 Identity | S1 | Register, verify, login, tokens, profile, devices | 8 | 6 | WIP — T-015 PARTIAL, T-016 TODO (unblocked) |
-| P2 Market Data | S2 | Pairs, backfill, streams, futures metrics | 8 | 5 | WIP — T-017 to T-021 DONE; T-023 NEXT |
+| P2 Market Data | S2 | Pairs, backfill, streams, futures metrics | 8 | 6 | WIP — T-017 to T-021 and T-023 DONE (T-023 on its branch); T-024 NEXT, T-022 TODO |
 | P3 Analysis | S2–S3 | Indicators, S/R, setup score | 5 | 0 | TODO |
 | P4 Market UI | S3 | Public home, market list, spot/futures analysis | 5 | 0 | TODO |
 | P5 Trading Plan | S3–S4 | Risk calculation, warnings, plan lifecycle | 7 | 0 | TODO |
@@ -71,14 +70,14 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 | P13 Administration | S10 | Users, moderation, config, reports, audit | 7 | 0 | TODO |
 | P14 Mobile | S11 | Flutter app, push, offline | 5 | 0 | TODO |
 | P15 Hardening | S12 | E2E, performance, security, deploy, docs | 7 | 0 | TODO |
-| **Total** | | | **101** | **16** | **16%** |
+| **Total** | | | **101** | **17** | **17%** |
 
-**Coverage:** `calculator` packages — no class yet (gate 90%) · Backend on `develop` (`30dd43a`): CI 99.24% line, 94.81% branches; local 99.24% line (2227/2244), 94.66% branches (620/655) — gate line 95 %, branch 90 % · AI Service —% (gate 80%).
-**Test suite:** `develop` 1049/1049 (Maven's total; the 75 XML reports sum to 1047 because Maven also counts the nested classes of `BinanceRestClientTest`), identical per class locally and in CI. Two `live` tests are excluded everywhere. Needs Docker and `JWT_SECRET` (supplied by Surefire, D-20); the test database runs with `max_connections=300` (D-40).
+**Coverage:** `calculator` packages — `market.calculator` 100% line (9/9), 100% branch (12/12) (gate 90%) · Backend on `feature/T-023-futures-metrics`: local 99.45% line (2509/2523), 95.15% branches (707/743); on `develop` (`30dd43a`): CI 99.24% line, 94.81% branches — gate line 95 %, branch 90 % · AI Service —% (gate 80%).
+**Test suite:** `feature/T-023-futures-metrics` 1094/1094 by the XML reports (baseline 1047 on `develop`, whose Maven total is 1049 because Maven also counts the nested classes of `BinanceRestClientTest`); +47 tests. Two `live` tests are excluded everywhere. Needs Docker and `JWT_SECRET` (supplied by Surefire, D-20); the test database runs with `max_connections=300` (D-40).
 
 > The figure before T-015 was recorded here as 578; the measured baseline was **576** — the "148 shared kernel" was 146. T-015 added 98 tests (80 + 11 + 7 in `ErrorCodeTest` from the two new codes), so 576 + 98 = 674.
 **Merged to `develop`:** everything up to T-021. `develop` is at `30dd43a` (PR #9, T-021), after `d46cc22` (PR #8), `4e22fed` (PR #7, CI), `c5356e2` (PR #6), `13dca29` (PR #5), `b52fe40` (PR #4), `a345dc9` (PR #3) — all merge commits, remote branches kept, every PR from #7 on green in `build-and-test`.
-**Not merged:** nothing. `backup/T-017-pre-rebase` is a local branch kept for the team lead to delete.
+**Not merged:** `feature/T-023-futures-metrics` (2 commits, local only, not pushed). `backup/T-017-pre-rebase` is a local branch kept for the team lead to delete.
 **Deployed:** dev — · staging —
 
 ### Critical path
@@ -140,6 +139,8 @@ Decisions that bind the code. An AI agent must follow `APPROVED` rows and must n
 | D-42 | 2026-09-24 | NSF-02 targets every pair whose exchange status on the market is TRADING, whatever `pair_status` and the market switches say: a chart and the indicators need history before an administrator activates a pair, and activation stays manual (BR-07). NOT_TRADING, DELISTED and a null status (not listed there, Q-14) are skipped. **The cost, stated:** registered but never-activated pairs are backfilled too — with the seed list that is the 13 demo pairs, by design | PROPOSED | T-020 |
 | D-43 | 2026-09-24 | NSF-03 connects to `wss://stream.binance.com:9443` (Spot) and `wss://fstream.binance.com/market` (futures). Binance split USDⓈ-M streams into `/public`, `/market` and `/private` routes; klines and mark prices are `/market` streams, and since 2026-04-23 the unrouted host only carries `/public` ones. **Checked live on 2026-09-24:** `fstream.binance.com/stream?streams=btcusdt@kline_1m/btcusdt@markPrice@1s` accepted the connection and sent 0 messages in 6 s; the same streams under `/market/stream` sent 23. The route is part of the configured URL (`cryptopilot.market.stream.futures-url`), not appended in code. TECHNICAL_DESIGN 7.1 and 7.1.1 said `wss://fstream.binance.com` and are corrected. **Also:** `kline_1m`, listed in 7.1 for matching and alerts, is not subscribed yet — nothing reads it; T-042 adds one stream name. Five streams per pair and market: 15m, 1h, 4h, 1d klines plus `@ticker` (Spot) or `@markPrice@1s` (futures) | ACCEPTED 2026-09-24 (team lead) | T-021 |
 | D-44 | 2026-09-24 | NSF-03 streams a pair on a market when an administrator enabled it there (`ACTIVE` and the market switch, BR-07) **and** its exchange status there is TRADING — unlike the backfill (D-42), which also fills pairs not yet activated. Pairs are re-read after each symbol sync and every 5 minutes; a changed set replaces that market's connections and drops the old pairs' latest prices. **Latest prices** live in memory (`LatestMarketData`) until T-022 moves them to Redis; losing them loses nothing. **Snapshots** are written every minute at the whole minute from values at most 2 minutes old; a stream outage leaves a hole rather than repeating a stale price; the futures row leaves open interest and ratios to NSF-04 (T-023). **Closed candles** go through 4 ordered partitions (bounded queues, virtual threads) so the socket reader never blocks | ACCEPTED 2026-09-24 (team lead) | T-021 |
+| D-45 | 2026-09-25 | NSF-04 writes open interest (and its value) and the long/short account ratios into **`futures_market_data`**, the row NSF-03 writes every minute, at the source's 5-minute instant — **not** into a table of their own. Why: SRS 3.1.5 defines FUTURES_MARKET_DATA as carrying "open interest, long/short ratio", the logical model and V1 already hold the five columns, D-44 and TD 7.1 step 7 left them to NSF-04; a separate table would be a 39th business table outside the logical model (an SRS alignment item) and would leave five columns empty for ever. How: each metric is an upsert that sets only its own columns; a missing NSF-03 row is inserted with the mark price columns `NULL`; the minute rows between readings keep the metrics `NULL` (no forward fill); only instants before the current minute are written, so NSF-03's `ON CONFLICT DO NOTHING` is not pre-empted. No migration. Read from the 5-minute histories (`openInterestHist`, `globalLongShortAccountRatio`) rather than the present-value endpoint, so readings are aligned, carry the value, and a downtime inside the source's month can be caught up (BR-10) | PROPOSED | T-023 |
+| D-46 | 2026-09-25 | A funding settlement is due when `nextFundingTime − fundingInterval` has passed and nothing at or after it is stored, both values read from the source (stream or `premiumIndex`; `fundingInfo`). `fundingInfo` lists only adjusted symbols; **a symbol it omits has no interval and is checked on every run** (one request, within the shared 500 / 5 min) — never given a default, 8 h included (BR-11). Settlements without a mark price are not stored (the column is NOT NULL and BR-37 multiplies by it) | PROPOSED | T-023 |
 **Action:** D-02 and D-03 were confirmed by the team on 2026-09-19 and are `APPROVED`; D-18 on 2026-09-20. D-04 … D-09 still need confirmation; D-06 and D-07 are already load-bearing in committed code (T-008). D-19 and D-20 are load-bearing as of T-007 and need confirmation before the first staging deployment, because D-20 decides how an operator obtains the first administrator. D-21 and D-22 are load-bearing as of T-010; D-21 is the one worth arguing about, because reversing it later means touching every entity that was written under it. D-29 and D-30 are load-bearing as of T-100; D-31 and D-32 as of T-013. D-23 … D-26 are load-bearing as of T-011 and T-012; D-26 is the one to re-read if the refresh windows of SRS 3.2.3 are ever changed, because it infers "Remember me" from the length of the window rather than from a stored flag.
 
 ---
@@ -237,8 +238,8 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 | T-020 | NSF-02 historical candle backfill | BE2 | T-017 | NSF-02, BR-08 | Gap detection works; re-running inserts no duplicates | **DONE** 2026-09-24, merged (PR #8) — no migration; pairs TRADING per market (D-42), D-41 depths, resume from stored data, ON CONFLICT DO NOTHING, 50 % weight share, after sync and hourly. "Gap detection" read as A-33 |
 | T-021 | NSF-03 realtime stream ingestion (kline, ticker, mark price) | BE2 | T-017 | NSF-03, BR-08 | Only closed candles stored; reconnect with back-off; gap triggers backfill | **DONE** 2026-09-24, merged (PR #9) — no migration; combined streams per market (≤ 100 per connection, futures under `/market`), closed candles only, gap → NSF-02 range fill plus a start-up scan of 7 days, back-off 1–60 s, 23 h renewal, idle watchdog, in-memory latest prices, minute snapshots, dev-only demo activation (D-43, D-44, A-33, Q-16) |
 | T-022 | Redis price cache and SignalR market hub | BE1 | T-021 | TD 5.6, 9 | Client receives price and candle updates; latency target of SRS 4.2.3 met locally | TODO |
-| T-023 | NSF-04 futures metrics (open interest, long/short, funding settlement) | BE2 | T-017 | NSF-04, BR-10, BR-11 | Funding time read from the source, never assumed to be 8h | **NEXT** |
-| T-024 | Market data API: pairs, candles, snapshots | BE2 | T-020, T-021 | UC-09 | OpenAPI documented; pagination and timeframe validation tested | TODO |
+| T-023 | NSF-04 futures metrics (open interest, long/short, funding settlement) | BE2 | T-017 | NSF-04, BR-10, BR-11 | Funding time read from the source, never assumed to be 8h | **DONE** 2026-09-25, local branch — no migration; 5-minute OI (with value) and long/short ratios from the history endpoints into `futures_market_data` at the source's instant, own columns only, no forward fill, current minute never written (D-45); settlements into `funding_rate_history` once per instant, due from `nextFundingTime` and `fundingInfo`, no assumed interval (D-46); refused calls write nothing |
+| T-024 | Market data API: pairs, candles, snapshots | BE2 | T-020, T-021 | UC-09 | OpenAPI documented; pagination and timeframe validation tested | **NEXT** |
 
 ### P3 — Analysis (Sprints 2–3)
 
@@ -385,17 +386,15 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 
 ## 7. Detail block — current NEXT task
 
-### T-023 · NSF-04 futures metrics
+### T-024 · Market data API: pairs, candles, snapshots
 
-**Unblocked:** T-017 is DONE. **To do at the start of that session:** read NSF-04, BR-10, BR-11, TECHNICAL_DESIGN 7.1
-step 8 and 7.8, then replace this block.
+**Unblocked:** T-020 and T-021 are DONE (T-023 is on its branch; merge it first if the snapshot endpoint should serve open
+interest and ratios). **To do at the start of that session:** read UC-09, SCR-09/10/11, BR-07, BR-08, BR-10, TECHNICAL_DESIGN 5
+and 7.1, then replace this block.
 
-**Ready from T-017 to T-021 (all merged):** `BinanceRestClient.openInterest`, `longShortAccountRatios`, `fundingRates` (settled
-rates with their mark price), `premiumIndex`; the job pattern and caller contract (T-019, T-020);
-`funding_rate_history` (V2, never deleted); `futures_market_data` rows written every minute by NSF-03 with open
-interest and ratios left empty for NSF-04 (D-44) — decide whether NSF-04 fills the latest minute row or writes its own
-5-minute rows (same key `(pair_id, snapshot_time)`); the stream's `MarkPriceMessage.nextFundingTime` in
-`LatestMarketData` gives the next settlement without assuming 8 h.
+**Ready:** `CryptoPairRepository.findEnabledOn`, `OhlcvRepository`, the `futures_market_data` rows (minute rows from NSF-03; the
+metric columns only on 5-minute instants — a chart must read them as a sparse series, not expect them every minute, D-45),
+`spot_market_data`, `funding_rate_history`. BR-10: an open interest or ratio chart states the period actually stored.
 
 ---
 
@@ -428,6 +427,32 @@ Rule: an AI agent never answers an open question by guessing. It implements what
 ## 9. Session log
 
 Newest first. One block per working session, format in `CLAUDE.md` section 8.
+
+### 2026-09-25 – T-023 NSF-04 futures metrics
+- Result: **DONE** on the local branch `feature/T-023-futures-metrics` (not pushed, not merged)
+- Phase 0: SRS NSF-04, BR-10, BR-11, 3.3.3, 3.3.4 read; `futures_market_data` key `(pair_id, snapshot_time)`, the five metric
+  columns already in V1, all nullable; `funding_rate_history` key `(pair_id, funding_time)`. Binance checked live and in the
+  docs: the OI and ratio histories start at 5m (`1m` answers `[]`), limit 500, 1000 requests / 5 min; with `startTime` alone
+  they answer the latest entries; `fundingTime` can be `…00005`; `fundingInfo` lists only adjusted symbols (791: 321 × 8 h,
+  469 × 4 h, 1 × 1 h). The client had no `fundingInfo` and no OI history: both added (TD 7.1.1).
+- Also this session: state drift fixed (docs `89ed8e8`): T-001 `NEXT` marker removed, T-001 `PARTIAL` — branch protection
+  refused by GitHub (403, private repository on Free), Q-17; NSF traceability row corrected.
+- Summary: `FundingInfo`, `OpenInterestStatistic`, `BinanceRestClient.fundingInfo` / `openInterestStatistics`;
+  `FundingSettlementDue` (calculator); `FuturesMetricsRepository` (per-metric upserts, settlements `DO NOTHING`);
+  `FuturesMetricsService` (paging with both ends, request limit per run, current minute excluded, stream or `premiumIndex`
+  for the next funding time); `FuturesMetricsJob` (`30 1/5 * * * *` UTC, caller contract, no overlap);
+  `cryptopilot.market.futures-metrics.*`, on in dev and prod. No migration: the columns existed.
+- Schema decision (D-45): same row as NSF-03 rather than a new table — the SRS entity, the logical model, V1 and D-44 all
+  put the metrics there; a new table would be outside the logical model. Explicit nulls between readings, no forward fill.
+- Tests: +47 (1047 → 1094 by XML reports); suite 1094/1094 locally; coverage Backend 99.45% line / 95.15% branch; calculator
+  100%. A mutation giving a missing interval 8 h was killed by three tests. First commit compiles and passes the format check
+  on its own (separate worktree).
+- BR/UC/NSF covered: NSF-04; BR-10, BR-11; BR-07 (targets); BR-37 (settlements without a mark price not stored).
+- Decisions: **D-45**, **D-46** PROPOSED.
+- Open questions: **Q-17** (branch protection).
+- Next: T-024.
+- Commits (local): `b3aafef` feat(market): read funding info and open interest history from Binance · `46cf093`
+  feat(market): add NSF-04 futures metrics.
 
 ### 2026-09-24 – T-021 NSF-03 realtime stream ingestion
 - Result: **DONE**, merged (PR #9, `30dd43a`; `build-and-test` green on the third run, 4 min 30 s)
@@ -1653,8 +1678,8 @@ Kept current as tasks close (`/end-session` step 5). Each row: BR/UC/NSF/SCR id 
 
 | Source | Count | Covered by tasks |
 |---|---|---|
-| Business rules BR-01 … BR-61 | 61 | 17 (BR-01, BR-02, BR-03, BR-04, BR-05, BR-06, BR-15, BR-17, BR-21, BR-29, BR-36, BR-37, BR-44, BR-45, BR-46, BR-49, BR-54), as `check_traceability.py` reports them. T-005, T-006 and T-007 cover the database and seed halves; T-010 adds the domain half of BR-01, BR-04, BR-05 and BR-06. **BR-01, BR-02, BR-03 and BR-06 are now proved end to end**, from the endpoint to the row: T-011 added BR-02, T-012 added BR-03 and closed BR-01 in both directions |
+| Business rules BR-01 … BR-61 | 61 | 26 by `check_traceability.py` on 2026-09-25 (BR-10 and BR-11 now with T-023 tests); the older hand list follows: 17 (BR-01, BR-02, BR-03, BR-04, BR-05, BR-06, BR-15, BR-17, BR-21, BR-29, BR-36, BR-37, BR-44, BR-45, BR-46, BR-49, BR-54), as `check_traceability.py` reports them. T-005, T-006 and T-007 cover the database and seed halves; T-010 adds the domain half of BR-01, BR-04, BR-05 and BR-06. **BR-01, BR-02, BR-03 and BR-06 are now proved end to end**, from the endpoint to the row: T-011 added BR-02, T-012 added BR-03 and closed BR-01 in both directions |
 | Use cases UC-01 … UC-52 | 52 | 8 (UC-01, UC-02 from T-011; UC-03, UC-05 from T-012; UC-04 from T-013; UC-06 (avatar in T-101), UC-07, UC-08 from T-014), counted by hand from the test names — `check_traceability.py` reads `BR` ids only, so the `UseCase`, `NonScreenFunction` and `Screen` rows of `traceability.csv` stay empty until it learns the other three prefixes |
-| Non-screen functions NSF-01 … NSF-18 | 18 | 3 complete: NSF-01 (T-019), NSF-02 (T-020), NSF-03 (T-021), each with its job, tests named `NSF0x_…` and merged to `develop`. NSF-04: source access built in T-017, the job is T-023 |
+| Non-screen functions NSF-01 … NSF-18 | 18 | 4 complete: NSF-01 (T-019), NSF-02 (T-020), NSF-03 (T-021) merged to `develop`; NSF-04 (T-023) on its branch. Tests named `NSF0x_…` |
 | Screens SCR-01 … SCR-44 | 44 | 0 |
 | Messages MSG01 … MSG45 | 45 | 15 appear in assertions (MSG01 … MSG11, MSG41, MSG43, MSG44, MSG45), also counted by hand. Every one is returned as a code and never as text, so the sentences stay in SRS section 5.3 and the client owns them (TECHNICAL_DESIGN 5.1); MSG39 and MSG43 are named by an `ErrorCode` as the nearest existing message rather than the right one — A-15 and A-17 |
