@@ -1,8 +1,8 @@
 # CURRENT_STATE.md — CryptoPilot Project State
 
-**Last updated:** 2026-09-25 · **Document version:** 2.26 · **Phase:** P0 done bar T-001 (PARTIAL, Q-17), T-004 and the rest of T-009; P1 done bar T-015 (PARTIAL, Q-12) and the web screens; P2 done and merged; P3 in progress (T-025 on PR #16)
+**Last updated:** 2026-09-26 · **Document version:** 2.27 · **Phase:** P0 done bar T-001 (PARTIAL, Q-17), T-004 and the rest of T-009; P1 done bar T-015 (PARTIAL, Q-12) and the web screens; P2 done and merged; P3 in progress (T-025 merged, NEXT T-026)
 **Next task:** `T-026` — Swing support/resistance detector (dependency T-020 DONE). Also unblocked: T-016, T-035, T-053. T-027 waits on Q-01 and A-07.
-T-022 is merged (PR #15, `0510ae4`, CI 1178/1178). T-025 is `DONE` on PR #16 (2 commits, not merged): the incremental
+T-022 is merged (PR #15, `0510ae4`, CI 1178/1178). T-025 is merged (PR #16, `f36c291`, CI green 2026-09-25): the incremental
 indicator engine of TD 7.2 in `market.calculator` and `IndicatorService`, checked against TA-Lib golden data and a batch
 reference; persistence and the `CandleClosed` hook stay with T-028. Still open: T-001 `PARTIAL` (Q-17), T-015 `PARTIAL`
 (Q-12), T-007 `PARTIAL` (Q-04), T-009 `PARTIAL`.
@@ -55,7 +55,7 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 | P0 Foundation | S0 | Repo, CI, database, docker, architecture tests | 9 | 5 | WIP — T-001, T-007, T-009 PARTIAL |
 | P1 Identity | S1 | Register, verify, login, tokens, profile, devices | 8 | 6 | WIP — T-015 PARTIAL, T-016 TODO (unblocked) |
 | P2 Market Data | S2 | Pairs, backfill, streams, futures metrics | 8 | 8 | DONE — T-017 to T-024 merged (T-022 PR #15, `0510ae4`) |
-| P3 Analysis | S2–S3 | Indicators, S/R, setup score | 5 | 1 | WIP — T-025 DONE (PR #16); NEXT T-026; T-027 waits on Q-01, A-07 |
+| P3 Analysis | S2–S3 | Indicators, S/R, setup score | 5 | 1 | WIP — T-025 DONE, merged (PR #16, `f36c291`); NEXT T-026; T-027 waits on Q-01, A-07 |
 | P4 Market UI | S3 | Public home, market list, spot/futures analysis | 5 | 0 | TODO |
 | P5 Trading Plan | S3–S4 | Risk calculation, warnings, plan lifecycle | 7 | 0 | TODO |
 | P6 Matching | S4–S5 | Simulated fills, exits, liquidation, funding | 6 | 0 | TODO |
@@ -249,7 +249,7 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 
 | ID | Task | Owner | Dep | Refs | Done when | Status |
 |---|---|---|---|---|---|---|
-| T-025 | Incremental indicator engine (SMA, EMA, RSI, MACD, Bollinger, volume SMA) | BE1 | T-020 | BR-12, TD 7.2 | Golden-data tests within 1e-8; incremental equals batch (property test) | **DONE** 2026-09-25, PR #16 (not merged) — `market.calculator` SMA/EMA/Wilder RSI/MACD/Bollinger/volume SMA + `IndicatorEngine` (O(1) per candle, `null` during warm-up, DUPLICATE / OUT_OF_ORDER / GAP refused), `IndicatorService` rebuilding from the latest 1000 stored candles; TA-Lib 0.8.1 golden fixture of 1200 real candles within 1e-8 (max 4.1e-10), batch parity, restart within 5e-4 on EMA200 (8.7e-6 observed). D-52, Q-20 |
+| T-025 | Incremental indicator engine (SMA, EMA, RSI, MACD, Bollinger, volume SMA) | BE1 | T-020 | BR-12, TD 7.2 | Golden-data tests within 1e-8; incremental equals batch (property test) | **DONE** 2026-09-25, merged (PR #16, `f36c291`) — `market.calculator` SMA/EMA/Wilder RSI/MACD/Bollinger/volume SMA + `IndicatorEngine` (O(1) per candle, `null` during warm-up, DUPLICATE / OUT_OF_ORDER / GAP refused), `IndicatorService` rebuilding from the latest 1000 stored candles; TA-Lib 0.8.1 golden fixture of 1200 real candles within 1e-8 (max 4.1e-10), batch parity, restart within 5e-4 on EMA200 (8.7e-6 observed). D-52, Q-20 |
 | T-026 | Swing support/resistance detector | BE1 | T-020 | BR-14, TD 7.3 | Unconfirmed candles ignored; equal lows are not swings | **NEXT** |
 | T-027 | Setup score calculator v1.0 with components and version | BE1 | T-025, T-026, A-07 | BR-13, TD 7.4 | Fixture tests for up-trend, down-trend and range; spot has no derivatives component | TODO |
 | T-028 | NSF-05 indicator pipeline and persistence | BE1 | T-025…T-027 | NSF-05 | Computed within 10s of candle close; idempotent upsert by PK | TODO |
@@ -437,6 +437,19 @@ Rule: an AI agent never answers an open question by guessing. It implements what
 ## 9. Session log
 
 Newest first. One block per working session, format in `CLAUDE.md` section 8.
+
+### 2026-09-26 — Status sync after PR #16 merged (no task id)
+- Result: **DONE** — state drift fixed, no code change
+- Summary: PR #16 (T-025) was merged on 2026-09-25 19:21 (`f36c291`, CI and secret-scan green) but this file still
+  said "not merged". Header, P3 progress row and the T-025 row updated. Local `develop` fast-forwarded to `f36c291`.
+  Tally: 101 tasks — 21 DONE, 4 PARTIAL (T-001, T-007, T-009, T-015), 1 NEXT (T-026), 75 TODO. Open: Q-01, Q-02,
+  Q-04, Q-06, Q-07, Q-12, Q-20; D-47 PROPOSED.
+- Files: `CURRENT_STATE.md`
+- Tests: none run (no code change)
+- Decisions: none
+- Open questions: none new
+- Next: T-026 (unchanged; also unblocked T-016, T-035, T-053)
+- Commits: none in the code repository
 
 ### 2026-09-25 – PR #15 merged; T-025 Incremental indicator engine
 - Result: PR #15 **MERGED** (`0510ae4`); T-025 **DONE** on PR #16 (CI green, not merged)
