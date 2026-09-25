@@ -1,7 +1,7 @@
 # CURRENT_STATE.md — CryptoPilot Project State
 
-**Last updated:** 2026-09-26 · **Document version:** 2.27 · **Phase:** P0 done bar T-001 (PARTIAL, Q-17), T-004 and the rest of T-009; P1 done bar T-015 (PARTIAL, Q-12) and the web screens; P2 done and merged; P3 in progress (T-025 merged, NEXT T-026)
-**Next task:** `T-026` — Swing support/resistance detector (dependency T-020 DONE). Also unblocked: T-016, T-035, T-053. T-027 waits on Q-01 and A-07.
+**Last updated:** 2026-09-26 · **Document version:** 2.28 · **Phase:** P0 done bar T-001 (PARTIAL, Q-17), T-004 and the rest of T-009; P1 done bar T-015 (PARTIAL, Q-12) and the web screens; P2 done and merged; P3 in progress (T-025 merged, T-026 DONE on its branch; T-027 waits on Q-01, A-07)
+**Next task:** `T-035` — Position sizing and risk calculator (dependency T-018 DONE). Also unblocked: T-016, T-053. T-027 waits on Q-01 and A-07 (its other dependencies T-025, T-026 are DONE).
 T-022 is merged (PR #15, `0510ae4`, CI 1178/1178). T-025 is merged (PR #16, `f36c291`, CI green 2026-09-25): the incremental
 indicator engine of TD 7.2 in `market.calculator` and `IndicatorService`, checked against TA-Lib golden data and a batch
 reference; persistence and the `CandleClosed` hook stay with T-028. Still open: T-001 `PARTIAL` (Q-17), T-015 `PARTIAL`
@@ -55,7 +55,7 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 | P0 Foundation | S0 | Repo, CI, database, docker, architecture tests | 9 | 5 | WIP — T-001, T-007, T-009 PARTIAL |
 | P1 Identity | S1 | Register, verify, login, tokens, profile, devices | 8 | 6 | WIP — T-015 PARTIAL, T-016 TODO (unblocked) |
 | P2 Market Data | S2 | Pairs, backfill, streams, futures metrics | 8 | 8 | DONE — T-017 to T-024 merged (T-022 PR #15, `0510ae4`) |
-| P3 Analysis | S2–S3 | Indicators, S/R, setup score | 5 | 1 | WIP — T-025 DONE, merged (PR #16, `f36c291`); NEXT T-026; T-027 waits on Q-01, A-07 |
+| P3 Analysis | S2–S3 | Indicators, S/R, setup score | 5 | 2 | WIP — T-025 DONE, merged (PR #16, `f36c291`); T-026 DONE on `feature/T-026-swing-support-resistance` (not pushed); T-027 waits on Q-01, A-07 |
 | P4 Market UI | S3 | Public home, market list, spot/futures analysis | 5 | 0 | TODO |
 | P5 Trading Plan | S3–S4 | Risk calculation, warnings, plan lifecycle | 7 | 0 | TODO |
 | P6 Matching | S4–S5 | Simulated fills, exits, liquidation, funding | 6 | 0 | TODO |
@@ -250,7 +250,7 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 | ID | Task | Owner | Dep | Refs | Done when | Status |
 |---|---|---|---|---|---|---|
 | T-025 | Incremental indicator engine (SMA, EMA, RSI, MACD, Bollinger, volume SMA) | BE1 | T-020 | BR-12, TD 7.2 | Golden-data tests within 1e-8; incremental equals batch (property test) | **DONE** 2026-09-25, merged (PR #16, `f36c291`) — `market.calculator` SMA/EMA/Wilder RSI/MACD/Bollinger/volume SMA + `IndicatorEngine` (O(1) per candle, `null` during warm-up, DUPLICATE / OUT_OF_ORDER / GAP refused), `IndicatorService` rebuilding from the latest 1000 stored candles; TA-Lib 0.8.1 golden fixture of 1200 real candles within 1e-8 (max 4.1e-10), batch parity, restart within 5e-4 on EMA200 (8.7e-6 observed). D-52, Q-20 |
-| T-026 | Swing support/resistance detector | BE1 | T-020 | BR-14, TD 7.3 | Unconfirmed candles ignored; equal lows are not swings | **NEXT** |
+| T-026 | Swing support/resistance detector | BE1 | T-020 | BR-14, TD 7.3 | Unconfirmed candles ignored; equal lows are not swings | **DONE** 2026-09-26, branch `feature/T-026-swing-support-resistance` (not pushed) — `market.calculator.SwingSupportResistance`, prices only, no bias (A-07) |
 | T-027 | Setup score calculator v1.0 with components and version | BE1 | T-025, T-026, A-07 | BR-13, TD 7.4 | Fixture tests for up-trend, down-trend and range; spot has no derivatives component | TODO |
 | T-028 | NSF-05 indicator pipeline and persistence | BE1 | T-025…T-027 | NSF-05 | Computed within 10s of candle close; idempotent upsert by PK | TODO |
 | T-029 | Analysis API and STOMP push | BE1 | T-028 | UC-10, UC-11 | Insufficient history returns nulls, never a wrong value | TODO |
@@ -269,7 +269,7 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 
 | ID | Task | Owner | Dep | Refs | Done when | Status |
 |---|---|---|---|---|---|---|
-| T-035 | Position sizing and risk calculator | BE1 | T-018 | BR-23…25, BR-30, TD 7.5 | Worked example of TD 7.6 reproduced; quantity floored to step size | TODO |
+| T-035 | Position sizing and risk calculator | BE1 | T-018 | BR-23…25, BR-30, TD 7.5 | Worked example of TD 7.6 reproduced; quantity floored to step size | **NEXT** |
 | T-036 | Liquidation price calculator with leverage brackets | BE1 | T-035, A-01 | BR-26, BR-27 | LONG and SHORT examples pass; bracket with non-zero maintenance amount covered | TODO |
 | T-037 | Warning evaluator (8 warning types, 3 severities) | BE1 | T-036 | BR-28, BR-29 | Every threshold tested at, just above and just below the boundary | TODO |
 | T-038 | Trading plan aggregate and state machine | BE1 | T-037 | BR-21, BR-22, BR-32 | Edit allowed only in DRAFT; activation blocked by a BLOCKING warning | TODO |
@@ -391,17 +391,16 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 
 ## 7. Detail block — current NEXT task
 
-### T-026 · Swing support/resistance detector
+### T-035 · Position sizing and risk calculator
 
-**Unblocked:** T-020 is DONE. **To do at the start of that session:** read BR-14, TD 7.3 (swing lows and highs over the
-last 200 closed candles, strict inequality against two neighbours on each side, the last two candles unconfirmed and
-ignored, nearest support below and resistance above the close, `null` when none), D-48 (calculator stays pure Java in
-`market.calculator`), then replace this block. Do not touch the setup score (T-027, Q-01) or persistence (T-028).
+**Unblocked:** T-018 (pair filters: tick, step, min notional) is DONE. **To do at the start of that session:** read
+BR-23…25 and BR-30, TD 7.5 (risk budget, quantity floored to the step size, notional against min notional, Spot capital
+check) and the worked example of TD 7.6 that "Done when" names, TD 5.4 (`BigDecimal` for price, quantity and USDT
+amounts; rounding rules), D-48 (pure calculator, the `trading` module), then replace this block. The futures half of
+TD 7.5 needs brackets and the liquidation price: those are T-036 (A-01 PENDING) — do not build them here. Warnings are
+T-037.
 
-**Ready:** closed candles in `ohlcv` (NSF-02/03), `OhlcvRepository.closedCandles`, the `CandleClosed` event, and from
-T-025 the per-series pattern (`IndicatorEngine`, `IndicatorService`, DUPLICATE / OUT_OF_ORDER / GAP, rebuild from the
-latest stored candles) and the golden fixture under `backend/src/test/resources/golden` (its 1200 candles carry closes
-only; S/R needs highs and lows, so the fixture script would need those columns).
+**Ready:** `common` rounding helpers (T-008), the pair filters from T-018, the `calculator` layer rules (T-003).
 
 ---
 
@@ -437,6 +436,29 @@ Rule: an AI agent never answers an open question by guessing. It implements what
 ## 9. Session log
 
 Newest first. One block per working session, format in `CLAUDE.md` section 8.
+
+### 2026-09-26 – T-026 Swing support/resistance detector
+- Result: **DONE** on `feature/T-026-swing-support-resistance` (2 commits, not pushed, no PR yet)
+- Summary: `market.calculator.SwingSupportResistance.nearest(List<StoredCandle>)`, pure Java: over the last 200 closed
+  candles, a swing low (high) is strictly lower (higher) than the two candles on each side; the last two candles and the
+  first two of the window are never swings; support = highest swing low below the last close, resistance = lowest swing
+  high above it, `null` when none (so also for fewer than 5 candles). `BigDecimal` compared with `compareTo` (TD 5.4),
+  no rounding (T-028). Result `Levels(support, resistance)` carries prices only, no bias. TD 7.3 gained an
+  "Implementation (T-026)" paragraph (window includes the unconfirmed candles; neighbours must lie inside it).
+- Branch: `feature/T-026-swing-support-resistance`
+- Files: `backend/.../market/calculator/SwingSupportResistance.java`,
+  `backend/src/test/.../market/calculator/SwingSupportResistanceTest.java`
+- Tests: 17 added; suite 1240/1240 (`./mvnw verify`, baseline 1223/1223 on `f36c291` from CI — the local baseline run
+  was cut short by Spotless on the files being written); coverage 99.55 % line / 94.89 % branch (before 99.55 / 94.76);
+  new class 100 / 100. Traceability: BR-14 COVERED (28/61 BR).
+- BR/UC/NSF covered: BR-14 (calculation half of NSF-05; pipeline and persistence T-028)
+- Decisions: none
+- Open questions: none new. Note for the team lead: A-07's "Blocks" column names T-026 and the T-005 session says the
+  `setup_bias` migration would be additive "in T-026". That migration was deliberately **not** done (no persistence in
+  this task, A-07 still PENDING); proposal: move it to T-027 or T-028 once A-07 is approved.
+- Next: T-035 (T-027 when Q-01 and A-07 are decided)
+- Commits: `f93c2d1` feat(market): add swing support/resistance detector (T-026); `a02b387` test(market): cover
+  unconfirmed candles and equal swing levels (T-026)
 
 ### 2026-09-26 — Status sync after PR #16 merged (no task id)
 - Result: **DONE** — state drift fixed, no code change

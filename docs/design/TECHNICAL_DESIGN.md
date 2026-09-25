@@ -683,6 +683,8 @@ Implementation (T-025, D-52): `market.calculator` holds one class per indicator 
 
 Complexity O(200) per candle. Reference: Williams 1995 (fractals), Murphy 1999.
 
+Implementation (T-026): `market.calculator.SwingSupportResistance.nearest(List<StoredCandle>)`, pure Java, candles oldest first. The window is the last 200 candles *including* the two unconfirmed ones, and a swing needs both neighbours on each side inside the window, so the first two candles of the window are never swings either (fewer than 5 candles → both levels null). Prices stay `BigDecimal` as stored (compared with `compareTo`, so `8` and `8.00` are equal); rounding to 10 dp is T-028's. The result is prices only — no bias until A-07 is decided.
+
 ### 7.4 Setup score v1.0 (BR-13) – requires team approval (SRS 5.4.1 item 7)
 
 The score is computed for both directions d ∈ {LONG = +1, SHORT = −1}; the stored `setup_score` is the higher one and a bias label is derived. This avoids scoring a strong downtrend as "bad" when a futures short is a valid setup. (Needs a new column `setup_bias`, see A-07.)
