@@ -1,10 +1,10 @@
 # CURRENT_STATE.md — CryptoPilot Project State
 
-**Last updated:** 2026-09-25 · **Document version:** 2.23 · **Phase:** P0 done bar T-001 (PARTIAL, Q-17), T-004 and the rest of T-009; P1 done bar T-015 (PARTIAL, Q-12) and the web screens; P2 done bar T-022
-**Next task:** `T-022` — Redis price cache and SignalR market hub (dependency T-021 DONE). Also unblocked: T-025, T-026, T-016, T-102.
-T-024 is `DONE` on PR #13 (3 commits, CI green, not merged): the public market data API of UC-09, the OpenAPI document of
-TD 8 (springdoc 3.1.1, Q-18 closed) and MSG01 for every binding error. Still open: T-001 `PARTIAL` (Q-17), T-015 `PARTIAL`
-(Q-12), T-007 `PARTIAL` (Q-04), T-009 `PARTIAL`.
+**Last updated:** 2026-09-25 · **Document version:** 2.24 · **Phase:** P0 done bar T-001 (PARTIAL, Q-17), T-004 and the rest of T-009; P1 done bar T-015 (PARTIAL, Q-12) and the web screens; P2 done bar T-022
+**Next task:** `T-022` — Redis price cache and SignalR market hub (dependency T-021 DONE). Also unblocked: T-025, T-026, T-016.
+T-024 is merged (PR #13, `319a240`). T-102 is `DONE` on PR #14 (CI green, not merged): the two flaky stream shard cases are
+deterministic. D-50 keeps market data public (Q-19 closed). Still open: T-001 `PARTIAL` (Q-17), T-015 `PARTIAL` (Q-12),
+T-007 `PARTIAL` (Q-04), T-009 `PARTIAL`.
 
 This file is the single source of truth for *status*. `docs/design/TECHNICAL_DESIGN.md` owns *how*; the SRS owns *what*. Every working session starts by reading this file and ends by updating it (`CLAUDE.md` sections 1 and 8).
 
@@ -53,7 +53,7 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 |---|---|---|---|---|---|
 | P0 Foundation | S0 | Repo, CI, database, docker, architecture tests | 9 | 5 | WIP — T-001, T-007, T-009 PARTIAL |
 | P1 Identity | S1 | Register, verify, login, tokens, profile, devices | 8 | 6 | WIP — T-015 PARTIAL, T-016 TODO (unblocked) |
-| P2 Market Data | S2 | Pairs, backfill, streams, futures metrics | 8 | 7 | WIP — T-017 to T-021, T-023 and T-024 DONE (T-024 on PR #13); T-022 NEXT |
+| P2 Market Data | S2 | Pairs, backfill, streams, futures metrics | 8 | 7 | WIP — T-017 to T-021, T-023 and T-024 DONE and merged; T-022 NEXT |
 | P3 Analysis | S2–S3 | Indicators, S/R, setup score | 5 | 0 | TODO |
 | P4 Market UI | S3 | Public home, market list, spot/futures analysis | 5 | 0 | TODO |
 | P5 Trading Plan | S3–S4 | Risk calculation, warnings, plan lifecycle | 7 | 0 | TODO |
@@ -67,14 +67,14 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 | P13 Administration | S10 | Users, moderation, config, reports, audit | 7 | 0 | TODO |
 | P14 Mobile | S11 | Flutter app, push, offline | 5 | 0 | TODO |
 | P15 Hardening | S12 | E2E, performance, security, deploy, docs | 7 | 0 | TODO |
-| **Total** | | | **102** | **18** | **18%** |
+| **Total** | | | **102** | **19** | **19%** |
 
-**Coverage:** `calculator` packages — `market.calculator` 100% line (16/16), 100% branch (12/12) (gate 90%) · Backend on PR #13 (measured 2026-09-25): 99.50% line (2812/2826), 94.91% branches (764/805); on `develop` (`f47c127`): 99.45% line, 95.15% branches — gate line 95 %, branch 90 % · AI Service —% (gate 80%).
-**Test suite:** `develop` (`f47c127`) 1115/1115; PR #13 1150/1150 (+35), locally and in CI. The 2-test gap between Maven's total and the XML report headers is Surefire's header of `RoundingTest` (32 vs 34 test cases). Known flaky (T-102): two cases of `BinanceStreamShardTest` — `NSF03_aFailedRenewal_keepsTheOldConnection_andTriesAgain` and `NSF03_theShard_connectsToTheCombinedStreamUnderTheConfiguredRoute` (2 failures in 5 isolated runs on 2026-09-25). Two `live` tests are excluded everywhere. Needs Docker and `JWT_SECRET` (supplied by Surefire, D-20); the test database runs with `max_connections=300` (D-40).
+**Coverage:** `calculator` packages — `market.calculator` 100% line (16/16), 100% branch (12/12) (gate 90%) · Backend on `develop` and PR #14 (measured 2026-09-25): 99.50% line (2812/2826), 94.91% branches (764/805) — gate line 95 %, branch 90 % · AI Service —% (gate 80%).
+**Test suite:** `develop` (`319a240`) and PR #14: 1150/1150, locally and in CI. The 2-test gap between Maven's total and the XML report headers is Surefire's header of `RoundingTest` (32 vs 34 test cases). The two flaky `BinanceStreamShardTest` cases are deterministic on PR #14 (T-102); the same pattern remains in other cases of that class and in `ClosedCandlePipelineTest` (reported, not changed). Two `live` tests are excluded everywhere. Needs Docker and `JWT_SECRET` (supplied by Surefire, D-20); the test database runs with `max_connections=300` (D-40).
 
 > The figure before T-015 was recorded here as 578; the measured baseline was **576** — the "148 shared kernel" was 146. T-015 added 98 tests (80 + 11 + 7 in `ErrorCodeTest` from the two new codes), so 576 + 98 = 674.
-**Merged to `develop`:** everything up to T-023 and the D-48 refactor. `develop` is at `f47c127` (PR #12, D-48), after `f3bd58b` (PR #11, T-023), `3f74cb3` (PR #10) … — all merge commits, remote branches kept.
-**Not merged:** PR #13 `feature/T-024-market-data-api` (`8c9b0a7`, `d99e690`, `6b91390`; `build-and-test` 1150/1150, `secret-scan` 114 commits, no leak). `backup/T-017-pre-rebase` is a local branch kept for the team lead to delete.
+**Merged to `develop`:** everything up to T-024. `develop` is at `319a240` (PR #13, T-024), after `f47c127` (PR #12, D-48), `f3bd58b` (PR #11, T-023) … — all merge commits, remote branches kept.
+**Not merged:** PR #14 `fix/T-102-flaky-stream-shard-test` (`318878a`; `build-and-test` 1150/1150, `secret-scan` 115 commits, no leak). `backup/T-017-pre-rebase` is a local branch kept for the team lead to delete.
 **Deployed:** dev — · staging —
 
 ### Critical path
@@ -240,7 +240,7 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 | T-021 | NSF-03 realtime stream ingestion (kline, ticker, mark price) | BE2 | T-017 | NSF-03, BR-08 | Only closed candles stored; reconnect with back-off; gap triggers backfill | **DONE** 2026-09-24, merged (PR #9) — no migration; combined streams per market (≤ 100 per connection, futures under `/market`), closed candles only, gap → NSF-02 range fill plus a start-up scan of 7 days, back-off 1–60 s, 23 h renewal, idle watchdog, in-memory latest prices, minute snapshots, dev-only demo activation (D-43, D-44, A-33, Q-16) |
 | T-022 | Redis price cache and SignalR market hub | BE1 | T-021 | TD 5.6, 9 | Client receives price and candle updates; latency target of SRS 4.2.3 met locally | **NEXT** |
 | T-023 | NSF-04 futures metrics (open interest, long/short, funding settlement) | BE2 | T-017 | NSF-04, BR-10, BR-11 | Funding time read from the source, never assumed to be 8h | **DONE** 2026-09-25, merged (PR #11, `f3bd58b`) — no migration; 5-minute OI (with value) and long/short ratios from the history endpoints into `futures_market_data` at the source's instant, own columns only, no forward fill, current minute never written (D-45); settlements into `funding_rate_history` once per instant, due from `nextFundingTime` and `fundingInfo`, no assumed interval (D-46); refused calls write nothing |
-| T-024 | Market data API: pairs, candles, snapshots | BE2 | T-020, T-021 | UC-09 | OpenAPI documented; pagination and timeframe validation tested | **DONE** 2026-09-25, PR #13 (CI green) — five public GET endpoints (D-49), pagination and timeframe validation tested; OpenAPI documented: springdoc 3.1.1 at `/v3/api-docs` and `/swagger-ui.html`, off in `prod`, 18 paths / 19 operations; every binding error answers MSG01 |
+| T-024 | Market data API: pairs, candles, snapshots | BE2 | T-020, T-021 | UC-09 | OpenAPI documented; pagination and timeframe validation tested | **DONE** 2026-09-25, merged (PR #13, `319a240`) — five public GET endpoints (D-49), pagination and timeframe validation tested; OpenAPI documented: springdoc 3.1.1 at `/v3/api-docs` and `/swagger-ui.html`, off in `prod`, 18 paths / 19 operations; every binding error answers MSG01 |
 
 ### P3 — Analysis (Sprints 2–3)
 
@@ -318,7 +318,7 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 | T-064 | Violation reports | BE2 | T-060 | UC-33, BR-46 | One report per user per post; self-reporting rejected | TODO |
 | T-065 | Web: community feed, post detail, editor, report dialog | FE | T-063, T-064 | SCR-24…27 | Official posts pinned; media preview | TODO |
 | T-101 | Profile avatar upload | BE2 | T-061, T-014 | UC-06, SRS 3.2.5 | The avatar of SCR-07 is uploaded through the Media Storage seam (JPG, PNG or WEBP, at most 2 MB, checked server-side); `PUT /me/profile` accepts only a reference from that store, never an arbitrary URL; replacing or removing an avatar deletes the old file | TODO |
-| T-102 | Stabilise the flaky stream shard test | BE2 | T-021 | NSF-03 | `BinanceStreamShardTest.NSF03_aFailedRenewal_keepsTheOldConnection_andTriesAgain` and `NSF03_theShard_connectsToTheCombinedStreamUnderTheConfiguredRoute` (2 of 5 isolated runs failed on 2026-09-25, "expected [false] …") pass 50 consecutive runs; the assertion reads a snapshot of the recorded list instead of the live one (it failed once on 2026-09-25 with "expected [false, false] … [false, false]", a race between the check and the message), no assertion weakened | TODO |
+| T-102 | Stabilise the flaky stream shard test | BE2 | T-021 | NSF-03 | `BinanceStreamShardTest.NSF03_aFailedRenewal_keepsTheOldConnection_andTriesAgain` and `NSF03_theShard_connectsToTheCombinedStreamUnderTheConfiguredRoute` (2 of 5 isolated runs failed on 2026-09-25, "expected [false] …") pass 50 consecutive runs; the assertion reads a snapshot of the recorded list instead of the live one (it failed once on 2026-09-25 with "expected [false, false] … [false, false]", a race between the check and the message), no assertion weakened | **DONE** 2026-09-25, PR #14 (CI green) — both cases wait for the callback they assert on; the renewal case runs on a virtual-time `ManualScheduler` through the shard's existing scheduler parameter; no production code, timeout or assertion changed. 0/200 isolated each, 10/10 full suites |
 
 ### P10 — Billing (Sprint 8)
 
@@ -429,6 +429,34 @@ Rule: an AI agent never answers an open question by guessing. It implements what
 ## 9. Session log
 
 Newest first. One block per working session, format in `CLAUDE.md` section 8.
+
+### 2026-09-25 – PR #13 merged; D-50; Swagger UI checked; T-102 flaky stream shard test
+- Result: **DONE** — PR #14 open, CI green; not merged
+- PR #13 merged (`319a240`, CI green). D-50 PROPOSED: market data, futures metrics included, stays public; Q-19 closed
+  (docs `ea05364`).
+- Swagger UI in `dev`: `/swagger-ui.html` 302 → `/swagger-ui/index.html` 200; its seven static files (css, js, favicons,
+  initializer) 200; `/v3/api-docs/swagger-config` 200 (`configUrl`), `/v3/api-docs` 200. Nothing blocked, so no
+  `fix/swagger-ui-static` branch.
+- Root cause, route case: `BinanceStreamShard.opened()` sets `current` under its lock and calls `listener.onConnected`
+  after releasing it; the test waited for `isConnected()` and asserted on the listener's list inside that window (AssertJ
+  then printed the list already filled: "expected [false] … [false]").
+- Root cause, failed-renewal case: the same window (the old connection is closed before the listener hears of the new
+  one, and the test waited for that close), plus a 200 ms renewal on a real scheduler that could renew a third time.
+- Evidence: with the test listener delayed 50 ms, the old test fails both cases every time, the new one passes both. Not a
+  production race: the listener is called outside the lock by design and no caller relies on the order.
+- Fix (test only): wait for the callback asserted on; the renewal case on `ManualScheduler` (virtual time) through the
+  shard's existing `ScheduledExecutorService` parameter. No injection point added, no timeout, retry or assertion changed.
+- Failure rates: before — route 0/50 in one JVM, 2/5 fresh-JVM runs earlier under load, 0/10 later; renewal 1/50; full
+  suite 5/5 green now (each case had failed once in earlier full runs). After — 0/200 isolated each; 10/10 full suites
+  (1150 tests each).
+- Same pattern elsewhere (reported, not changed): `BinanceStreamShardTest` `NSF03_aDroppedConnection…`,
+  `NSF03_aCloseFromTheExchange…` (await `isConnected` then assert `openings`); `NSF03_renewal_opens…`,
+  `NSF03_aSilentConnection…`, `NSF03_aConnectionThatKeepsTalking…` (real 200–300 ms timers), `…KeepsTalking`,
+  `…closingTheShard…`, `…startingTwice…` (`Thread.sleep`); `ClosedCandlePipelineTest` (elapsed wall time < 100 ms).
+- Tests: 1150/1150 locally and in CI (no count change); coverage 99.50% line / 94.91% branch (measured).
+- Decisions: **D-50** PROPOSED. Open questions: Q-19 closed.
+- Next: T-022.
+- Commits: `318878a` test(market): make BinanceStreamShardTest deterministic (T-102).
 
 ### 2026-09-25 – T-024 completed: springdoc per TD 8, MSG01 for binding errors
 - Result: **DONE** — PR #13, 3 commits, `build-and-test` 1150/1150 and `secret-scan` 114 commits, no leak; not merged
