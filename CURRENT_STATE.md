@@ -72,12 +72,12 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 | P15 Hardening | S12 | E2E, performance, security, deploy, docs | 7 | 0 | TODO |
 | **Total** | | | **101** | **17** | **17%** |
 
-**Coverage:** `calculator` packages — `market.calculator` 100% line (16/16), 100% branch (12/12) (gate 90%) · Backend on `feature/T-023-futures-metrics`: 99.45% line (2519/2533), 95.15% branches (707/743), coverage gate met in CI; on `develop` (`30dd43a`): CI 99.24% line, 94.81% branches — gate line 95 %, branch 90 % · AI Service —% (gate 80%).
-**Test suite:** `feature/T-023-futures-metrics` **1109/1109** (Maven, locally and in CI on PR #11); `develop` 1049. **Correction:** the 2-test gap between Maven's total and the sum of the XML report headers (1049 vs 1047 on `develop`, 1109 vs 1107 now) is **not** the nested classes of `BinanceRestClientTest` (their counts match: 49 = 49). Surefire writes `tests="32"` in the header of `TEST-…RoundingTest.xml`, which holds 34 `<testcase>` elements (nested classes with `@DisplayName`); the `<testcase>` elements of all reports sum to Maven's total. No test was removed or renamed (713 → 759 test methods against `30dd43a`). Two `live` tests are excluded everywhere. Needs Docker and `JWT_SECRET` (supplied by Surefire, D-20); the test database runs with `max_connections=300` (D-40).
+**Coverage:** `calculator` packages — `market.calculator` 100% line (16/16), 100% branch (12/12) (gate 90%) · Backend on `develop` and on PR #12: 99.45% line (2519/2533), 95.15% branches (707/743) — gate line 95 %, branch 90 % · AI Service —% (gate 80%).
+**Test suite:** `develop` (`f3bd58b`) 1109/1109; PR #12 1115/1115 (+6 ArchUnit rules of D-48), locally and in CI. The 2-test gap between Maven's total and the XML report headers is Surefire's header of `RoundingTest` (32 vs 34 test cases). Known flaky: `BinanceStreamShardTest.NSF03_aFailedRenewal_keepsTheOldConnection_andTriesAgain` failed once in a full run on 2026-09-25 (timing race in its assertion), passed 5/5 on rerun. Two `live` tests are excluded everywhere. Needs Docker and `JWT_SECRET` (supplied by Surefire, D-20); the test database runs with `max_connections=300` (D-40).
 
 > The figure before T-015 was recorded here as 578; the measured baseline was **576** — the "148 shared kernel" was 146. T-015 added 98 tests (80 + 11 + 7 in `ErrorCodeTest` from the two new codes), so 576 + 98 = 674.
-**Merged to `develop`:** everything up to T-021. `develop` is at `30dd43a` (PR #9, T-021), after `d46cc22` (PR #8), `4e22fed` (PR #7, CI), `c5356e2` (PR #6), `13dca29` (PR #5), `b52fe40` (PR #4), `a345dc9` (PR #3) — all merge commits, remote branches kept, every PR from #7 on green in `build-and-test`.
-**Not merged:** PR #11 `feature/T-023-futures-metrics` (5 commits, pushed, `build-and-test` green); PR #10 `chore/public-readiness` (2 commits, CI green). `backup/T-017-pre-rebase` is a local branch kept for the team lead to delete.
+**Merged to `develop`:** everything up to T-023. `develop` is at `f3bd58b` (PR #11, T-023, merged 2026-09-25 after `gh pr update-branch`: `build-and-test` 1109/1109 and `secret-scan` 107 commits, no leak), after `3f74cb3` (PR #10, public-readiness), `30dd43a` (PR #9) … — all merge commits, remote branches kept.
+**Not merged:** PR #12 `refactor/service-interfaces-dto-packages` (D-48; 4 commits; `build-and-test` 1115/1115 and `secret-scan` 111 commits, no leak). `backup/T-017-pre-rebase` is a local branch kept for the team lead to delete.
 **Deployed:** dev — · staging —
 
 ### Critical path
@@ -240,7 +240,7 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 | T-020 | NSF-02 historical candle backfill | BE2 | T-017 | NSF-02, BR-08 | Gap detection works; re-running inserts no duplicates | **DONE** 2026-09-24, merged (PR #8) — no migration; pairs TRADING per market (D-42), D-41 depths, resume from stored data, ON CONFLICT DO NOTHING, 50 % weight share, after sync and hourly. "Gap detection" read as A-33 |
 | T-021 | NSF-03 realtime stream ingestion (kline, ticker, mark price) | BE2 | T-017 | NSF-03, BR-08 | Only closed candles stored; reconnect with back-off; gap triggers backfill | **DONE** 2026-09-24, merged (PR #9) — no migration; combined streams per market (≤ 100 per connection, futures under `/market`), closed candles only, gap → NSF-02 range fill plus a start-up scan of 7 days, back-off 1–60 s, 23 h renewal, idle watchdog, in-memory latest prices, minute snapshots, dev-only demo activation (D-43, D-44, A-33, Q-16) |
 | T-022 | Redis price cache and SignalR market hub | BE1 | T-021 | TD 5.6, 9 | Client receives price and candle updates; latency target of SRS 4.2.3 met locally | TODO |
-| T-023 | NSF-04 futures metrics (open interest, long/short, funding settlement) | BE2 | T-017 | NSF-04, BR-10, BR-11 | Funding time read from the source, never assumed to be 8h | **DONE** 2026-09-25, PR #11 open (CI green) — no migration; 5-minute OI (with value) and long/short ratios from the history endpoints into `futures_market_data` at the source's instant, own columns only, no forward fill, current minute never written (D-45); settlements into `funding_rate_history` once per instant, due from `nextFundingTime` and `fundingInfo`, no assumed interval (D-46); refused calls write nothing |
+| T-023 | NSF-04 futures metrics (open interest, long/short, funding settlement) | BE2 | T-017 | NSF-04, BR-10, BR-11 | Funding time read from the source, never assumed to be 8h | **DONE** 2026-09-25, merged (PR #11, `f3bd58b`) — no migration; 5-minute OI (with value) and long/short ratios from the history endpoints into `futures_market_data` at the source's instant, own columns only, no forward fill, current minute never written (D-45); settlements into `funding_rate_history` once per instant, due from `nextFundingTime` and `fundingInfo`, no assumed interval (D-46); refused calls write nothing |
 | T-024 | Market data API: pairs, candles, snapshots | BE2 | T-020, T-021 | UC-09 | OpenAPI documented; pagination and timeframe validation tested | **NEXT** |
 
 ### P3 — Analysis (Sprints 2–3)
@@ -429,6 +429,27 @@ Rule: an AI agent never answers an open question by guessing. It implements what
 ## 9. Session log
 
 Newest first. One block per working session, format in `CLAUDE.md` section 8.
+
+### 2026-09-25 — PR #10 and #11 merged; D-48 adopted and applied (no task id)
+- Result: **DONE** — PR #12 open, CI green; not merged
+- Merges (authorised by the team lead in this session): PR #10 → `3f74cb3`; PR #11 updated with `gh pr update-branch`
+  (merge, no rebase, no force push) → `build-and-test` pass (1109/1109, 3 min 58 s), `secret-scan` pass (107 commits,
+  checksum OK, no leak) → merged `f3bd58b`. Remote branches kept.
+- D-48 (docs `afda1c5`, pushed): service interfaces + `service/impl`, `dto/request` + `dto/response`, internal records in
+  `model/`; supersedes TD 3.3 "no interface unless two implementations"; TD 3.1, 3.3, 4.1 and CLAUDE.md section 5 updated.
+- Refactor, one commit per module: `cc97503` auth (2 services, 10 DTOs, `IssuedSession`, 2 package-private helpers, 2
+  tests to `service/impl`), `3502cd5` user (3 services, `UserService extends UserApi`, 5 DTOs, 1 helper), `1849de0` market
+  (6 services, `PersistentBinanceBans` to impl without a second interface, 9 records to `model/`), `5558041` ArchUnit
+  `PackageConventionTest` (6 rules, each seen failing on a planted violation).
+- Evidence of no behaviour change: tests 1109 → 1115 (+6 ArchUnit), all pass; coverage 99.45% / 95.15% before and after;
+  488 singleton beans before and after (11 default names gain `Impl`, no bean referenced by name); NSF-01…04 scheduled at
+  dev start-up; HTTP contract fingerprint (14 mappings, 16 records) identical; each implementation body identical to its
+  original class except `CandleBackfillServiceImpl.TIMEFRAMES` in `StreamCandleServiceImpl`. No springdoc in the project,
+  so no `/v3/api-docs` to diff. No string reference to a moved class existed (the `@Query` FQNs name entity enums only).
+- Observations, not changed: the flaky `BinanceStreamShardTest` case above; helper components stay concrete in `service/`;
+  `common/web` keeps `MessageResponse` and `PageResponse`; private records nested in implementations stay.
+- Decisions: **D-48** PROPOSED. Open questions: none new.
+- Next: T-024.
 
 ### 2026-09-25 – T-023 review: five points checked, PR #11
 - Result: **DONE** — 2 points FIXED, 3 OK; pushed; PR #11 into `develop`, `build-and-test` green; not merged

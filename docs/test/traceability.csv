@@ -35,7 +35,7 @@ BusinessRule,BR-33,A LIMIT entry of a LONG plan is filled when the last price is
 BusinessRule,BR-34,Filling an entry sets the plan to EXECUTED and creates a journal record with source SIMULA,,,,NOT_COVERED
 BusinessRule,BR-35,An open position is closed when the last price reaches the take profit or the stop loss; a,,,,NOT_COVERED
 BusinessRule,BR-36,Simulated fees: maker rate for LIMIT entries and take profit exits; taker rate for MARKET ,,backend\src\test\java\com\cryptopilot\schema\SeedDataTest.java,BR36_simulatedFeeRate_isSeededWithTheDefaultTheRuleStates,COVERED
-BusinessRule,BR-37,At each funding time an open futures position pays or receives funding = mark price × quan,,backend\src\test\java\com\cryptopilot\schema\HypertableTest.java,BR37_aSettlementWithoutAMarkPrice_isNotStored; BR37_settledFundingRates_areNotReachableByAnyRetentionPolicy,COVERED
+BusinessRule,BR-37,At each funding time an open futures position pays or receives funding = mark price × quan,,backend\src\test\java\com\cryptopilot\schema\HypertableTest.java,BR37_aSettlementInstant_isRoundedToTheNearestMinute; BR37_aSettlementWithoutAMarkPrice_isNotStored; BR37_missingInstants_areRefused …,COVERED
 BusinessRule,BR-38,Realized profit/loss: LONG = (exit price − entry price) × quantity − fees + net funding; S,,,,NOT_COVERED
 BusinessRule,BR-39,The Trader can close an open simulated position at any time at the current last price with,,,,NOT_COVERED
 BusinessRule,BR-40,"Execution facts of a SIMULATED trade (prices, quantity, times, fees, funding, profit/loss)",,,,NOT_COVERED
