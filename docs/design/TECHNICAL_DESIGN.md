@@ -86,7 +86,7 @@ Only the backend owns the database (single writer). The AI Service has no databa
 | Validation | Jakarta Bean Validation (`spring-boot-starter-validation`) | Request DTOs |
 | Security | Spring Security, OAuth2 Resource Server (JWT, HS256), `BCryptPasswordEncoder(12)` | |
 | Rate limiting | Bucket4j (in-memory) in a servlet filter | |
-| API docs | springdoc-openapi (release line compatible with Spring Boot 4) | |
+| API docs | springdoc-openapi (release line compatible with Spring Boot 4) | `springdoc-openapi-starter-webmvc-ui` 3.1.1 since T-024 (2026-09-25): the 3.x line is the one for Boot 4, and 3.1.1 is built on Boot 4.1.0; `common.config.OpenApiConfig` describes `BigDecimal` as a string of format `decimal` and declares the `bearerAuth` scheme |
 | Logging | SLF4J + Logback; Spring Boot structured logging (JSON) outside `dev` | Correlation id in MDC |
 | IDs | UUID v7 from `com.fasterxml.uuid:java-uuid-generator` | ADR-009 |
 | Boilerplate | Lombok, limited to entities and constructor injection (section 3.4) | DTOs are Java records |
@@ -875,7 +875,8 @@ The paths that end sessions and must evict: `FamilyRevoker` (logout, reuse), `Au
 - Base path `/api/v1`; JSON; camelCase; ISO 8601 UTC timestamps; decimals serialized as strings to avoid precision loss in JavaScript.
 - Pagination: `?page=1&pageSize=20` (max 100), response `{ items, page, pageSize, total }`.
 - Idempotency: `POST /billing/orders` accepts `Idempotency-Key` header.
-- OpenAPI document at `/v3/api-docs` and Swagger UI at `/swagger-ui.html` (springdoc; disabled in profile `prod`).
+- OpenAPI document at `/v3/api-docs` and Swagger UI at `/swagger-ui.html` (springdoc; disabled in profile `prod`). The filter chain opens `GET /v3/api-docs/**`, `/swagger-ui.html` and `/swagger-ui/**` to anyone; in `prod` springdoc is off, so those paths answer 404 (T-024). Operations that need a session name the `bearerAuth` scheme.
+- Binding errors (T-024): a missing required parameter, a parameter that cannot be converted (timestamp not ISO 8601, number not a number) and a body that is not readable JSON answer 400 with `code` `VALIDATION_FAILED`, `messageCode` MSG01 and `errors` naming the parameter or field (`is required`, `is invalid`, `is not readable`; `body` when the parser cannot name a field); the converter's and parser's messages go to the log only.
 
 Endpoint catalogue (summary):
 

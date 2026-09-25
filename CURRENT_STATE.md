@@ -1,11 +1,10 @@
 # CURRENT_STATE.md — CryptoPilot Project State
 
-**Last updated:** 2026-09-25 · **Document version:** 2.22 · **Phase:** P0 done bar T-001 (PARTIAL, Q-17), T-004 and the rest of T-009; P1 done bar T-015 (PARTIAL, Q-12) and the web screens; P2: T-024 PARTIAL (Q-18), T-022 left
+**Last updated:** 2026-09-25 · **Document version:** 2.23 · **Phase:** P0 done bar T-001 (PARTIAL, Q-17), T-004 and the rest of T-009; P1 done bar T-015 (PARTIAL, Q-12) and the web screens; P2 done bar T-022
 **Next task:** `T-022` — Redis price cache and SignalR market hub (dependency T-021 DONE). Also unblocked: T-025, T-026, T-016, T-102.
-T-024 is `PARTIAL` on PR #13 (CI green, not merged): the public market data API of UC-09 — pairs, candles, Spot and futures
-statistics, futures metrics as sparse series (D-45, D-46, D-49). Everything but the "OpenAPI documented" criterion: springdoc was
-not to be added in this task (Q-18). PR #12 (D-48 refactor) is merged (`f47c127`). Still open: T-001 `PARTIAL` (Q-17), T-015
-`PARTIAL` (Q-12), T-007 `PARTIAL` (Q-04), T-009 `PARTIAL`, T-024 `PARTIAL` (Q-18).
+T-024 is `DONE` on PR #13 (3 commits, CI green, not merged): the public market data API of UC-09, the OpenAPI document of
+TD 8 (springdoc 3.1.1, Q-18 closed) and MSG01 for every binding error. Still open: T-001 `PARTIAL` (Q-17), T-015 `PARTIAL`
+(Q-12), T-007 `PARTIAL` (Q-04), T-009 `PARTIAL`.
 
 This file is the single source of truth for *status*. `docs/design/TECHNICAL_DESIGN.md` owns *how*; the SRS owns *what*. Every working session starts by reading this file and ends by updating it (`CLAUDE.md` sections 1 and 8).
 
@@ -54,7 +53,7 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 |---|---|---|---|---|---|
 | P0 Foundation | S0 | Repo, CI, database, docker, architecture tests | 9 | 5 | WIP — T-001, T-007, T-009 PARTIAL |
 | P1 Identity | S1 | Register, verify, login, tokens, profile, devices | 8 | 6 | WIP — T-015 PARTIAL, T-016 TODO (unblocked) |
-| P2 Market Data | S2 | Pairs, backfill, streams, futures metrics | 8 | 6 | WIP — T-017 to T-021 and T-023 DONE; T-024 PARTIAL (Q-18, PR #13); T-022 NEXT |
+| P2 Market Data | S2 | Pairs, backfill, streams, futures metrics | 8 | 7 | WIP — T-017 to T-021, T-023 and T-024 DONE (T-024 on PR #13); T-022 NEXT |
 | P3 Analysis | S2–S3 | Indicators, S/R, setup score | 5 | 0 | TODO |
 | P4 Market UI | S3 | Public home, market list, spot/futures analysis | 5 | 0 | TODO |
 | P5 Trading Plan | S3–S4 | Risk calculation, warnings, plan lifecycle | 7 | 0 | TODO |
@@ -68,14 +67,14 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 | P13 Administration | S10 | Users, moderation, config, reports, audit | 7 | 0 | TODO |
 | P14 Mobile | S11 | Flutter app, push, offline | 5 | 0 | TODO |
 | P15 Hardening | S12 | E2E, performance, security, deploy, docs | 7 | 0 | TODO |
-| **Total** | | | **101** | **17** | **17%** |
+| **Total** | | | **102** | **18** | **18%** |
 
-**Coverage:** `calculator` packages — `market.calculator` 100% line (16/16), 100% branch (12/12) (gate 90%) · Backend on PR #13 (measured 2026-09-25): 99.50% line (2780/2794), 95.22% branches (757/795); on `develop` (`f47c127`): 99.45% line, 95.15% branches — gate line 95 %, branch 90 % · AI Service —% (gate 80%).
-**Test suite:** `develop` (`f47c127`) 1115/1115; PR #13 1138/1138 (+23), locally and in CI. The 2-test gap between Maven's total and the XML report headers is Surefire's header of `RoundingTest` (32 vs 34 test cases). Known flaky: `BinanceStreamShardTest.NSF03_aFailedRenewal_keepsTheOldConnection_andTriesAgain` (T-102). Two `live` tests are excluded everywhere. Needs Docker and `JWT_SECRET` (supplied by Surefire, D-20); the test database runs with `max_connections=300` (D-40).
+**Coverage:** `calculator` packages — `market.calculator` 100% line (16/16), 100% branch (12/12) (gate 90%) · Backend on PR #13 (measured 2026-09-25): 99.50% line (2812/2826), 94.91% branches (764/805); on `develop` (`f47c127`): 99.45% line, 95.15% branches — gate line 95 %, branch 90 % · AI Service —% (gate 80%).
+**Test suite:** `develop` (`f47c127`) 1115/1115; PR #13 1150/1150 (+35), locally and in CI. The 2-test gap between Maven's total and the XML report headers is Surefire's header of `RoundingTest` (32 vs 34 test cases). Known flaky (T-102): two cases of `BinanceStreamShardTest` — `NSF03_aFailedRenewal_keepsTheOldConnection_andTriesAgain` and `NSF03_theShard_connectsToTheCombinedStreamUnderTheConfiguredRoute` (2 failures in 5 isolated runs on 2026-09-25). Two `live` tests are excluded everywhere. Needs Docker and `JWT_SECRET` (supplied by Surefire, D-20); the test database runs with `max_connections=300` (D-40).
 
 > The figure before T-015 was recorded here as 578; the measured baseline was **576** — the "148 shared kernel" was 146. T-015 added 98 tests (80 + 11 + 7 in `ErrorCodeTest` from the two new codes), so 576 + 98 = 674.
 **Merged to `develop`:** everything up to T-023 and the D-48 refactor. `develop` is at `f47c127` (PR #12, D-48), after `f3bd58b` (PR #11, T-023), `3f74cb3` (PR #10) … — all merge commits, remote branches kept.
-**Not merged:** PR #13 `feature/T-024-market-data-api` (1 commit `8c9b0a7`; `build-and-test` 1138/1138, `secret-scan` 112 commits, no leak). `backup/T-017-pre-rebase` is a local branch kept for the team lead to delete.
+**Not merged:** PR #13 `feature/T-024-market-data-api` (`8c9b0a7`, `d99e690`, `6b91390`; `build-and-test` 1150/1150, `secret-scan` 114 commits, no leak). `backup/T-017-pre-rebase` is a local branch kept for the team lead to delete.
 **Deployed:** dev — · staging —
 
 ### Critical path
@@ -240,7 +239,7 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 | T-021 | NSF-03 realtime stream ingestion (kline, ticker, mark price) | BE2 | T-017 | NSF-03, BR-08 | Only closed candles stored; reconnect with back-off; gap triggers backfill | **DONE** 2026-09-24, merged (PR #9) — no migration; combined streams per market (≤ 100 per connection, futures under `/market`), closed candles only, gap → NSF-02 range fill plus a start-up scan of 7 days, back-off 1–60 s, 23 h renewal, idle watchdog, in-memory latest prices, minute snapshots, dev-only demo activation (D-43, D-44, A-33, Q-16) |
 | T-022 | Redis price cache and SignalR market hub | BE1 | T-021 | TD 5.6, 9 | Client receives price and candle updates; latency target of SRS 4.2.3 met locally | **NEXT** |
 | T-023 | NSF-04 futures metrics (open interest, long/short, funding settlement) | BE2 | T-017 | NSF-04, BR-10, BR-11 | Funding time read from the source, never assumed to be 8h | **DONE** 2026-09-25, merged (PR #11, `f3bd58b`) — no migration; 5-minute OI (with value) and long/short ratios from the history endpoints into `futures_market_data` at the source's instant, own columns only, no forward fill, current minute never written (D-45); settlements into `funding_rate_history` once per instant, due from `nextFundingTime` and `fundingInfo`, no assumed interval (D-46); refused calls write nothing |
-| T-024 | Market data API: pairs, candles, snapshots | BE2 | T-020, T-021 | UC-09 | OpenAPI documented; pagination and timeframe validation tested | **PARTIAL** 2026-09-25, PR #13 (CI green) — five public GET endpoints (D-49): pairs (paged, BR-07), candles (tf and range validated, BR-08), Spot and futures stats (one block per source with its instant, D-45), futures metrics (sparse series, `availableFrom`, BR-10; settlements per D-46). Pagination and timeframe validation tested. **Not done: OpenAPI** — springdoc not added in this task (Q-18) |
+| T-024 | Market data API: pairs, candles, snapshots | BE2 | T-020, T-021 | UC-09 | OpenAPI documented; pagination and timeframe validation tested | **DONE** 2026-09-25, PR #13 (CI green) — five public GET endpoints (D-49), pagination and timeframe validation tested; OpenAPI documented: springdoc 3.1.1 at `/v3/api-docs` and `/swagger-ui.html`, off in `prod`, 18 paths / 19 operations; every binding error answers MSG01 |
 
 ### P3 — Analysis (Sprints 2–3)
 
@@ -318,7 +317,7 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 | T-064 | Violation reports | BE2 | T-060 | UC-33, BR-46 | One report per user per post; self-reporting rejected | TODO |
 | T-065 | Web: community feed, post detail, editor, report dialog | FE | T-063, T-064 | SCR-24…27 | Official posts pinned; media preview | TODO |
 | T-101 | Profile avatar upload | BE2 | T-061, T-014 | UC-06, SRS 3.2.5 | The avatar of SCR-07 is uploaded through the Media Storage seam (JPG, PNG or WEBP, at most 2 MB, checked server-side); `PUT /me/profile` accepts only a reference from that store, never an arbitrary URL; replacing or removing an avatar deletes the old file | TODO |
-| T-102 | Stabilise the flaky stream shard test | BE2 | T-021 | NSF-03 | `BinanceStreamShardTest.NSF03_aFailedRenewal_keepsTheOldConnection_andTriesAgain` passes 50 consecutive runs; the assertion reads a snapshot of the recorded list instead of the live one (it failed once on 2026-09-25 with "expected [false, false] … [false, false]", a race between the check and the message), no assertion weakened | TODO |
+| T-102 | Stabilise the flaky stream shard test | BE2 | T-021 | NSF-03 | `BinanceStreamShardTest.NSF03_aFailedRenewal_keepsTheOldConnection_andTriesAgain` and `NSF03_theShard_connectsToTheCombinedStreamUnderTheConfiguredRoute` (2 of 5 isolated runs failed on 2026-09-25, "expected [false] …") pass 50 consecutive runs; the assertion reads a snapshot of the recorded list instead of the live one (it failed once on 2026-09-25 with "expected [false, false] … [false, false]", a race between the check and the message), no assertion weakened | TODO |
 
 ### P10 — Billing (Sprint 8)
 
@@ -414,7 +413,7 @@ and the public read API of T-024 (PR #13) that a client polls when realtime is l
 | Q-15 | NSF-01 says "a pair whose status is no longer TRADING is flagged on SCR-37", but `crypto_pair` has no column for the exchange's trading status (only the administrator's `pair_status`), so the flag has nowhere to live | 2026-09-24 | T-019 (the flag), T-085 (showing it) | BE2 + Team | **DECIDED 2026-09-24 (team lead):** T-019 adds venue trading-status columns to `crypto_pair` as a normalized enum TRADING / NOT_TRADING / DELISTED, plus the raw Binance status text beside it. The CHECK constraint names only the normalized values, never Binance vocabulary |
 | Q-16 | NSF-03 streams only pairs an administrator activated (BR-07, D-44), and nothing activates a pair yet: the admin screen is later (UC-45), and the T-020 instructions said not to activate the demo pairs. So in dev no stream opens and no price, snapshot or live candle appears, although the backfill fills history. Should dev (only) activate the 13 demo pairs on both markets — by a dev-profile setting or a one-off SQL — until UC-45 exists? | 2026-09-24 | Demo of T-022, T-024 | Team lead | **DECIDED 2026-09-24 (team lead):** a `dev`-only setting activates the demo pairs at start-up on each market where the exchange trades them; idempotent; default and `prod` never auto-activate. **Done in T-021:** `cryptopilot.market.demo.activate-seed-symbols` (true in `application-dev.yml` only), `DemoPairActivation`, `DemoPairActivationJob` (once per market after its first sync, before the stream supervisor re-reads its pairs); tests bind the default, dev and prod configurations |
 | Q-17 | Branch protection for `develop` and `main` (T-001) cannot be configured: `cryptopilot_project` is private on GitHub Free, and the API refuses branch protection and rulesets with 403 "Upgrade to GitHub Pro or make this repository public". Options: GitHub Pro / Team (or the free GitHub Education pack, which includes Pro), make the code repository public (the documents live in their own repository and would stay private), or keep review before merge as the only guard | 2026-09-25 | T-001, T-009 (required check) | Team lead | **SUPERSEDED 2026-09-25 by D-47 (PROPOSED)**: make the code repository public, keep the documents repository private, then enable rulesets. Readiness done on `chore/public-readiness` (not pushed); visibility not changed |
-| Q-18 | T-024's criterion "OpenAPI documented": TECHNICAL_DESIGN 1.3 lists springdoc-openapi and section 8 promises `/v3/api-docs` and Swagger UI (off in `prod`), but the project has no springdoc and the team lead ruled out adding a library in T-024. Add springdoc (the version line for Spring Boot 4) in a small task of its own, or drop the criterion? Until then the contract is proved by the MockMvc tests only | 2026-09-25 | T-024 (criterion), every later API task | Team lead | OPEN |
+| Q-18 | T-024's criterion "OpenAPI documented": TECHNICAL_DESIGN 1.3 lists springdoc-openapi and section 8 promises `/v3/api-docs` and Swagger UI (off in `prod`), but the project has no springdoc and the team lead ruled out adding a library in T-024. Add springdoc (the version line for Spring Boot 4) in a small task of its own, or drop the criterion? Until then the contract is proved by the MockMvc tests only | 2026-09-25 | T-024 (criterion), every later API task | Team lead | **CLOSED 2026-09-25** by TD 1.3/8, on the team lead's instruction: springdoc-openapi 3.1.1 added in T-024 (PR #13, `d99e690`) |
 | Q-19 | The futures metrics (open interest, long/short ratio, settled funding) are served under the public `GET /api/v1/market/**`, following T-015's rule that raw market data is public and only the computed analysis (`/analysis/**`) is Trader-only. SRS 3.3.3 shows them only on SCR-11, which 3.1.3 places in the Trader area, while "Query Public Data (market overview)" is open to a Guest. Keep them public, or move `/market/futures/*/metrics` behind the Trader role? | 2026-09-25 | T-024 (access rule), T-034 | Team lead | OPEN |
 | Q-06 | Flutter chart library (ADR-012) | 2026-09-19 | T-090 | FE | OPEN |
 | Q-07 | Hosting for staging (VPS provider and size) and the demo domain. A managed PostgreSQL service usually cannot install TimescaleDB, so self-hosted Docker on a VPS is assumed | 2026-09-19 | T-096 | DO | OPEN |
@@ -429,6 +428,27 @@ Rule: an AI agent never answers an open question by guessing. It implements what
 ## 9. Session log
 
 Newest first. One block per working session, format in `CLAUDE.md` section 8.
+
+### 2026-09-25 – T-024 completed: springdoc per TD 8, MSG01 for binding errors
+- Result: **DONE** — PR #13, 3 commits, `build-and-test` 1150/1150 and `secret-scan` 114 commits, no leak; not merged
+- springdoc-openapi **3.1.1** (`springdoc-openapi-starter-webmvc-ui`): the 3.x line is springdoc's line for Spring Boot 4, and
+  3.1.1, the latest release, is itself built on `spring-boot-starter-parent` 4.1.0 (the project runs 4.1.1); 2.8.x targets
+  Boot 3. Paths per TD 8 (`/v3/api-docs`, `/swagger-ui.html`), off in `prod` (`application-prod.yml`); the filter chain
+  opens them for `GET` only, so in `prod` they answer 404. `OpenApiConfig` describes `BigDecimal` as a string (`decimal`)
+  and declares `bearerAuth`, named by the session-only controllers. Tags, summaries, responses with their MSG codes on the
+  auth, user and market controllers, parameters described on market; no path, parameter, body or rule changed.
+- Dev start-up: `/v3/api-docs` 200 with **18 paths / 19 operations** = the 19 HTTP mappings; `/swagger-ui.html` 302.
+- Binding errors: `MissingServletRequestParameterException`, `TypeMismatchException` (incl.
+  `MethodArgumentTypeMismatchException`, with `ConversionFailedException` / `DateTimeParseException` as causes) and
+  `HttpMessageNotReadableException` → 400 `VALIDATION_FAILED` MSG01 with `errors` naming the parameter or field; no Java
+  type or parser text in the body. 444 auth and user tests unchanged and green.
+- Tests: +12 (`OpenApiDocsTest` 5, `OpenApiDisabledTest` 1, `BindingErrorsTest` 6); suite 1150/1150; coverage 99.50% line /
+  94.91% branch (measured).
+- Flaky: `BinanceStreamShardTest.NSF03_theShard_connectsToTheCombinedStreamUnderTheConfiguredRoute` failed once in a full
+  run and 2 of 5 isolated runs (client code untouched); added to T-102, not fixed here.
+- Decisions: none new (D-49 stands). Open questions: **Q-18 CLOSED**; Q-19 still open.
+- Next: T-022.
+- Commits: `d99e690` feat(api): add springdoc OpenAPI per TD 8 · `6b91390` fix(api): map parameter binding errors to MSG01.
 
 ### 2026-09-25 – PR #12 merged; T-024 Market data API
 - Result: **PARTIAL** — everything but "OpenAPI documented" (Q-18); PR #13 open, CI green; not merged
