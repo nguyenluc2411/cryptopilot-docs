@@ -883,7 +883,7 @@ Endpoint catalogue (summary):
 |---|---|
 | auth | POST /auth/register, /auth/verify-email, /auth/resend-verification, /auth/login, /auth/refresh, /auth/logout, /auth/forgot-password, /auth/reset-password; PUT /me/password |
 | user | GET/PUT /me/profile; PUT /me/notification-preferences; POST /me/devices (one `INSERT ... ON CONFLICT (fcm_token) DO UPDATE`, D-34); DELETE /me/devices/{deviceId}. `POST /auth/logout` also accepts an optional `fcmToken`, and that device of the session's account is deactivated with the session (SRS 3.2.5) |
-| market | GET /market/pairs?market=; GET /market/{market}/{symbol}/candles?tf=&limit=; GET /market/{market}/{symbol}/stats; GET /market/futures/{symbol}/metrics?range= |
+| market | Built in T-024 (D-49), all public reads: GET /market/pairs?market=&page=&pageSize=; GET /market/{market}/{symbol}/candles?tf=&limit=&from=&to= (limit ≤ 1000, range ≤ 1000 candles, oldest first, page backwards with `to`); GET /market/spot/{symbol}/stats and GET /market/futures/{symbol}/stats (one block per source, each with its instant); GET /market/futures/{symbol}/metrics?from=&to= (range ≤ 7 days; sparse series + `availableFrom`). Limits in `cryptopilot.market.api.*` |
 | market (analysis) | GET /analysis/{market}/{symbol}?tf= (latest indicators, S/R, setup score) |
 | watchlist | GET/POST /watchlist; PATCH/DELETE /watchlist/{id}; GET/POST /alerts; PUT/DELETE /alerts/{id}; POST /alerts/{id}/pause, /resume |
 | trading | POST /plans/calculate (no persistence); GET/POST /plans; GET/PUT /plans/{id}; POST /plans/{id}/activate, /cancel, /close-position |

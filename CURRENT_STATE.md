@@ -1,13 +1,11 @@
 # CURRENT_STATE.md — CryptoPilot Project State
 
-**Last updated:** 2026-09-25 · **Document version:** 2.21 · **Phase:** P0 done bar T-001 (PARTIAL, Q-17), T-004 and the rest of T-009; P1 done bar T-015 (PARTIAL, Q-12) and the web screens; P2 in progress (T-022, T-024 left)
-**Next task:** `T-024` — Market data API: pairs, candles, snapshots (dependencies T-020, T-021 DONE). Also unblocked: T-022, T-025, T-026, T-016.
-T-023 is `DONE` on the local branch `feature/T-023-futures-metrics` (`b3aafef`, `46cf093`), **not pushed, not merged**: NSF-04
-collects open interest (with its value) and the long/short account ratios every 5 minutes into `futures_market_data` at the
-source's 5-minute instant (D-45: same row as NSF-03, own columns only, no forward fill), and stores each funding settlement
-once in `funding_rate_history`, due from the source's next funding time and `fundingInfo` interval — a symbol with no stated
-interval is checked every run, never given 8 h (D-46, BR-11). No migration. Still open: T-001 `PARTIAL` (Q-17), T-015 `PARTIAL`
-(Q-12), T-007 `PARTIAL` (Q-04), T-009 `PARTIAL`.
+**Last updated:** 2026-09-25 · **Document version:** 2.22 · **Phase:** P0 done bar T-001 (PARTIAL, Q-17), T-004 and the rest of T-009; P1 done bar T-015 (PARTIAL, Q-12) and the web screens; P2: T-024 PARTIAL (Q-18), T-022 left
+**Next task:** `T-022` — Redis price cache and SignalR market hub (dependency T-021 DONE). Also unblocked: T-025, T-026, T-016, T-102.
+T-024 is `PARTIAL` on PR #13 (CI green, not merged): the public market data API of UC-09 — pairs, candles, Spot and futures
+statistics, futures metrics as sparse series (D-45, D-46, D-49). Everything but the "OpenAPI documented" criterion: springdoc was
+not to be added in this task (Q-18). PR #12 (D-48 refactor) is merged (`f47c127`). Still open: T-001 `PARTIAL` (Q-17), T-015
+`PARTIAL` (Q-12), T-007 `PARTIAL` (Q-04), T-009 `PARTIAL`, T-024 `PARTIAL` (Q-18).
 
 This file is the single source of truth for *status*. `docs/design/TECHNICAL_DESIGN.md` owns *how*; the SRS owns *what*. Every working session starts by reading this file and ends by updating it (`CLAUDE.md` sections 1 and 8).
 
@@ -56,7 +54,7 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 |---|---|---|---|---|---|
 | P0 Foundation | S0 | Repo, CI, database, docker, architecture tests | 9 | 5 | WIP — T-001, T-007, T-009 PARTIAL |
 | P1 Identity | S1 | Register, verify, login, tokens, profile, devices | 8 | 6 | WIP — T-015 PARTIAL, T-016 TODO (unblocked) |
-| P2 Market Data | S2 | Pairs, backfill, streams, futures metrics | 8 | 6 | WIP — T-017 to T-021 and T-023 DONE (T-023 on its branch); T-024 NEXT, T-022 TODO |
+| P2 Market Data | S2 | Pairs, backfill, streams, futures metrics | 8 | 6 | WIP — T-017 to T-021 and T-023 DONE; T-024 PARTIAL (Q-18, PR #13); T-022 NEXT |
 | P3 Analysis | S2–S3 | Indicators, S/R, setup score | 5 | 0 | TODO |
 | P4 Market UI | S3 | Public home, market list, spot/futures analysis | 5 | 0 | TODO |
 | P5 Trading Plan | S3–S4 | Risk calculation, warnings, plan lifecycle | 7 | 0 | TODO |
@@ -72,12 +70,12 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 | P15 Hardening | S12 | E2E, performance, security, deploy, docs | 7 | 0 | TODO |
 | **Total** | | | **101** | **17** | **17%** |
 
-**Coverage:** `calculator` packages — `market.calculator` 100% line (16/16), 100% branch (12/12) (gate 90%) · Backend on `develop` and on PR #12: 99.45% line (2519/2533), 95.15% branches (707/743) — gate line 95 %, branch 90 % · AI Service —% (gate 80%).
-**Test suite:** `develop` (`f3bd58b`) 1109/1109; PR #12 1115/1115 (+6 ArchUnit rules of D-48), locally and in CI. The 2-test gap between Maven's total and the XML report headers is Surefire's header of `RoundingTest` (32 vs 34 test cases). Known flaky: `BinanceStreamShardTest.NSF03_aFailedRenewal_keepsTheOldConnection_andTriesAgain` failed once in a full run on 2026-09-25 (timing race in its assertion), passed 5/5 on rerun. Two `live` tests are excluded everywhere. Needs Docker and `JWT_SECRET` (supplied by Surefire, D-20); the test database runs with `max_connections=300` (D-40).
+**Coverage:** `calculator` packages — `market.calculator` 100% line (16/16), 100% branch (12/12) (gate 90%) · Backend on PR #13 (measured 2026-09-25): 99.50% line (2780/2794), 95.22% branches (757/795); on `develop` (`f47c127`): 99.45% line, 95.15% branches — gate line 95 %, branch 90 % · AI Service —% (gate 80%).
+**Test suite:** `develop` (`f47c127`) 1115/1115; PR #13 1138/1138 (+23), locally and in CI. The 2-test gap between Maven's total and the XML report headers is Surefire's header of `RoundingTest` (32 vs 34 test cases). Known flaky: `BinanceStreamShardTest.NSF03_aFailedRenewal_keepsTheOldConnection_andTriesAgain` (T-102). Two `live` tests are excluded everywhere. Needs Docker and `JWT_SECRET` (supplied by Surefire, D-20); the test database runs with `max_connections=300` (D-40).
 
 > The figure before T-015 was recorded here as 578; the measured baseline was **576** — the "148 shared kernel" was 146. T-015 added 98 tests (80 + 11 + 7 in `ErrorCodeTest` from the two new codes), so 576 + 98 = 674.
-**Merged to `develop`:** everything up to T-023. `develop` is at `f3bd58b` (PR #11, T-023, merged 2026-09-25 after `gh pr update-branch`: `build-and-test` 1109/1109 and `secret-scan` 107 commits, no leak), after `3f74cb3` (PR #10, public-readiness), `30dd43a` (PR #9) … — all merge commits, remote branches kept.
-**Not merged:** PR #12 `refactor/service-interfaces-dto-packages` (D-48; 4 commits; `build-and-test` 1115/1115 and `secret-scan` 111 commits, no leak). `backup/T-017-pre-rebase` is a local branch kept for the team lead to delete.
+**Merged to `develop`:** everything up to T-023 and the D-48 refactor. `develop` is at `f47c127` (PR #12, D-48), after `f3bd58b` (PR #11, T-023), `3f74cb3` (PR #10) … — all merge commits, remote branches kept.
+**Not merged:** PR #13 `feature/T-024-market-data-api` (1 commit `8c9b0a7`; `build-and-test` 1138/1138, `secret-scan` 112 commits, no leak). `backup/T-017-pre-rebase` is a local branch kept for the team lead to delete.
 **Deployed:** dev — · staging —
 
 ### Critical path
@@ -143,6 +141,7 @@ Decisions that bind the code. An AI agent must follow `APPROVED` rows and must n
 | D-46 | 2026-09-25 | A funding settlement is due when `nextFundingTime − fundingInterval` has passed and nothing at or after it is stored, both values read from the source (stream or `premiumIndex`; `fundingInfo`). `fundingInfo` lists only adjusted symbols; **a symbol it omits has no interval and is checked on every run** (one request, within the shared 500 / 5 min) — never given a default, 8 h included (BR-11). Settlements without a mark price are not stored (the column is NOT NULL and BR-37 multiplies by it) **Amended 2026-09-25 (review):** a settlement is identified by its instant rounded to the nearest minute (`FundingTimes.normalize`), the one rule for every write to `funding_rate_history`; the next read starts 30 s after the stored one (`8844394`). An interval change between runs loses and doubles nothing; a lagging `fundingInfo` delays a settlement by at most one interval (`37369f1`) | PROPOSED | T-023 |
 | D-47 | 2026-09-25 | The **code repository becomes public** and the **documents repository stays private**, so that branch protection (rulesets) is available on GitHub Free. Before the switch: gitleaks over the full history of every branch (8.30.1, 104 commits) found **no secret**; `secret-scan` job on every PR and on pushes to `develop`/`main` (pinned binary, checksum verified, `.gitleaks.toml` with no allowlist entry needed); workflows at `permissions: {}` with `contents: read` per job, checkout without persisted credentials; no `pull_request_target`, self-hosted runner or secret in any job. Known exposures the team accepts or fixes first: the personal e-mail in the author metadata of 104 commits (only a history rewrite removes it); references to the private documents by id (`TECHNICAL_DESIGN` in 137 files, D-/Q-/A- ids, ADR ids) — pointers without content; the supervisor's name in README; no LICENSE yet. After the switch: rulesets on `develop` and `main` requiring PR review and the checks `build-and-test` and `secret-scan` **Decided with it (team lead, 2026-09-25):** (a) ids of the private documents stay in committed code — citing a TECHNICAL_DESIGN section, an ADR or a D-/Q-/A- id is allowed, copying their content is not (CLAUDE.md sections 3 and 4 updated, docs `3c70a32`); **license: none for now** (all rights reserved) until the team chooses one. PR #10 (`chore/public-readiness` → `develop`) open, `secret-scan` and `build-and-test` green | PROPOSED | Q-17, T-001, T-009 |
 | D-48 | 2026-09-25 | **Service interfaces and DTO package split** (team lead, decided before the number of services grows, so that every later task follows one convention). Every `@Service` becomes an interface `FooService` in `service/` (only the methods called from outside the class) and `FooServiceImpl` in `service/impl/` with the original annotations; everything injects the interface. API records split into `dto/request/` and `dto/response/`; internal records (service, job, repository results) move to `model/`; client records stay in `client/`. A bean implementing a port declared in `client` or another module needs no second interface. DTOs may use entity enums only; `market.client` classes stay inside `market`. Enforced by ArchUnit. **Supersedes** TECHNICAL_DESIGN 3.3 "class, no interface unless there are two implementations"; TD 3.1, 3.3, 4.1 and CLAUDE.md section 5 updated. No behaviour change | PROPOSED | team lead |
+| D-49 | 2026-09-25 | **Market data API shapes (T-024).** Five public GETs under `/api/v1/market` (SRS 3.1.3, T-015's raw-data rule): `pairs` paged with `PageResponse` in display order then symbol (in memory: 30–50 rows); `{market}/{symbol}/candles` with `tf` ∈ BR-08, `limit` ≤ 1000 (default 500), optional `from`/`to` (range ≤ 1000 candles, `to` never in the future), newest `limit` of the range returned oldest first, paged backwards by open time; `spot/{symbol}/stats` and `futures/{symbol}/stats` as two paths (not one polymorphic body), each block with the instant of the row that holds it plus `serverTime`; `futures/{symbol}/metrics` with explicit `from`/`to` instead of TD 8's `range=` (default 1 day, at most 7 days) and `availableFrom` per series (BR-10). Sparse series list only instants with a value; absent values are omitted, never zero (D-45). Limits in `cryptopilot.market.api.*`. MSG01 for invalid input, MSG41 for a pair not enabled on the market (all alike, BR-07) | PROPOSED | T-024 |
 **Action:** D-02 and D-03 were confirmed by the team on 2026-09-19 and are `APPROVED`; D-18 on 2026-09-20. D-04 … D-09 still need confirmation; D-06 and D-07 are already load-bearing in committed code (T-008). D-19 and D-20 are load-bearing as of T-007 and need confirmation before the first staging deployment, because D-20 decides how an operator obtains the first administrator. D-21 and D-22 are load-bearing as of T-010; D-21 is the one worth arguing about, because reversing it later means touching every entity that was written under it. D-29 and D-30 are load-bearing as of T-100; D-31 and D-32 as of T-013. D-23 … D-26 are load-bearing as of T-011 and T-012; D-26 is the one to re-read if the refresh windows of SRS 3.2.3 are ever changed, because it infers "Remember me" from the length of the window rather than from a stored flag.
 
 ---
@@ -239,9 +238,9 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 | T-019 | NSF-01 symbol synchronization job | BE2 | T-017, T-018 | NSF-01 | Daily job upserts filters; a pair that stops trading is flagged | **DONE** 2026-09-24 — V8 status columns; per-market reconciliation of registered pairs + seed symbols, idempotent; job at start-up and 00:05 UTC honouring the caller contract. Local branch, not pushed |
 | T-020 | NSF-02 historical candle backfill | BE2 | T-017 | NSF-02, BR-08 | Gap detection works; re-running inserts no duplicates | **DONE** 2026-09-24, merged (PR #8) — no migration; pairs TRADING per market (D-42), D-41 depths, resume from stored data, ON CONFLICT DO NOTHING, 50 % weight share, after sync and hourly. "Gap detection" read as A-33 |
 | T-021 | NSF-03 realtime stream ingestion (kline, ticker, mark price) | BE2 | T-017 | NSF-03, BR-08 | Only closed candles stored; reconnect with back-off; gap triggers backfill | **DONE** 2026-09-24, merged (PR #9) — no migration; combined streams per market (≤ 100 per connection, futures under `/market`), closed candles only, gap → NSF-02 range fill plus a start-up scan of 7 days, back-off 1–60 s, 23 h renewal, idle watchdog, in-memory latest prices, minute snapshots, dev-only demo activation (D-43, D-44, A-33, Q-16) |
-| T-022 | Redis price cache and SignalR market hub | BE1 | T-021 | TD 5.6, 9 | Client receives price and candle updates; latency target of SRS 4.2.3 met locally | TODO |
+| T-022 | Redis price cache and SignalR market hub | BE1 | T-021 | TD 5.6, 9 | Client receives price and candle updates; latency target of SRS 4.2.3 met locally | **NEXT** |
 | T-023 | NSF-04 futures metrics (open interest, long/short, funding settlement) | BE2 | T-017 | NSF-04, BR-10, BR-11 | Funding time read from the source, never assumed to be 8h | **DONE** 2026-09-25, merged (PR #11, `f3bd58b`) — no migration; 5-minute OI (with value) and long/short ratios from the history endpoints into `futures_market_data` at the source's instant, own columns only, no forward fill, current minute never written (D-45); settlements into `funding_rate_history` once per instant, due from `nextFundingTime` and `fundingInfo`, no assumed interval (D-46); refused calls write nothing |
-| T-024 | Market data API: pairs, candles, snapshots | BE2 | T-020, T-021 | UC-09 | OpenAPI documented; pagination and timeframe validation tested | **NEXT** |
+| T-024 | Market data API: pairs, candles, snapshots | BE2 | T-020, T-021 | UC-09 | OpenAPI documented; pagination and timeframe validation tested | **PARTIAL** 2026-09-25, PR #13 (CI green) — five public GET endpoints (D-49): pairs (paged, BR-07), candles (tf and range validated, BR-08), Spot and futures stats (one block per source with its instant, D-45), futures metrics (sparse series, `availableFrom`, BR-10; settlements per D-46). Pagination and timeframe validation tested. **Not done: OpenAPI** — springdoc not added in this task (Q-18) |
 
 ### P3 — Analysis (Sprints 2–3)
 
@@ -319,6 +318,7 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 | T-064 | Violation reports | BE2 | T-060 | UC-33, BR-46 | One report per user per post; self-reporting rejected | TODO |
 | T-065 | Web: community feed, post detail, editor, report dialog | FE | T-063, T-064 | SCR-24…27 | Official posts pinned; media preview | TODO |
 | T-101 | Profile avatar upload | BE2 | T-061, T-014 | UC-06, SRS 3.2.5 | The avatar of SCR-07 is uploaded through the Media Storage seam (JPG, PNG or WEBP, at most 2 MB, checked server-side); `PUT /me/profile` accepts only a reference from that store, never an arbitrary URL; replacing or removing an avatar deletes the old file | TODO |
+| T-102 | Stabilise the flaky stream shard test | BE2 | T-021 | NSF-03 | `BinanceStreamShardTest.NSF03_aFailedRenewal_keepsTheOldConnection_andTriesAgain` passes 50 consecutive runs; the assertion reads a snapshot of the recorded list instead of the live one (it failed once on 2026-09-25 with "expected [false, false] … [false, false]", a race between the check and the message), no assertion weakened | TODO |
 
 ### P10 — Billing (Sprint 8)
 
@@ -388,15 +388,13 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 
 ## 7. Detail block — current NEXT task
 
-### T-024 · Market data API: pairs, candles, snapshots
+### T-022 · Redis price cache and SignalR market hub
 
-**Unblocked:** T-020 and T-021 are DONE (T-023 is on its branch; merge it first if the snapshot endpoint should serve open
-interest and ratios). **To do at the start of that session:** read UC-09, SCR-09/10/11, BR-07, BR-08, BR-10, TECHNICAL_DESIGN 5
-and 7.1, then replace this block.
+**Unblocked:** T-021 is DONE. **To do at the start of that session:** read TD 5.6 and 9, SRS 4.2.3, D-44, D-45 and the
+realtime rules of ADR-005 (STOMP over Spring WebSocket, Redis as cache only), then replace this block.
 
-**Ready:** `CryptoPairRepository.findEnabledOn`, `OhlcvRepository`, the `futures_market_data` rows (minute rows from NSF-03; the
-metric columns only on 5-minute instants — a chart must read them as a sparse series, not expect them every minute, D-45),
-`spot_market_data`, `funding_rate_history`. BR-10: an open interest or ratio chart states the period actually stored.
+**Ready:** `LatestMarketData` (in memory, the thing T-022 moves to Redis), the stream supervisor and snapshot job of NSF-03,
+and the public read API of T-024 (PR #13) that a client polls when realtime is lost (SRS 3.3.1).
 
 ---
 
@@ -416,6 +414,8 @@ metric columns only on 5-minute instants — a chart must read them as a sparse 
 | Q-15 | NSF-01 says "a pair whose status is no longer TRADING is flagged on SCR-37", but `crypto_pair` has no column for the exchange's trading status (only the administrator's `pair_status`), so the flag has nowhere to live | 2026-09-24 | T-019 (the flag), T-085 (showing it) | BE2 + Team | **DECIDED 2026-09-24 (team lead):** T-019 adds venue trading-status columns to `crypto_pair` as a normalized enum TRADING / NOT_TRADING / DELISTED, plus the raw Binance status text beside it. The CHECK constraint names only the normalized values, never Binance vocabulary |
 | Q-16 | NSF-03 streams only pairs an administrator activated (BR-07, D-44), and nothing activates a pair yet: the admin screen is later (UC-45), and the T-020 instructions said not to activate the demo pairs. So in dev no stream opens and no price, snapshot or live candle appears, although the backfill fills history. Should dev (only) activate the 13 demo pairs on both markets — by a dev-profile setting or a one-off SQL — until UC-45 exists? | 2026-09-24 | Demo of T-022, T-024 | Team lead | **DECIDED 2026-09-24 (team lead):** a `dev`-only setting activates the demo pairs at start-up on each market where the exchange trades them; idempotent; default and `prod` never auto-activate. **Done in T-021:** `cryptopilot.market.demo.activate-seed-symbols` (true in `application-dev.yml` only), `DemoPairActivation`, `DemoPairActivationJob` (once per market after its first sync, before the stream supervisor re-reads its pairs); tests bind the default, dev and prod configurations |
 | Q-17 | Branch protection for `develop` and `main` (T-001) cannot be configured: `cryptopilot_project` is private on GitHub Free, and the API refuses branch protection and rulesets with 403 "Upgrade to GitHub Pro or make this repository public". Options: GitHub Pro / Team (or the free GitHub Education pack, which includes Pro), make the code repository public (the documents live in their own repository and would stay private), or keep review before merge as the only guard | 2026-09-25 | T-001, T-009 (required check) | Team lead | **SUPERSEDED 2026-09-25 by D-47 (PROPOSED)**: make the code repository public, keep the documents repository private, then enable rulesets. Readiness done on `chore/public-readiness` (not pushed); visibility not changed |
+| Q-18 | T-024's criterion "OpenAPI documented": TECHNICAL_DESIGN 1.3 lists springdoc-openapi and section 8 promises `/v3/api-docs` and Swagger UI (off in `prod`), but the project has no springdoc and the team lead ruled out adding a library in T-024. Add springdoc (the version line for Spring Boot 4) in a small task of its own, or drop the criterion? Until then the contract is proved by the MockMvc tests only | 2026-09-25 | T-024 (criterion), every later API task | Team lead | OPEN |
+| Q-19 | The futures metrics (open interest, long/short ratio, settled funding) are served under the public `GET /api/v1/market/**`, following T-015's rule that raw market data is public and only the computed analysis (`/analysis/**`) is Trader-only. SRS 3.3.3 shows them only on SCR-11, which 3.1.3 places in the Trader area, while "Query Public Data (market overview)" is open to a Guest. Keep them public, or move `/market/futures/*/metrics` behind the Trader role? | 2026-09-25 | T-024 (access rule), T-034 | Team lead | OPEN |
 | Q-06 | Flutter chart library (ADR-012) | 2026-09-19 | T-090 | FE | OPEN |
 | Q-07 | Hosting for staging (VPS provider and size) and the demo domain. A managed PostgreSQL service usually cannot install TimescaleDB, so self-hosted Docker on a VPS is assumed | 2026-09-19 | T-096 | DO | OPEN |
 | Q-08 | Confirm the database stack: PostgreSQL 16 + TimescaleDB 2.x in Docker, EF Core migrations (earlier drafts mentioned Flyway and PostgreSQL 14/15) | 2026-09-19 | T-004, T-005, T-006, T-007, T-009 | BE1 + BE2 | ANSWERED 2026-09-20: PostgreSQL 16 + TimescaleDB 2.x on `timescale/timescaledb:2.30.1-pg16` pinned for dev, Testcontainers and staging; Flyway SQL migrations with the TimescaleDB DDL in its own migration; staging self-hosted Docker on a VPS, no managed PostgreSQL (D-18) |
@@ -429,6 +429,28 @@ Rule: an AI agent never answers an open question by guessing. It implements what
 ## 9. Session log
 
 Newest first. One block per working session, format in `CLAUDE.md` section 8.
+
+### 2026-09-25 – PR #12 merged; T-024 Market data API
+- Result: **PARTIAL** — everything but "OpenAPI documented" (Q-18); PR #13 open, CI green; not merged
+- PR #12: already merged when this session reached it (`f47c127`, CI green: build-and-test 1115/1115, secret-scan 111
+  commits). `CandleBackfillServiceImpl.TIMEFRAMES` checked against `f3bd58b`: same type `List<MarketInterval>`, same values
+  and order (15m, 1h, 4h, 1d), same `static final` package-private modifiers; only the owning class name and line changed.
+- CLAUDE.md section 5 (docs `b6f4ac1`): helper `@Component`s that are not business services may stay concrete in `service/`.
+- T-024 phase 1: public reads under `GET /api/v1/market/**` (T-015's raw-data rule; futures metrics public, Q-19); no
+  entitlement (Q-12 not involved); no schema change; TD 1.3/8 require springdoc, not added as instructed (Q-18).
+- Endpoints: `GET /api/v1/market/pairs?market&page&pageSize`; `GET /api/v1/market/{market}/{symbol}/candles?tf&limit&from&to`;
+  `GET /api/v1/market/spot/{symbol}/stats`; `GET /api/v1/market/futures/{symbol}/stats`;
+  `GET /api/v1/market/futures/{symbol}/metrics?from&to` — all public (Guest), writes 401.
+- Files: `market.controller.MarketController`; `service` PairService, CandleService, MarketStatsService + `service/impl`
+  implementations and the helper `MarketRequests`; `repository.MarketDataQueryRepository`, `OhlcvRepository.closedCandles`;
+  seven response records, six `model` records; `config.MarketApiProperties` (`cryptopilot.market.api.*`).
+- Tests: +23 (`MarketControllerTest` 21, `MarketRequestsTest` 2); suite 1138/1138 locally and in CI; coverage 99.50% line /
+  95.22% branch (measured). Two mutations (dropping the `is not null` filters) caught by three tests.
+- BR/UC/NSF covered: UC-09; BR-07, BR-08, BR-10, BR-11 (read side); D-45, D-46 read rules.
+- Decisions: **D-49** PROPOSED. Open questions: **Q-18** (springdoc), **Q-19** (futures metrics public or Trader-only).
+- Issue: flaky `BinanceStreamShardTest.NSF03_aFailedRenewal_keepsTheOldConnection_andTriesAgain` → new task **T-102**.
+- Next: T-022.
+- Commits: `8c9b0a7` feat(market): add market data API for pairs, candles and snapshots (PR #13).
 
 ### 2026-09-25 — PR #10 and #11 merged; D-48 adopted and applied (no task id)
 - Result: **DONE** — PR #12 open, CI green; not merged
