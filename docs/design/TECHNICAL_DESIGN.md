@@ -161,10 +161,12 @@ Every module uses the same sub-packages. Create only the ones the module needs.
 | Package | Contains | May depend on | Must not depend on |
 |---|---|---|---|
 | `controller` | `@RestController`, STOMP `@Controller`; request validation; maps to/from DTOs | `service`, `dto` | `repository`, `entity` |
-| `service` | Business use cases, `@Transactional` boundaries, authorization of ownership, calls to other modules' APIs, event publishing | `repository`, `entity`, `dto`, `calculator`, `client`, `event`, other modules' root API and events, `common` | `controller` |
+| `service` | Service **interfaces** (`FooService`) and helper components of the use cases (D-48) | `repository`, `entity`, `dto`, `model`, `calculator`, `client`, `event`, other modules' root API and events, `common` | `controller` |
+| `service.impl` | `@Service` implementations (`FooServiceImpl implements FooService`): business use cases, `@Transactional` boundaries, authorization of ownership, calls to other modules' APIs, event publishing (D-48) | as `service` | `controller`; nothing outside the module's `service` injects an `impl` class |
 | `repository` | Spring Data JPA repositories, native queries | `entity` | `service`, `controller` |
 | `entity` | JPA entities, enums, embeddable value objects; invariants and state transitions as methods | `common` | `service`, `repository`, `controller` |
-| `dto` | Request/response records (`record`), with Bean Validation annotations | `entity` enums only | `service`, `repository` |
+| `dto.request`, `dto.response` | API request and response records (`record`), request ones with Bean Validation annotations; `dto.request` = accepted by a controller, `dto.response` = returned by one (D-48) | `entity` enums only | `service`, `repository` |
+| `model` | Internal records that never cross the API: results and values passed between services, jobs, repositories and clients (e.g. `BackfillRun`, `IssuedSession`) (D-48) | `entity`, `common`, own `client` records | `controller`, `service` |
 | `calculator` | Pure business formulas (risk, liquidation, fees, P/L, indicators, setup score, period calculation) | `java.*`, `common.util` | Spring, JPA, `repository`, `service` |
 | `client` | Adapters to external systems (Binance, VNPay, MoMo, AI Service, SMTP, FCM, Cloudinary, RSS) | own records, `common` | `repository`, `controller` |
 | `job` | `@Scheduled` jobs, stream workers, event listeners; orchestration only | `service` | `repository` directly |
@@ -203,10 +205,11 @@ The SRS layers map as follows: presentation = `controller`; application = `servi
 | Kind | Convention | Example |
 |---|---|---|
 | Controller | `<Resource>Controller` | `TradingPlanController` |
-| Service | `<Resource>Service` (class, no interface unless there are two implementations) | `TradingPlanService` |
+| Service | Interface `<Resource>Service` in `service`; implementation `<Resource>ServiceImpl` in `service.impl`, injected only through the interface (D-48, supersedes "class, no interface"). A bean that already implements a port declared in `client` or in another module needs no second interface (`PersistentBinanceBans implements BinanceBanStore`) | `TradingPlanService`, `TradingPlanServiceImpl` |
 | Repository | `<Entity>Repository` | `TradingPlanRepository` |
 | Entity | Singular noun, table name via `@Table` | `TradingPlan` → `trading_plan` |
-| DTO | `<Action><Resource>Request`, `<Resource>Response` | `CreateTradingPlanRequest` |
+| DTO | `<Action><Resource>Request` in `dto.request`, `<Resource>Response` in `dto.response` (D-48) | `CreateTradingPlanRequest` |
+| Internal model | Noun or past-participle record in `model` (D-48) | `BackfillRun`, `IssuedSession` |
 | Module API | `<Module>Api` in the module root package | `JournalApi` |
 | Event | Past tense record | `PositionClosed`, `AlertTriggered` |
 | Calculator | `<Concept>Calculator` / `<Concept>Engine` | `LiquidationCalculator` |
@@ -231,7 +234,7 @@ The SRS layers map as follows: presentation = `controller`; application = `servi
 
 ### 4.1 Backend package tree (final)
 
-Every module follows the same pattern. A sub-package exists only when the module needs it; the tree below lists all of them.
+Every module follows the same pattern. A sub-package exists only when the module needs it; the tree below lists all of them. Since D-48 (2026-09-25) every `service/` holds interfaces and helper components, `service/impl/` the `@Service` implementations, `dto/` splits into `dto/request/` and `dto/response/`, and internal records live in `model/`; the per-module listings below name the classes and do not repeat the split.
 
 ```
 backend/
@@ -260,7 +263,10 @@ backend/
     │   │   │   │                  # UC-02 and UC-05, and a second class would have to reach all three (D-32)
     │   │   │   ├── repository/    UserTokenRepository
     │   │   │   ├── entity/        UserToken, TokenType
-    │   │   │   ├── dto/           RegisterRequest, LoginRequest, TokenResponse …
+    │   │   │   ├── service/impl/  AuthServiceImpl, PasswordChangeServiceImpl        # D-48
+    │   │   │   ├── model/         IssuedSession                                        # D-48
+    │   │   │   ├── dto/request/   RegisterRequest, LoginRequest …                      # D-48
+    │   │   │   ├── dto/response/  SessionResponse …
     │   │   │   └── security/      JwtAuthenticationConverter, CurrentUser
     │   │   │
     │   │   ├── user/                                 # account, profile, preferences, devices, admin user management

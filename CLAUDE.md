@@ -62,6 +62,11 @@ Do all of the following and summarize the findings in 5–10 lines before implem
 
 - Backend: .NET (see ADR-002), C# with `Nullable` enabled and `TreatWarningsAsErrors`; file-scoped namespaces; one type per file; async all the way with `CancellationToken`.
 - Naming: use case folder `Application/<Module>/Commands/<UseCase>/`; test names `<RuleId>_<Scenario>_<Expected>`.
+- Backend packages (D-48, the rule for every module and every new class):
+  - `service/` holds interfaces. A new service is always two files: `service/FooService.java` (interface, only the methods callers outside the class use) and `service/impl/FooServiceImpl.java` (`@Service`, `@Transactional` and the other annotations live here). Inject `FooService`, never `FooServiceImpl`; tests construct the impl directly and mock the interface.
+  - A bean that implements a port declared in `client` or in another module (e.g. `PersistentBinanceBans implements BinanceBanStore`) goes in `service/impl/` and needs no second interface.
+  - Classify every record before writing it: accepted by a controller → `dto/request/`; returned by a controller → `dto/response/`; never crosses the API (service, job, repository and client results) → `model/`; the shape of an external API (Binance, VNPay …) → the module's `client/` package. No record in `service/` or `service/impl/`.
+  - A DTO may use an entity enum and nothing else from `entity`. A class of `market.client` is not used outside `market`.
 - Errors: return `Result`/`Error` with a stable code that maps to an SRS message code (MSGxx).
 - Web: TypeScript strict; feature folders; server state in TanStack Query; decimals from API kept as strings and formatted with a decimal library.
 - AI Service: TypeScript strict; validate every input with zod; no database access.
