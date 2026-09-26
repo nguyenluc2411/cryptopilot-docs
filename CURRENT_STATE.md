@@ -1,7 +1,7 @@
 # CURRENT_STATE.md — CryptoPilot Project State
 
-**Last updated:** 2026-09-26 · **Document version:** 2.31 · **Phase:** P0 done bar T-001 (PARTIAL, Q-17), T-004 and the rest of T-009; P1 done bar T-015 (PARTIAL, Q-12) and the web screens; P2 done and merged; P3 in progress (T-025, T-026 merged; T-027 DONE on its branch; T-028 NEXT)
-**Next task:** `T-028` — NSF-05 indicator pipeline and persistence (dependencies T-025, T-026, T-027 DONE; T-027 on its branch). Also unblocked: T-035, T-103, T-016, T-053.
+**Last updated:** 2026-09-26 · **Document version:** 2.32 · **Phase:** P0 done bar T-001 (PARTIAL, Q-17), T-004 and the rest of T-009; P1 done bar T-015 (PARTIAL, Q-12) and the web screens; P2 done and merged; P3 in progress (T-025–T-027 merged; T-028 DONE on its branch; T-029 NEXT)
+**Next task:** `T-029` — Analysis API and STOMP push (dependency T-028 DONE on its branch). Also unblocked: T-035, T-103, T-016, T-053.
 T-022 is merged (PR #15, `0510ae4`, CI 1178/1178). T-025 is merged (PR #16, `f36c291`, CI green 2026-09-25): the incremental
 indicator engine of TD 7.2 in `market.calculator` and `IndicatorService`, checked against TA-Lib golden data and a batch
 reference; persistence and the `CandleClosed` hook stay with T-028. Still open: T-001 `PARTIAL` (Q-17), T-015 `PARTIAL`
@@ -55,7 +55,7 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 | P0 Foundation | S0 | Repo, CI, database, docker, architecture tests | 9 | 5 | WIP — T-001, T-007, T-009 PARTIAL |
 | P1 Identity | S1 | Register, verify, login, tokens, profile, devices | 9 | 6 | WIP — T-015 PARTIAL, T-016 TODO (unblocked), T-103 TODO (added by D-53) |
 | P2 Market Data | S2 | Pairs, backfill, streams, futures metrics | 8 | 8 | DONE — T-017 to T-024 merged (T-022 PR #15, `0510ae4`) |
-| P3 Analysis | S2–S3 | Indicators, S/R, setup score | 5 | 3 | WIP — T-025, T-026 merged (PR #16, #17); T-027 DONE on PR #18 (not merged); NEXT T-028 |
+| P3 Analysis | S2–S3 | Indicators, S/R, setup score | 5 | 4 | WIP — T-025, T-026, T-027 merged (PR #16, #17, #18); T-028 DONE on `feature/T-028-component-score-store` (not pushed); NEXT T-029 |
 | P4 Market UI | S3 | Public home, market list, spot/futures analysis | 5 | 0 | TODO |
 | P5 Trading Plan | S3–S4 | Risk calculation, warnings, plan lifecycle | 7 | 0 | TODO |
 | P6 Matching | S4–S5 | Simulated fills, exits, liquidation, funding | 6 | 0 | TODO |
@@ -254,9 +254,9 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 |---|---|---|---|---|---|---|
 | T-025 | Incremental indicator engine (SMA, EMA, RSI, MACD, Bollinger, volume SMA) | BE1 | T-020 | BR-12, TD 7.2 | Golden-data tests within 1e-8; incremental equals batch (property test) | **DONE** 2026-09-25, merged (PR #16, `f36c291`) — `market.calculator` SMA/EMA/Wilder RSI/MACD/Bollinger/volume SMA + `IndicatorEngine` (O(1) per candle, `null` during warm-up, DUPLICATE / OUT_OF_ORDER / GAP refused), `IndicatorService` rebuilding from the latest 1000 stored candles; TA-Lib 0.8.1 golden fixture of 1200 real candles within 1e-8 (max 4.1e-10), batch parity, restart within 5e-4 on EMA200 (8.7e-6 observed). D-52, Q-20 |
 | T-026 | Swing support/resistance detector | BE1 | T-020 | BR-14, TD 7.3 | Unconfirmed candles ignored; equal lows are not swings | **DONE** 2026-09-26, merged (PR #17, `982a264`) — `market.calculator.SwingSupportResistance`, prices only, no bias (A-07) |
-| T-027 | Setup score v1: component scores (0–100) by market and style presets applied to them, with preset name and version; `dominant_side` for Futures | BE1 | T-025, T-026 | BR-13, BR-21, TD 7.4, D-53 | Test proves the score is unchanged when only the risk profile changes; each preset's weights add up to exactly 100; every score carries preset name + version; a strong down-trend gives a low Spot trend score and a high Futures one; `dominant_side` correct for a Futures up-trend (LONG), down-trend (SHORT) and balanced series (NEUTRAL); fixtures for up-trend, down-trend and range; spot has no derivatives component. No risk profile in the score, no direction field | **DONE** 2026-09-26, PR #18 (not merged) — `SetupComponents`, `SetupScoreCalculator`, presets v1 in `cryptopilot.market.setup-score` |
-| T-028 | NSF-05 indicator pipeline and persistence | BE1 | T-025…T-027 | NSF-05, D-53 | Computed within 10s of candle close; idempotent upsert by PK; component scores stored per (pair, market, timeframe) with their formula version; no setup score stored per user or per preset; no `setup_bias` | **NEXT** |
-| T-029 | Analysis API and STOMP push | BE1 | T-028 | UC-10, UC-11, D-53 | Insufficient history returns nulls, never a wrong value; the setup score is computed at read time from the stored components under a preset and returned with preset name, version and the timeframe used (preset from the user's `trading_style`, DAY_TRADING when not set or without a user); Futures responses carry `dominant_side` beside the score, computed at read time and not stored, from the EMAs in TECHNICAL_INDICATOR and the close of the same candle in `ohlcv`; Spot responses have no such field | TODO |
+| T-027 | Setup score v1: component scores (0–100) by market and style presets applied to them, with preset name and version; `dominant_side` for Futures | BE1 | T-025, T-026 | BR-13, BR-21, TD 7.4, D-53 | Test proves the score is unchanged when only the risk profile changes; each preset's weights add up to exactly 100; every score carries preset name + version; a strong down-trend gives a low Spot trend score and a high Futures one; `dominant_side` correct for a Futures up-trend (LONG), down-trend (SHORT) and balanced series (NEUTRAL); fixtures for up-trend, down-trend and range; spot has no derivatives component. No risk profile in the score, no direction field | **DONE** 2026-09-26, merged (PR #18, `227c372`) — `SetupComponents`, `SetupScoreCalculator`, presets v1 in `cryptopilot.market.setup-score` |
+| T-028 | NSF-05 indicator pipeline and persistence | BE1 | T-025…T-027 | NSF-05, D-53 | Computed within 10s of candle close; idempotent upsert by PK; component scores stored per (pair, market, timeframe) with their formula version; no setup score stored per user or per preset; no `setup_bias` | **DONE** 2026-09-26, branch `feature/T-028-component-score-store` (3 commits, not pushed) — `IndicatorPipelineJob` + `IndicatorPipelineService` into `technical_indicator`; V9 drops `setup_score` |
+| T-029 | Analysis API and STOMP push | BE1 | T-028 | UC-10, UC-11, D-53 | Insufficient history returns nulls, never a wrong value; the setup score is computed at read time from the stored components under a preset and returned with preset name, version and the timeframe used (preset from the user's `trading_style`, DAY_TRADING when not set or without a user); Futures responses carry `dominant_side` beside the score, computed at read time and not stored, from the EMAs in TECHNICAL_INDICATOR and the close of the same candle in `ohlcv`; Spot responses have no such field | **NEXT** |
 
 ### P4 — Market UI (Sprint 3)
 
@@ -394,20 +394,17 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 
 ## 7. Detail block — current NEXT task
 
-### T-028 · NSF-05 indicator pipeline and persistence
+### T-029 · Analysis API and STOMP push
 
-**Unblocked 2026-09-26:** T-025, T-026 and T-027 are DONE (T-027 on `feature/T-027-setup-score` until merged). **Read
-first:** NSF-05, SRS 3.3.5, TD 7.2–7.4, D-53 rule 3, D-52, the logical model TECHNICAL_INDICATOR, then replace this block.
+**Unblocked 2026-09-26:** T-028 is DONE (on `feature/T-028-component-score-store` until merged). **Read first:** UC-10,
+UC-11, SRS 3.3.1–3.3.2, TD 7.4 (read path, `dominant_side` inputs), TD 8 and 9, D-49, D-50, D-51, D-53, then replace
+this block.
 
-**Scope:** on each `CandleClosed`, for the series (pair, market, timeframe): take the candle in `IndicatorService`
-(T-025), compute S/R with `SwingSupportResistance.nearest` over the stored closed candles (T-026), build
-`ComponentInputs` (previous MACD histogram from the previous snapshot; for Futures the predicted funding rate and the
-1-hour price and open interest change from `futures_market_data`) and store the indicators rounded to 10 dp, S/R and
-the five `ComponentScores` with their formula version — an idempotent upsert by primary key, within 10 s of the close.
-
-**Not in scope / rules:** no setup score stored per user or per preset and no `dominant_side` or `setup_bias` column
-(D-53 rules 2 and 3); what happens to the existing V1 `setup_score` / `score_version` columns is this task's to settle
-in an additive migration (never an edit of V1). No API or hub push (T-029).
+**Ready:** `TechnicalIndicatorRepository.latest(pair, market, timeframe)` (the row of the latest closed candle, with
+EMAs, S/R and the five `ComponentScores`), `SetupScoreCalculator.score(preset, components, dominantSide)`,
+`SetupComponents.dominantSide(market, close, indicators)` (close from `ohlcv`), `SetupScoreProperties.preset(style)`,
+`SetupStyle`. The preset comes from the user's `trading_style` once T-103 lands; DAY_TRADING until then and without a
+user. Read the components of the preset's timeframe. Insufficient history answers nulls, never a wrong value.
 
 ---
 
@@ -443,6 +440,35 @@ Rule: an AI agent never answers an open question by guessing. It implements what
 ## 9. Session log
 
 Newest first. One block per working session, format in `CLAUDE.md` section 8.
+
+### 2026-09-26 – T-028 NSF-05 indicator pipeline and persistence
+- Result: **DONE** on `feature/T-028-component-score-store` (3 commits, not pushed, no PR yet)
+- Summary: the task text asked for a new table; `technical_indicator` (V1) already holds the component score columns
+  with the same key, the BR-08 timeframe check and the Spot-no-derivatives check, so the team lead chose it (asked in
+  session). `IndicatorPipelineJob` listens to `CandleClosed` (nothing did before) and `IndicatorPipelineService`
+  upserts one row per candle: T-025 indicators and T-026 levels at 10 dp half-up, T-027 component scores,
+  `score_version` = component formula version; Futures derivatives from `futures_market_data`.
+  `TechnicalIndicatorRepository.latest` serves T-029. V9 drops `setup_score` (D-53 rule 3). No retention (NSF-17).
+- Branch: `feature/T-028-component-score-store`
+- Files: `V9__technical_indicator_without_setup_score.sql`; `market/job/IndicatorPipelineJob`,
+  `market/service/IndicatorPipelineService`, `service/impl/IndicatorPipelineServiceImpl`,
+  `market/repository/TechnicalIndicatorRepository`, `MarketDataQueryRepository.derivativesAt`,
+  `market/model/StoredIndicators`; tests `IndicatorPipelineServiceTest` (TimescaleDB), `IndicatorPipelineJobTest`;
+  `MarketTestData.clear`, `expected-columns.csv`, `BaselineSchemaTest`, `SchemaColumnContractTest` (comment)
+- Tests: 13 added; suite 1326/1326 (baseline 1313/1313 on `227c372`); coverage 99.59 % line / 95.56 % branch (before
+  99.57 / 95.52); new classes 100 / 100; warnings unchanged (28). Traceability: NSF-05 COVERED.
+- BR/UC/NSF covered: NSF-05 (calculation and persistence; push is T-029), BR-12, BR-13, BR-14 stored
+- Decisions: none new (D-53 rule 3 applied; logical model TECHNICAL_INDICATOR loses `setup_score`, TD 7.4 gains an
+  "Implementation (T-028)" paragraph)
+- Open questions: none new. Choices where the documents are silent: (1) indicators rounded half-up to 10 dp (TD 5.4
+  names no mode); (2) the previous MACD histogram comes from the stored row of the previous candle, so the first
+  candle a series ever stores has a null momentum; (3) Futures inputs take the latest reading at or before the close
+  with no staleness bound; (4) the listener runs on the publishing thread to keep per-series order; (5) the session's
+  task text was cut off after "QUY TẮC COMMENT" — the rest was applied as in T-026 / T-027 (short comments, local
+  commits, no push).
+- Next: T-029
+- Commits: `e624cfa` feat(market): stop storing the setup score (T-028); `4862aae` feat(market): store indicators and
+  component scores on close (T-028); `94a129f` test(market): cover NSF-05 rows, upsert, nulls and schema (T-028)
 
 ### 2026-09-26 – T-027 Setup score v1: component scores and style presets
 - Result: **DONE** on `feature/T-027-setup-score` (3 commits, not pushed, no PR yet)

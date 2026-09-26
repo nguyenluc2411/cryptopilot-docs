@@ -105,8 +105,7 @@ erDiagram
     decimal volume_score
     decimal level_score
     decimal derivatives_score "null if SPOT"
-    decimal setup_score "0-100, weighted total"
-    varchar score_version
+    varchar score_version "component formula version; the setup score is read under a preset, not stored (D-53, V9)"
     timestamp calculated_at
   }
   SPOT_MARKET_DATA {

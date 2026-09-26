@@ -714,6 +714,8 @@ Level in the same example, with support 70 and resistance 92 (close just under r
 
 **Known property of v1 (T-027):** the derivatives component is at least 25, because the funding part `50·clamp((0.0005 + abs(f))/0.001, 0, 1)` is at least 25 for any `f`; a Futures score therefore always carries at least 25 × the preset's derivatives weight / 100 (3.75 points at 15 %, 5 at 20 %). To be reviewed when the components are tuned in v2.
 
+**Implementation (T-028, NSF-05):** `IndicatorPipelineJob` listens to `CandleClosed` on the publishing thread (so a series is processed in the order NSF-03 stored it) and calls `IndicatorPipelineService`, which takes the candle in `IndicatorService` (T-025), reads the latest 200 stored candles for `SwingSupportResistance` (T-026), takes the previous MACD histogram from the stored row of the previous candle, and for Futures reads from `futures_market_data` the latest predicted funding rate at or before the candle's close and the mark price and open interest changes between the latest readings at or before the close and at or before one hour earlier (null when either end is missing). The row is upserted into `technical_indicator` by primary key — indicators and levels rounded half-up to 10 places, the five component scores, `score_version` = component formula version. V9 drops `setup_score`: the setup score is read under a preset (T-029). A candle the indicators refuse as out of order, or one not stored, writes no row. No retention policy (NSF-17, as for `ohlcv`).
+
 Style presets v1 (weights in %, each column adds up to 100, none 0 or above 40; values and one-line reasons in ADR-013):
 
 | Preset (version) | Primary timeframe | T | Mo | V | L | D |
