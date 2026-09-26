@@ -1,7 +1,7 @@
 # CURRENT_STATE.md — CryptoPilot Project State
 
-**Last updated:** 2026-09-26 · **Document version:** 2.28 · **Phase:** P0 done bar T-001 (PARTIAL, Q-17), T-004 and the rest of T-009; P1 done bar T-015 (PARTIAL, Q-12) and the web screens; P2 done and merged; P3 in progress (T-025 merged, T-026 DONE on its branch; T-027 waits on Q-01, A-07)
-**Next task:** `T-035` — Position sizing and risk calculator (dependency T-018 DONE). Also unblocked: T-016, T-053. T-027 waits on Q-01 and A-07 (its other dependencies T-025, T-026 are DONE).
+**Last updated:** 2026-09-26 · **Document version:** 2.29 · **Phase:** P0 done bar T-001 (PARTIAL, Q-17), T-004 and the rest of T-009; P1 done bar T-015 (PARTIAL, Q-12) and the web screens; P2 done and merged; P3 in progress (T-025 merged, T-026 DONE on its branch; T-027 NEXT after D-53)
+**Next task:** `T-027` — Setup score v1: component scores and style presets (D-53; dependencies T-025, T-026 DONE). Also unblocked: T-035, T-103, T-016, T-053.
 T-022 is merged (PR #15, `0510ae4`, CI 1178/1178). T-025 is merged (PR #16, `f36c291`, CI green 2026-09-25): the incremental
 indicator engine of TD 7.2 in `market.calculator` and `IndicatorService`, checked against TA-Lib golden data and a batch
 reference; persistence and the `CandleClosed` hook stay with T-028. Still open: T-001 `PARTIAL` (Q-17), T-015 `PARTIAL`
@@ -53,9 +53,9 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 | Phase | Sprint | Scope | Tasks | Done | Status |
 |---|---|---|---|---|---|
 | P0 Foundation | S0 | Repo, CI, database, docker, architecture tests | 9 | 5 | WIP — T-001, T-007, T-009 PARTIAL |
-| P1 Identity | S1 | Register, verify, login, tokens, profile, devices | 8 | 6 | WIP — T-015 PARTIAL, T-016 TODO (unblocked) |
+| P1 Identity | S1 | Register, verify, login, tokens, profile, devices | 9 | 6 | WIP — T-015 PARTIAL, T-016 TODO (unblocked), T-103 TODO (added by D-53) |
 | P2 Market Data | S2 | Pairs, backfill, streams, futures metrics | 8 | 8 | DONE — T-017 to T-024 merged (T-022 PR #15, `0510ae4`) |
-| P3 Analysis | S2–S3 | Indicators, S/R, setup score | 5 | 2 | WIP — T-025 DONE, merged (PR #16, `f36c291`); T-026 DONE on `feature/T-026-swing-support-resistance` (not pushed); T-027 waits on Q-01, A-07 |
+| P3 Analysis | S2–S3 | Indicators, S/R, setup score | 5 | 2 | WIP — T-025 DONE, merged (PR #16, `f36c291`); T-026 DONE on `feature/T-026-swing-support-resistance` (not pushed); T-027 NEXT (Q-01, A-07 resolved by D-53) |
 | P4 Market UI | S3 | Public home, market list, spot/futures analysis | 5 | 0 | TODO |
 | P5 Trading Plan | S3–S4 | Risk calculation, warnings, plan lifecycle | 7 | 0 | TODO |
 | P6 Matching | S4–S5 | Simulated fills, exits, liquidation, funding | 6 | 0 | TODO |
@@ -145,6 +145,7 @@ Decisions that bind the code. An AI agent must follow `APPROVED` rows and must n
 | D-50 | 2026-09-25 | **Market data stays public, futures metrics included** (team decision, closes Q-19). Every `GET /api/v1/market/**` endpoint — pairs, candles, Spot and futures stats, and the futures metrics (open interest, long/short ratio, settled funding) — is open to a Guest. SRS 3.3.3 says what SCR-11 *displays*, not who may call the API behind it; the access rule for the API is SRS 3.1.3 "Query Public Data" and T-015's rule that raw market data is public while the computed analysis (`/analysis/**`) is Trader-only. No change to the filter chain | PROPOSED | Q-19, T-024 |
 | D-51 | 2026-09-25 | **Realtime payloads and hub rules (T-022)**, where TD 9 is silent. Payloads are JSON with decimals as strings and absent fields omitted: ticker `{market, symbol, sourceTime, …Spot fields | …futures fields}`, kline `{market, symbol, timeframe, openTime, closeTime, open, high, low, close, baseVolume, quoteVolume, closed, sourceTime}`, overview `{market, serverTime, tickers[]}`. Kline topics throttled like tickers (1 s) but one update per candle, so a close is never coalesced away; only BR-08 timeframes have a kline topic. SUBSCRIBE is admitted only to the public market topics, SEND refused; JWT on CONNECT arrives with the first user destination. Spring's receive-order option not used (it swallows the ERROR frame of a refused subscription); instead the inbound channel runs on one thread, FIFO, which keeps a SUBSCRIBE and its UNSUBSCRIBE in order — on the default pool they could swap and leave a subscription registered for good (reproduced 3/3 with 300 back-to-back pairs, fixed in `21d25f8`, 50/50 after). Cache flush every 250 ms (TD names only the TTL). Redis excluded from the health check (cache only, ADR-005) | PROPOSED | T-022 |
 | D-52 | 2026-09-25 | **Indicator variants and test method (T-025)**, where TD 7.2 or 11.2 leave a choice. (1) MACD exactly as TD 7.2's table: each EMA seeded on its own (EMA12 at candle 12, EMA26 at 26), line from candle 26, signal seeded with the mean of the first 9 lines (candle 34) — not TA-Lib's `MACD` function, which starts EMA12 later so both begin together; the golden fixture builds MACD from TA-Lib EMAs for that reason. (2) RSI with `AG = AL = 0` (no movement over the seed or after smoothing) is 100, as the table says for `AL = 0`; TA-Lib answers 0 and many platforms 50 — Q-20. (3) Bollinger σ computed shifted by the window's first value, so equal closes give σ = 0 exactly and the bands coincide. (4) Tolerance `max(1e-8·|expected|, 1e-8)` (TD 7.2's 1e-8, made absolute near zero for the MACD histogram); largest observed 4.1e-10. (5) "Incremental equals batch (property test)" done with a batch reference written in the tests over the fixture and 12 seeded generated series (3 price scales, flat stretches), not a property-testing library (none in TD 1.3). (6) A duplicate is only the last candle again; any earlier open time is `OUT_OF_ORDER` and triggers a rebuild up to the latest candle taken, never setting the series back. (7) Rebuild from stored candles restarts the warm-up after a hole rather than computing across it. No indicator library in production code | PROPOSED | T-025 |
+| D-53 | 2026-09-26 | **Two-axis model: style presets score the setup, risk profiles size it** (team and supervisor, closes Q-01 and A-07; full text, tables, reasons and rejected options in ADR-013). Definitions: component score = 0–100 score of one BR-13 component for one symbol + timeframe, no direction; style preset = primary timeframe + component weights, `SCALPING` / `DAY_TRADING` / `SWING`, versioned from `v1`; setup score = weighted sum of the components under one preset, 0–100, no direction; risk profile = `CONSERVATIVE` / `BALANCED` / `AGGRESSIVE`, for capital management and warnings only. Invariant rules: (1) the setup score depends only on market data and the style preset — the risk profile is never an input; (2) component scores and the setup score have no direction; (3) components are computed once per symbol + timeframe and stored, the setup score is computed at read time from the preset weights, no per-user score is stored; (4) a preset's weights add up to exactly 100%; (5) every setup score returned carries preset name + version; (6) preset weights and risk parameters live in configuration, changeable without code; (7) no user customisation of weights or risk parameters in the MVP (later, with Q-04). Risk profiles v1 (CONSERVATIVE / BALANCED / AGGRESSIVE): risk per trade 0.5 / 1 / 2 % of capital; minimum setup score to alert 75 / 65 / 55; maximum futures leverage 3x / 5x / 10x; maximum total open risk 2 / 4 / 6 % of capital; no profile above the AGGRESSIVE values; new users BALANCED; profile set by a 5–7 question onboarding questionnaire (capacity to bear losses, attitude to risk), changeable by the user with a warning when switching to AGGRESSIVE. Presets v1: SCALPING 5m (15m in v1: BR-08 ingests 15m, 1h, 4h, 1d only), DAY_TRADING 1h, SWING 4h; weights T/Mo/V/L(/D) Spot · Futures — SCALPING 20/40/25/15 · 15/35/20/10/20, DAY_TRADING 35/30/15/20 · 30/25/15/15/15 (the BR-13 weights), SWING 40/20/10/30 · 35/15/10/25/15; v1 values chosen from experience, adjusted through configuration. A-07: no direction, no `setup_bias` anywhere in v1. Default style preset for a user who has not chosen one and for any read without a user: DAY_TRADING (its 1h keeps the "1h setup score" of SRS 3.4.1 true). Spec changes: A-34; TD 7.4, 7.5 | APPROVED | ADR-013, Q-01, A-07, A-34 |
 **Action:** D-02 and D-03 were confirmed by the team on 2026-09-19 and are `APPROVED`; D-18 on 2026-09-20. D-04 … D-09 still need confirmation; D-06 and D-07 are already load-bearing in committed code (T-008). D-19 and D-20 are load-bearing as of T-007 and need confirmation before the first staging deployment, because D-20 decides how an operator obtains the first administrator. D-21 and D-22 are load-bearing as of T-010; D-21 is the one worth arguing about, because reversing it later means touching every entity that was written under it. D-29 and D-30 are load-bearing as of T-100; D-31 and D-32 as of T-013. D-23 … D-26 are load-bearing as of T-011 and T-012; D-26 is the one to re-read if the refresh windows of SRS 3.2.3 are ever changed, because it infers "Remember me" from the length of the window rather than from a stored flag.
 
 ---
@@ -161,7 +162,7 @@ Deviations found while designing. Each needs team approval, then the SRS and the
 | A-04 | NSF-07 recovery uses 15m candles | Replay 1m klines fetched by REST | SRS 3.5.4 | PENDING | T-043 |
 | A-05 | NSF-08 applies funding at each funding time | Compute from `funding_rate_history` rows on close/read; identical result (the rows the settlements moved to under A-12) | NSF-08 | PENDING | T-045 |
 | A-06 | NSF-16 says the AI Service stores the answer | AI Service stateless; the backend persists | NSF-16, SRS 4.1.3 | PENDING | T-073 |
-| A-07 | Setup score has no direction | Two-direction score plus a `setup_bias` column on `technical_indicator` | BR-13, logical model | PENDING | T-026 |
+| A-07 | Setup score has no direction | Two-direction score plus a `setup_bias` column on `technical_indicator` | BR-13, logical model | **RESOLVED 2026-09-26 (D-53): no direction.** The proposal is not adopted: component scores and the setup score have no direction (D-53 rule 2), so there is no `setup_bias` column or field and no migration adds one | — |
 | A-08 | Backend runtime named in the SRS | The SRS stays technology-neutral; the runtime (Java 21 + Spring Boot 4.1) is recorded in ADR-002 only, so no SRS change is needed | — | RESOLVED 2026-09-19 | — |
 | A-10 | The logical model has no columns for two rules the design already states: BR-03 needs a failed login counter and a lock instant on `user_account`, and the refresh token rotation of TECHNICAL_DESIGN 7.15 needs a family id on `user_token` | Add `failed_login_count`, `locked_until` to `user_account` and `token_family_id` to `user_token` in an additive migration inside T-012 | BR-03, BR-04, logical model | RESOLVED 2026-09-21 — `V4__login_lockout_and_refresh_family.sql` adds all three plus `ck_user_account_failed_login_count` and `idx_user_token_family`; `V5__refresh_token_family_invariant.sql` adds `ck_user_token_family`, which states that exactly the refresh tokens carry a family, once the mapping upholds it. **The logical model still has to gain the three columns** — the schema is ahead of the document until somebody edits it | — |
 | A-09 | Physical technical tables absent from the ERD | `event_publication` (Spring Modulith registry) and `flyway_schema_history` are technical tables, not business entities; documented as such, outside the ERD | SRS 3.1.5 | APPROVED 2026-09-20 | — |
@@ -187,6 +188,7 @@ Deviations found while designing. Each needs team approval, then the SRS and the
 | A-31 | `binance_ban` (V7) is not in the logical model. It holds when a Binance IP ban ends, so that a restart does not forget it | Treat it as a technical table outside the ERD, exactly as A-09 treats `event_publication` and `flyway_schema_history`; `BaselineSchemaTest` now counts it with them | SRS 3.1.5 | ACCEPTED 2026-09-24 (team lead) | — |
 | A-32 | `PairFilters.roundPrice` rounds a trader's price to the nearest tick, halves up (BR-30, TECHNICAL_DESIGN 5.4). That is right for an entry or a displayed price, but not neutral for a **stop loss**: rounding a stop away from the entry widens |E − S| and so, for a quantity already floored by BR-23, raises the risk amount of BR-24 above the risk % the trader chose (BR-30) | The trading-plan task (T-035, with T-037/T-038) must choose the rounding direction of the stop explicitly so that the risk never exceeds the configured limit — round the stop **towards** the entry (LONG: up, SHORT: down) or recompute the quantity from the rounded stop — and test it at the tick boundary. `roundPrice` stays half-up for entry and display; the stop gets its own method in that task | BR-23, BR-24, BR-30; TECHNICAL_DESIGN 5.4, 7.5 | ACCEPTED 2026-09-24 (team lead) | T-035 |
 | A-33 | T-020's "Done when" says "Gap detection works", and NSF-02 says the backfill runs "when a gap is detected". Read as: NSF-02 fills the tail gap (latest stored candle → now) on every run (T-020); NSF-03 detects every other gap (T-021) and hands it to NSF-02 | **Implemented in T-021 and extended by the team lead (2026-09-24):** (1) each closed streamed candle is compared with the latest stored one of its series; a later one raises `GapDetected`, queued in memory by `CandleBackfillJob` and filled with a bounded range; an empty series reports its whole D-41 depth; (2) a reconnection after a loss starts a catch-up at once; (3) **at start-up**, `OhlcvRepository.gapsSince` scans the last `gap-scan-window` (7 days) with `lag(open_time)` over each (pair, market, timeframe) and queues every hole, which replaces persisting the in-memory queue. A hole the exchange itself has (maintenance) is found at each start-up and costs one empty request | NSF-02, NSF-03 | ACCEPTED 2026-09-24 (team lead) | — |
+| A-34 | BR-13 fixes one weight set for everyone; BR-29 fixes OVERSIZED_POSITION at 2 % and HIGH_LEVERAGE at 20x; SRS 3.2.5 and the logical model have no style preset or risk profile, and TECHNICAL_INDICATOR stores one `setup_score` | BR-13: two tiers — stored direction-free component scores (TD 7.4), setup score = component scores weighted by a style preset at read time, returned with preset name + version; DAY_TRADING v1 keeps the BR-13 weights. BR-29: OVERSIZED_POSITION threshold = the risk profile's risk per trade, HIGH_LEVERAGE threshold = the profile's maximum futures leverage, plus a check of the total open risk against the profile's maximum (TD 7.5). SRS 3.2.5 / USER_PROFILE: style preset and risk profile (default BALANCED) beside the existing fields; `trading_style` and `default_risk_percent` unchanged. TECHNICAL_INDICATOR: the setup score is not a stored per-preset value (D-53 rule 3) — T-028 settles the columns. BR-08 unchanged (SCALPING runs on 15m) | BR-13, BR-29, SRS 3.2.5, logical model | APPROVED 2026-09-26 (D-53, ADR-013); SRS text carried by T-097 | — |
 | A-12 | `futures_market_data` mixes periodic snapshots (90 days, NSF-17) with funding settlements the P/L must keep for ever (BR-37, A-05). A TimescaleDB retention policy drops whole chunks and cannot filter by column, so no policy on that table can keep one kind and drop the other | Split the settlements into `funding_rate_history (pair_id, funding_time, funding_rate, mark_price)`, primary key `(pair_id, funding_time)`, no retention policy and deliberately not a hypertable; `futures_market_data` keeps periodic snapshots only and drops `snapshot_type`. Done in `V2__timescale_hypertables.sql` beside the policies that force it | NSF-17, BR-37, A-05, logical model | APPROVED 2026-09-20 | — |
 
 ---
@@ -229,8 +231,9 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 | T-013 | Password reset | BE2 | T-011 | UC-04, BR-04 | 30-minute single-use link; reset revokes all sessions; no account enumeration | **DONE** 2026-09-23 — UC-04 end to end; BR-04 proved clause by clause, including a reset that ends a session opened from another device |
 | T-014 | Profile, notification preferences, device registration | BE2 | T-012 | UC-06…08 | Avatar upload validated; FCM token stored and deactivated on logout | **DONE** 2026-09-24 — UC-06 (without the avatar, now T-101), UC-07 and UC-08 end to end. FCM token stored by one atomic upsert and deactivated by key and on logout; access tokens die with their session (D-33); repeated wrong current passwords end all sessions (A-30) |
 | T-015 | Authorization: role policies and entitlement handler | BE1 | T-012 | SRS 3.1.3 | Every row of the authorization matrix has an API test | **PARTIAL** 2026-09-21 — every row of SRS 3.1.3 is enforced by the filter chain and proved by an API test driven three ways. The **entitlement handler was not built**: it needs `BillingApi`, which the `billing` module brings in P10, so the dependency column is wrong (Q-12). Committed as `11b4a92` … `e9f31a9`, merged to `develop` and pushed |
-| T-016 | Web: register, verify, login, reset, profile screens | FE | T-011…T-014 | SCR-02…07 | Screens work against the API; validation messages match section 5.3 | TODO |
+| T-016 | Web: register, verify, login, reset, profile screens (incl. the T-103 onboarding questionnaire, style preset and risk profile fields, AGGRESSIVE warning) | FE | T-011…T-014 | SCR-02…07 | Screens work against the API; validation messages match section 5.3 | TODO |
 | T-100 | Backend hygiene: adopt Lombok inside the scope TD 1.3 and 3.4 already allow, and move the password pattern out of `service` so the `dto` layer rule holds in bytecode as well as in source | BE1 | T-015 | TD 1.3, 3.3, 3.4; SRS 4.2.5 | `@Getter` and `@RequiredArgsConstructor` used where TD 3.4 permits and nowhere else; `lombok.config` keeps generated members out of the coverage ratio; no `dto` class imports from `service`; the layer rule fails when one does; suite green with no test edited | **DONE** 2026-09-23 — 30 getters and 9 constructors generated; `PasswordPolicy` moved to the `auth` root and the layer rule now fails when a `dto` imports a `service`, which it could not before |
+| T-103 | Profile: style preset and risk profile, onboarding questionnaire | BE2 | T-014 | SRS 3.2.5, UC-06, D-53, A-34 | The profile holds a style preset (SCALPING, DAY_TRADING, SWING; default DAY_TRADING) and a risk profile (CONSERVATIVE, BALANCED, AGGRESSIVE; default BALANCED); a 5–7 question questionnaire in two groups (capacity to bear losses, attitude to risk) maps to a profile; the user can change the profile and a switch to AGGRESSIVE returns a warning to confirm; the risk parameters and preset weights are read from configuration (no per-user values, D-53 rule 7). `trading_style` and `default_risk_percent` stay as SRS 3.2.5 defines them. T-014 is not reopened | TODO |
 
 ### P2 — Market Data (Sprint 2)
 
@@ -251,9 +254,9 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 |---|---|---|---|---|---|---|
 | T-025 | Incremental indicator engine (SMA, EMA, RSI, MACD, Bollinger, volume SMA) | BE1 | T-020 | BR-12, TD 7.2 | Golden-data tests within 1e-8; incremental equals batch (property test) | **DONE** 2026-09-25, merged (PR #16, `f36c291`) — `market.calculator` SMA/EMA/Wilder RSI/MACD/Bollinger/volume SMA + `IndicatorEngine` (O(1) per candle, `null` during warm-up, DUPLICATE / OUT_OF_ORDER / GAP refused), `IndicatorService` rebuilding from the latest 1000 stored candles; TA-Lib 0.8.1 golden fixture of 1200 real candles within 1e-8 (max 4.1e-10), batch parity, restart within 5e-4 on EMA200 (8.7e-6 observed). D-52, Q-20 |
 | T-026 | Swing support/resistance detector | BE1 | T-020 | BR-14, TD 7.3 | Unconfirmed candles ignored; equal lows are not swings | **DONE** 2026-09-26, branch `feature/T-026-swing-support-resistance` (not pushed) — `market.calculator.SwingSupportResistance`, prices only, no bias (A-07) |
-| T-027 | Setup score calculator v1.0 with components and version | BE1 | T-025, T-026, A-07 | BR-13, TD 7.4 | Fixture tests for up-trend, down-trend and range; spot has no derivatives component | TODO |
-| T-028 | NSF-05 indicator pipeline and persistence | BE1 | T-025…T-027 | NSF-05 | Computed within 10s of candle close; idempotent upsert by PK | TODO |
-| T-029 | Analysis API and STOMP push | BE1 | T-028 | UC-10, UC-11 | Insufficient history returns nulls, never a wrong value | TODO |
+| T-027 | Setup score v1: direction-free component scores (0–100) and style presets applied to them, with preset name and version | BE1 | T-025, T-026 | BR-13, TD 7.4, D-53 | Test proves the score is unchanged when only the risk profile changes; each preset's weights add up to exactly 100; every score carries preset name + version; fixtures for up-trend, down-trend and range; spot has no derivatives component. No risk profile, no direction | **NEXT** |
+| T-028 | NSF-05 indicator pipeline and persistence | BE1 | T-025…T-027 | NSF-05, D-53 | Computed within 10s of candle close; idempotent upsert by PK; component scores stored per (pair, market, timeframe) with their formula version; no setup score stored per user or per preset; no `setup_bias` | TODO |
+| T-029 | Analysis API and STOMP push | BE1 | T-028 | UC-10, UC-11, D-53 | Insufficient history returns nulls, never a wrong value; the setup score is computed at read time from the stored components under a preset and returned with preset name, version and the timeframe used (default DAY_TRADING; the user's own preset once T-103 is DONE); no direction | TODO |
 
 ### P4 — Market UI (Sprint 3)
 
@@ -262,18 +265,18 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 | T-030 | Web shell: routing, layout, auth guard, error and message handling | FE | T-016 | SRS 3.1.1 | Route guards match the authorization matrix; MSG display consistent | TODO |
 | T-031 | Public home and market list | FE | T-024 | SCR-01, SCR-09 | Realtime prices; Live/Delayed indicator; disclaimer shown | TODO |
 | T-032 | Chart component with indicator overlays and panels | FE | T-029 | SCR-10 | Forming candle marked provisional; toggles remembered per device | TODO |
-| T-033 | Spot analysis screen | FE | T-032 | SCR-10, UC-10 | Setup score card with component breakdown and disclaimer | TODO |
+| T-033 | Spot analysis screen | FE | T-032 | SCR-10, UC-10 | Setup score card with component breakdown, preset name + version (D-53) and disclaimer | TODO |
 | T-034 | Futures analysis screen | FE | T-032, T-023 | SCR-11, UC-11 | Funding countdown from `next_funding_time`; OI and long/short charts state the available period | TODO |
 
 ### P5 — Trading Plan (Sprints 3–4)
 
 | ID | Task | Owner | Dep | Refs | Done when | Status |
 |---|---|---|---|---|---|---|
-| T-035 | Position sizing and risk calculator | BE1 | T-018 | BR-23…25, BR-30, TD 7.5 | Worked example of TD 7.6 reproduced; quantity floored to step size | **NEXT** |
+| T-035 | Position sizing and risk calculator | BE1 | T-018 | BR-23…25, BR-30, TD 7.5, D-53 | Worked example of TD 7.6 reproduced; quantity floored to step size; risk per trade, maximum leverage and maximum total open risk come in as the user's risk profile parameters, not constants, and the three comparisons of TD 7.5 are exposed | TODO |
 | T-036 | Liquidation price calculator with leverage brackets | BE1 | T-035, A-01 | BR-26, BR-27 | LONG and SHORT examples pass; bracket with non-zero maintenance amount covered | TODO |
-| T-037 | Warning evaluator (8 warning types, 3 severities) | BE1 | T-036 | BR-28, BR-29 | Every threshold tested at, just above and just below the boundary | TODO |
+| T-037 | Warning evaluator (8 warning types, 3 severities) | BE1 | T-036 | BR-28, BR-29, A-34 | Every threshold tested at, just above and just below the boundary; OVERSIZED_POSITION, HIGH_LEVERAGE and total open risk thresholds read from the risk profile (D-53) | TODO |
 | T-038 | Trading plan aggregate and state machine | BE1 | T-037 | BR-21, BR-22, BR-32 | Edit allowed only in DRAFT; activation blocked by a BLOCKING warning | TODO |
-| T-039 | Trading plan API (create, edit, activate, cancel, list, detail) | BE1 | T-038 | UC-16…20 | Snapshot stored on save and recalculated on activation (BR-31) | TODO |
+| T-039 | Trading plan API (create, edit, activate, cancel, list, detail) | BE1 | T-038, T-103 | UC-16…20 | Snapshot stored on save and recalculated on activation (BR-31) | TODO |
 | T-040 | Web: create/edit plan screen with live risk panel | FE | T-039 | SCR-17 | Panel updates within 300ms; warnings shown with severity | TODO |
 | T-041 | Web: plan list and plan detail screens | FE | T-039 | SCR-16, SCR-18 | Status tabs; live position block appears after execution | TODO |
 
@@ -391,16 +394,26 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 
 ## 7. Detail block — current NEXT task
 
-### T-035 · Position sizing and risk calculator
+### T-027 · Setup score v1: component scores and style presets
 
-**Unblocked:** T-018 (pair filters: tick, step, min notional) is DONE. **To do at the start of that session:** read
-BR-23…25 and BR-30, TD 7.5 (risk budget, quantity floored to the step size, notional against min notional, Spot capital
-check) and the worked example of TD 7.6 that "Done when" names, TD 5.4 (`BigDecimal` for price, quantity and USDT
-amounts; rounding rules), D-48 (pure calculator, the `trading` module), then replace this block. The futures half of
-TD 7.5 needs brackets and the liquidation price: those are T-036 (A-01 PENDING) — do not build them here. Warnings are
-T-037.
+**Unblocked 2026-09-26:** Q-01 and A-07 are resolved by D-53 (ADR-013); T-025 and T-026 are DONE. **Read first:** D-53,
+ADR-013, TD 7.4 (direction-free component forms and the preset table), BR-13, A-34, D-48 (calculator stays pure Java;
+the preset configuration and its binding are the only non-calculator part). Then replace this block.
 
-**Ready:** `common` rounding helpers (T-008), the pair filters from T-018, the `calculator` layer rules (T-003).
+**Scope:** (1) the five component scores 0–100 of TD 7.4 for one closed candle of one series, direction-free, formula
+version `v1` — inputs are T-025's `IndicatorSnapshot` (with the previous MACD histogram), T-026's `Levels`, the candle,
+and for futures the predicted funding rate and the 1-hour price and open interest change; (2) the three style presets
+v1 (primary timeframe, Spot and Futures weights, version) loaded from configuration, validated at start-up so that each
+column adds up to exactly 100 and no weight is 0 or above 40; (3) the setup score = the weighted sum rounded to an
+integer, returned with preset name, version and timeframe; null when a component is null.
+
+**Not in scope:** the risk profile (never an input — rule 1), any direction or bias (rule 2), persistence and the
+`CandleClosed` hook (T-028), the API (T-029), profile fields (T-103), a 5m series (SCALPING reads 15m in v1).
+
+**Done when:** a test proves the score is unchanged when only the risk profile changes; each preset's weights add up to
+exactly 100 (and a configuration that breaks it is refused); every score carries preset name + version; fixtures for a
+strong up-trend, its mirror down-trend (same trend score) and a range; spot has no derivatives component; every
+boundary of the component tables (RSI 20/30/70/80, `r` 0.5/1.5, `q` 3) tested at, just below and just above.
 
 ---
 
@@ -408,7 +421,7 @@ T-037.
 
 | ID | Question | Raised | Blocks | Owner | Status |
 |---|---|---|---|---|---|
-| Q-01 | Setup score: confirm the weights of BR-13 and the scoring table of each component | 2026-09-18 | T-027 | Team + supervisor | OPEN |
+| Q-01 | Setup score: confirm the weights of BR-13 and the scoring table of each component | 2026-09-18 | T-027 | Team + supervisor | RESOLVED 2026-09-26 by D-53 (ADR-013): weights per style preset, direction-free component tables in TD 7.4 |
 | Q-02 | Confirm the quantitative targets of SRS 4.2 (availability, response times, capacity) | 2026-09-18 | T-094 | Team + supervisor | OPEN |
 | Q-03 | Confirm the backend runtime — affects every project file and the deployment image | 2026-09-19 | T-002 | Team | RESOLVED 2026-09-19: Java 21 LTS + Spring Boot 4.1.x + Maven (D-02, ADR-002) |
 | Q-04 | Number and pricing of subscription packages for the demo | 2026-09-18 | T-007 (seed withheld), T-066 | Team | **OPEN** — needs, per package: code, display name, price in VND, duration in days, daily AI question quota and whether it allows video posts (BR-43, BR-50, BR-55). Until then `subscription_package` stays empty; a placeholder price would be copied into orders by BR-56 and outlive itself |
@@ -437,6 +450,36 @@ Rule: an AI agent never answers an open question by guessing. It implements what
 
 Newest first. One block per working session, format in `CLAUDE.md` section 8.
 
+### 2026-09-26 — D-53 two-axis setup score and risk profile model (no task id; Q-01, A-07)
+- Result: **DONE** — documents only, no code, no migration, no branch in the code repository
+- Summary: recorded the team and supervisor decision as **D-53 APPROVED** with ADR-013 (Accepted): style presets
+  (SCALPING / DAY_TRADING / SWING, v1) weight direction-free component scores at read time; risk profiles
+  (CONSERVATIVE / BALANCED default / AGGRESSIVE) drive capital management and warnings only, never the score.
+  **Q-01 RESOLVED**, **A-07 RESOLVED (no direction, no `setup_bias`)**, **A-34 APPROVED** (BR-13, BR-29, SRS 3.2.5,
+  logical model; SRS text carried by T-097). TD 7.4 rewritten (two tiers, direction-free component forms, preset table),
+  TD 7.5 gains the risk profile, TD 11 and 13 aligned, ADR index updated. **T-027 unblocked and NEXT**; T-028, T-029,
+  T-033, T-035, T-037, T-039, T-016 aligned; **new T-103** (P1, BE2): style preset + risk profile on the profile,
+  onboarding questionnaire, AGGRESSIVE warning.
+- Files: `docs/adr/ADR-013-two-axis-setup-score-style-presets-and-risk-profiles.md` (new),
+  `docs/design/TECHNICAL_DESIGN.md` (1.4 ADR index, 7.4, 7.5, 11, 13, 14), `docs/test/traceability.csv` (BR-13, BR-29,
+  UC-06 task ids), `CURRENT_STATE.md`
+- Tests: none (documents only)
+- BR/UC/NSF covered: none by tests; specified BR-13, BR-29, UC-06 (T-103)
+- Decisions: D-53 (APPROVED), ADR-013 (Accepted)
+- Open questions: none new
+- Contradictions fixed: (1) TD 7.4 component tables were directional (`d = ±1`), which D-53 rule 2 forbids — each
+  component now takes the stronger of its two former one-sided readings (TD 7.4); (2) SCALPING's 5m is not ingested
+  (BR-08: 15m, 1h, 4h, 1d) — v1 uses 15m and says so; (3) BR-13's single weight set and BR-29's fixed 2 % / 20x thresholds
+  — A-34; (4) the old notes that a `setup_bias` migration would land in T-026 (T-005 and T-026 session blocks) — marked
+  superseded; (5) T-027's dependency on A-07 removed; (6) the component weights need a Spot and a Futures column per
+  preset, because derivatives exists on Futures only and each column must add up to 100.
+- Left to the team lead: the default style preset (DAY_TRADING) is not stated by the decision and was inferred from the
+  "1h setup score" of SRS 3.4.1; the "minimum setup score to alert" has no consumer task (SRS 3.4.2 has no setup score
+  alert type, BR-29 no setup score warning); the seeded BR-29 thresholds (`SeedDataTest`) become per-profile values when
+  T-037 / T-103 land; `trading_style` (4 values, spelt DAY) stays beside the new style preset.
+- Next: T-027
+- Commits (documents repository): see `./docs.sh log`
+
 ### 2026-09-26 – T-026 Swing support/resistance detector
 - Result: **DONE** on `feature/T-026-swing-support-resistance` (2 commits, not pushed, no PR yet)
 - Summary: `market.calculator.SwingSupportResistance.nearest(List<StoredCandle>)`, pure Java: over the last 200 closed
@@ -453,9 +496,8 @@ Newest first. One block per working session, format in `CLAUDE.md` section 8.
   new class 100 / 100. Traceability: BR-14 COVERED (28/61 BR).
 - BR/UC/NSF covered: BR-14 (calculation half of NSF-05; pipeline and persistence T-028)
 - Decisions: none
-- Open questions: none new. Note for the team lead: A-07's "Blocks" column names T-026 and the T-005 session says the
-  `setup_bias` migration would be additive "in T-026". That migration was deliberately **not** done (no persistence in
-  this task, A-07 still PENDING); proposal: move it to T-027 or T-028 once A-07 is approved.
+- Open questions: none new. (Superseded 2026-09-26: A-07 closed as no direction by D-53 — no `setup_bias` migration in
+  any task.)
 - Next: T-035 (T-027 when Q-01 and A-07 are decided)
 - Commits: `f93c2d1` feat(market): add swing support/resistance detector (T-026); `a02b387` test(market): cover
   unconfirmed candles and equal swing levels (T-026)
@@ -1780,7 +1822,7 @@ public class H{public static void main(String[] a){System.out.println(BCrypt.has
 **Follow-ups for later sessions**
 - `deploy/.env.example` does not yet list `DB_URL`, which the application reads on the `dev` and `prod` profiles. T-004 owns that file.
 - Every `@SpringBootTest` now needs Docker. T-009 has to make the CI runner provide it, or split the suite so the unit and slice tests can still run without it.
-- A-07 (`setup_bias` on `technical_indicator`) is still PENDING. Once approved it is an additive migration in T-026, never an edit to V1.
+- A-07: superseded 2026-09-26 by D-53 — the score has no direction, so no `setup_bias` column and no migration for it.
 - `LayerRulesTest` still passes `allowEmptyShould(true)` everywhere. Nothing changed here, because T-005 added no Java to the module layers.
 
 ### 2026-09-20 — Q-08 and A-09 decided (no task id)
