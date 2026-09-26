@@ -455,6 +455,35 @@ Rule: an AI agent never answers an open question by guessing. It implements what
 
 Newest first. One block per working session, format in `CLAUDE.md` section 8.
 
+### 2026-09-26 — D-53 amended before T-027 (no task id)
+- Result: **DONE** — documents only, no code, seed, test, migration or branch in the code repository
+- Summary: D-53 amended (still APPROVED), ADR-013 amended: (1) trend and momentum are directional — read LONG-only on
+  Spot (BR-21; a strong down-trend scores low) and `max(LONG, SHORT)` of the whole component on Futures; volume, level,
+  derivatives unchanged; TD 7.4 now has a component | Spot | Futures | formula table and a worked example (down-trend:
+  Spot T = 0, Mo = 0; Futures T = 100, Mo = 100, SHORT); (2) `dominant_side` LONG / SHORT / NEUTRAL on Futures only,
+  from the trend component, computed at read time beside the score, never in it, never stored — A-07 stays RESOLVED;
+  (3) the existing `trading_style` is the only style source (DAY → DAY_TRADING, POSITION → SWING, not set →
+  DAY_TRADING); (4) BR-29 OVERSIZED_POSITION / HIGH_LEVERAGE from the user's risk profile, the seeded 2 % / 20x replaced
+  in T-037 with `SeedDataTest` (ceiling 10x); (5) the minimum setup score to alert is in configuration, unused in v1.
+  T-027 is ready (NEXT); T-029, T-034, T-037, T-103, T-016 aligned. Weights, risk table, timeframes and the DAY_TRADING
+  default unchanged.
+- Files: `docs/adr/ADR-013-two-axis-setup-score-style-presets-and-risk-profiles.md`, `docs/design/TECHNICAL_DESIGN.md`
+  (7.4, 7.5, 11, 13), `docs/test/traceability.csv` (UC-06 task id), `CURRENT_STATE.md` (D-53, A-34, T-016, T-027,
+  T-029, T-034, T-037, T-103, section 7, earlier session notes)
+- Tests: none (documents only)
+- BR/UC/NSF covered: none by tests; specified BR-13, BR-21, BR-29, UC-06
+- Decisions: D-53 amended (APPROVED)
+- Open questions: none new
+- Contradictions fixed: TD 7.4 momentum took the max per part (RSI, MACD) — corrected to the max of the whole component,
+  as `max(LONG, SHORT)` states; the `|f|` of the derivatives formula broke the TD table and is written `abs(f)`.
+- Left to the team lead: level L was not named among the directional or non-directional components; it keeps its
+  both-sided form on Spot and Futures. The `dominant_side` display asked for T-033 went to T-034, because T-033 is the
+  Spot screen and Spot has no `dominant_side`.
+- Next: T-027
+- Commits (documents repository): `8524781` docs(decision): split directional components by market and add
+  dominant_side (D-53); `efc40bd` docs(tasks): single trading_style source and profile-based BR-29 thresholds; earlier
+  D-53 session `149a9b8`, `4c8cd5a`
+
 ### 2026-09-26 — D-53 two-axis setup score and risk profile model (no task id; Q-01, A-07)
 - Result: **DONE** — documents only, no code, no migration, no branch in the code repository
 - Summary: recorded the team and supervisor decision as **D-53 APPROVED** with ADR-013 (Accepted): style presets
@@ -484,7 +513,8 @@ Newest first. One block per working session, format in `CLAUDE.md` section 8.
   T-037 / T-103 land; `trading_style` (4 values, spelt DAY) stays beside the new style preset (superseded by the
   D-53 amendment: `trading_style` is the only style source).
 - Next: T-027
-- Commits (documents repository): see `./docs.sh log`
+- Commits (documents repository): `149a9b8` docs(decision): accept two-axis setup score and risk profile model
+  (Q-01, A-07); `4c8cd5a` docs(tasks): unblock T-027 and align T-028, T-035 with D-53
 
 ### 2026-09-26 – T-026 Swing support/resistance detector
 - Result: **DONE** on `feature/T-026-swing-support-resistance` (2 commits, not pushed, no PR yet)
