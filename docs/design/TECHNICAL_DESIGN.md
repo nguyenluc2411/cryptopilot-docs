@@ -117,6 +117,7 @@ Libraries NOT to add: ModelMapper (reflection mapping), MapStruct (not needed; m
 | ADR-010 | Transactional outbox through the Spring Modulith event publication registry | Proposed |
 | ADR-011 | Matching engine price source = kline_1m stream (high/low) + mark price stream | Proposed |
 | ADR-012 | Flutter chart library | Open (decide in phase P14) |
+| ADR-013 | Two-axis model: style presets for the setup score, risk profiles for capital management | Accepted 2026-09-26 (D-53) |
 
 Full ADRs live in `docs/adr/ADR-0xx-*.md` (template: Context, Decision, Consequences, Alternatives).
 
@@ -685,23 +686,34 @@ Complexity O(200) per candle. Reference: Williams 1995 (fractals), Murphy 1999.
 
 Implementation (T-026): `market.calculator.SwingSupportResistance.nearest(List<StoredCandle>)`, pure Java, candles oldest first. The window is the last 200 candles *including* the two unconfirmed ones, and a swing needs both neighbours on each side inside the window, so the first two candles of the window are never swings either (fewer than 5 candles → both levels null). Prices stay `BigDecimal` as stored (compared with `compareTo`, so `8` and `8.00` are equal); rounding to 10 dp is T-028's. The result is prices only — no bias until A-07 is decided.
 
-### 7.4 Setup score v1.0 (BR-13) – requires team approval (SRS 5.4.1 item 7)
+### 7.4 Setup score (BR-13) – two tiers: component scores and style presets (D-53, ADR-013)
 
-The score is computed for both directions d ∈ {LONG = +1, SHORT = −1}; the stored `setup_score` is the higher one and a bias label is derived. This avoids scoring a strong downtrend as "bad" when a futures short is a valid setup. (Needs a new column `setup_bias`, see A-07.)
+Two tiers. **Tier 1** — component scores, 0–100 each, no direction, computed once per closed candle of a (pair, market, timeframe) and stored (T-028). **Tier 2** — the setup score, computed at read time as the weighted sum of the stored components under one **style preset** (`SCALPING`, `DAY_TRADING`, `SWING`), rounded to an integer, returned with the preset name and version. The user's **risk profile** is never an input (D-53 rule 1); there is no direction and no `setup_bias` (rule 2, A-07 closed). No setup score is stored per user (rule 3).
 
-Component scores for direction d (each 0–100):
+Component scores, direction-free (formula version `v1`). Each component takes the stronger of the two one-sided readings of the former two-direction table, so a strong down-trend scores as high as a strong up-trend:
 
-- Trend T: 25 points for each true condition: `d·(close − EMA20) > 0`, `d·(EMA20 − EMA50) > 0`, `d·(EMA50 − EMA200) > 0`, `d·(close − EMA200) > 0`.
+- Trend T: `n⁺` = number of `close − EMA20`, `EMA20 − EMA50`, `EMA50 − EMA200`, `close − EMA200` that are > 0, `n⁻` = number that are < 0; `T = 25·max(n⁺, n⁻)`.
 - Momentum Mo = RSI part (max 50) + MACD part (max 50).
-  - LONG RSI part: 50 if RSI ∈ [50,70]; 25 if RSI ∈ [40,50) or (70,80]; else 0. SHORT: 50 if RSI ∈ [30,50]; 25 if RSI ∈ (50,60] or [20,30); else 0.
-  - MACD part: 30 if `d·hist > 0`, plus 20 if `d·(hist − hist_prev) > 0`.
-- Volume V: `r = volume / VolSMA20`; `V = 100·clamp((r − 0.5)/1.0, 0, 1)`; halved if `d·(close − open) < 0`.
-- Level L: LONG `q = (R − close)/(close − S)`, SHORT `q = (close − S)/(R − close)`; `L = 100·clamp(q/3, 0, 1)`; if S or R is null, `L = 50`.
-- Derivatives D (futures only): funding part `50·clamp((0.0005 − d·f)/0.001, 0, 1)` where f is the current funding rate; OI part (Δ over the last 1 h): `sign(Δprice) = d` and `ΔOI > 0` → 50 (new positions confirm the move); `sign(Δprice) = d` and `ΔOI ≤ 0` → 25 (move driven by closing positions); otherwise 0.
+  - RSI part: 50 if RSI ∈ [30,70]; 25 if RSI ∈ [20,30) or (70,80]; else 0.
+  - MACD part, `h` = histogram, `Δh = h − h_prev`: 50 if `h ≠ 0` and `Δh` has the sign of `h`; else 30 if `h ≠ 0`; else 20 if `Δh ≠ 0`; else 0.
+- Volume V: `r = volume / VolSMA20`; `V = 100·clamp((r − 0.5)/1.0, 0, 1)`.
+- Level L: `q = max((R − close)/(close − S), (close − S)/(R − close))`; `L = 100·clamp(q/3, 0, 1)`; if S or R is null, `L = 50`. S and R are T-026's levels (7.3).
+- Derivatives D (futures only): funding part `50·clamp((0.0005 + |f|)/0.001, 0, 1)` where f is the current (predicted) funding rate; OI part (Δ over the last 1 h): `Δprice ≠ 0` and `ΔOI > 0` → 50; `Δprice ≠ 0` and `ΔOI ≤ 0` → 25; otherwise 0.
 
-Total per direction: Spot `0.35T + 0.30Mo + 0.15V + 0.20L`; Futures `0.30T + 0.25Mo + 0.15V + 0.15L + 0.15D`; rounded to integer.
+Style presets v1 (weights in %, each column adds up to 100, none 0 or above 40; values and one-line reasons in ADR-013):
 
-`setup_score = max(S_LONG, S_SHORT)`; `setup_bias = LONG` if `S_LONG − S_SHORT ≥ 10`, `SHORT` if `S_SHORT − S_LONG ≥ 10`, else `NEUTRAL`. Store the components of the winning direction and `score_version = "v1.0"`. Any formula change bumps the version; old rows are never recomputed.
+| Preset (version) | Primary timeframe | T | Mo | V | L | D |
+|---|---|---|---|---|---|---|
+| SCALPING v1 — Spot | 5m, **15m in v1** (BR-08 has no 5m) | 20 | 40 | 25 | 15 | — |
+| SCALPING v1 — Futures | same | 15 | 35 | 20 | 10 | 20 |
+| DAY_TRADING v1 — Spot | 1h | 35 | 30 | 15 | 20 | — |
+| DAY_TRADING v1 — Futures | 1h | 30 | 25 | 15 | 15 | 15 |
+| SWING v1 — Spot | 4h | 40 | 20 | 10 | 30 | — |
+| SWING v1 — Futures | 4h | 35 | 15 | 10 | 25 | 15 |
+
+DAY_TRADING v1 keeps the BR-13 weights. The preset weights, timeframes and versions live in configuration (rule 6) and users cannot edit them in the MVP (rule 7). The score of a preset is read from the components of that preset's timeframe; the response names the preset, its version and the timeframe used. A component that cannot be computed (fewer than 200 closed candles, SRS 3.3.2) makes the score null, never a partial sum. Any change of a component formula bumps the component version; any change of a preset's weights or timeframe bumps the preset version; stored components are never recomputed.
+
+References: Wilder 1978 (RSI); Murphy 1999.
 
 ### 7.5 Risk calculation and warnings (BR-21..31)
 
@@ -727,7 +739,9 @@ apply WarningRule list (BR-29) with thresholds from system_setting
 
 Each warning rule is one class implementing `WarningRule#evaluate(PlanCalculation) → Optional<Warning>` (package `trading.calculator.warning`).
 
-References: Tharp 2007 (position sizing by fixed fractional risk, R-multiples).
+Risk profile (D-53, ADR-013): the user's profile (`CONSERVATIVE`, `BALANCED` default, `AGGRESSIVE`) supplies, from configuration, the risk per trade (0.5 / 1 / 2 % of capital), the maximum futures leverage (3 / 5 / 10x) and the maximum total open risk (2 / 4 / 6 % of capital); no profile exceeds the `AGGRESSIVE` values. These replace the fixed thresholds of BR-29 (A-34): OVERSIZED_POSITION compares the plan's risk % with the profile's risk per trade, HIGH_LEVERAGE compares the leverage with the profile's maximum, and the total open risk (the plan's risk amount plus the risk amounts of the Trader's other ACTIVE plans and open positions, over capital) is compared with the profile's maximum. The calculation (T-035) takes the parameters as input and exposes the three comparisons; the warnings that report them are T-037's. The BR-30 input ranges and the BR-26 bracket limit are unchanged. The profile never reaches the setup score (7.4).
+
+References: Tharp 1999 and 2007 (position sizing, R-multiples); Vince 1990 (fixed fractional risk per trade).
 
 ### 7.6 Liquidation price (BR-27, isolated margin, one-way mode)
 
@@ -987,7 +1001,7 @@ Since T-025: `tools/golden/generate_indicator_fixture.py` writes `btcusdt-1h-tal
 | P/L (7.8) | Test vector 7.8; SHORT; liquidation; manual trade with user fees |
 | Indicators (7.2) | Golden data; incremental = batch (property); RSI with zero losses = 100; insufficient history → null |
 | S/R (7.3) | No swing → null; equal lows are not swings; unconfirmed last 2 candles ignored |
-| Setup score (7.4) | Fixed fixtures for strong up-trend (LONG bias), strong down-trend (SHORT bias), range (NEUTRAL); spot has no derivatives component; version stored |
+| Setup score (7.4) | Fixed fixtures for strong up-trend, strong down-trend (scores as high as the mirror up-trend) and range; each preset's weights add up to 100; the score is unchanged when only the risk profile changes; spot has no derivatives component; preset name and version returned |
 | Alerts (7.9) | CROSS_ABOVE at exact threshold fires; prev = threshold does not fire; ONCE_PER_BAR; cooldown; expired not evaluated; watchlist removal deletes alerts (BR-16) |
 | Payment (7.11) | Valid VNPay IPN (sample signature from sandbox docs); duplicate IPN; wrong amount (04); bad signature (97); unknown order (01); late success after expiry; reconciliation path; renewal start = max(now, current end) |
 | Auth (7.15) | Lockout after 5 failures (BR-03); refresh rotation; reuse detection revokes family; reset revokes sessions (BR-04) |
@@ -1018,7 +1032,8 @@ Since T-025: `tools/golden/generate_indicator_fixture.py` writes `btcusdt-1h-tal
 | A-05 | NSF-08 applies funding at each funding time | Compute from `funding_rate_history` rows at close/read; same result | NSF-08 |
 | A-12 | Retention cannot keep funding settlements inside `futures_market_data` | Split them into `funding_rate_history`; `futures_market_data` holds periodic snapshots only and loses `snapshot_type` | NSF-17, BR-37, logical model |
 | A-06 | NSF-16 says AI Service stores the answer | AI Service stateless; backend persists | NSF-16, 4.1.3 |
-| A-07 | Setup score direction | Two-direction score and `setup_bias` column on TECHNICAL_INDICATOR | BR-13, logical model |
+| A-07 | Setup score direction | **Closed 2026-09-26 (D-53): no direction**, no `setup_bias` column | BR-13, logical model |
+| A-34 | Setup score follows a style preset; risk profile drives BR-29 thresholds | **Approved 2026-09-26 (D-53, ADR-013):** two-tier score (stored direction-free components, preset weights applied at read time); BR-29 OVERSIZED_POSITION / HIGH_LEVERAGE thresholds and a total-open-risk check taken from the risk profile; style preset and risk profile on the user profile | BR-13, BR-29, SRS 3.2.5, logical model |
 | A-08 | Backend runtime | SRS is technology-neutral; runtime recorded in ADR-002 only. No SRS change | — |
 | A-09 | Physical technical tables | `event_publication` (Spring Modulith) and `flyway_schema_history` documented as non-business tables | SRS 3.1.5 note |
 | A-30 | SRS 3.2.5 does not say what a wrong current password counts towards | **Resolved 2026-09-24:** a separate per-account counter with BR-03's threshold of five; the fifth ends all sessions of the account, the sign-in is not locked, success resets it (7.15) | SRS 3.2.5, BR-03 |
@@ -1050,8 +1065,10 @@ Since T-025: `tools/golden/generate_indicator_fixture.py` writes `btcusdt-1h-tal
 - Nygard, M. T. (2018). *Release It!* (2nd ed.). Pragmatic Bookshelf.
 - OWASP (2021). *OWASP Top 10*; OWASP ASVS 4.0.
 - Richardson, C. (2018). *Microservices Patterns*. Manning (transactional outbox, idempotent consumer).
+- Tharp, V. K. (1999). *Trade Your Way to Financial Freedom*. McGraw-Hill.
 - Tharp, V. K. (2007). *Trade Your Way to Financial Freedom* (2nd ed.). McGraw-Hill.
 - VNPay (2024). *VNPAY Payment Gateway Integration, API 2.1.0*. MoMo (2024). *MoMo Payment Platform API v2*.
+- Vince, R. (1990). *Portfolio Management Formulas*. Wiley.
 - Wilder, J. W. (1978). *New Concepts in Technical Trading Systems*. Trend Research.
 - Williams, B. (1995). *Trading Chaos*. Wiley.
 - Spring (2026). *Spring Boot*, *Spring Modulith* and *Spring Security* reference documentation.
