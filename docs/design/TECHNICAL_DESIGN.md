@@ -708,7 +708,11 @@ One-sided readings for side `d`:
 Worked example — one strong down-trend, close 90, EMA20 95, EMA50 100, EMA200 110, RSI 35, histogram −0.8 after −0.5: all four trend differences are negative, so `T_LONG = 0` and `T_SHORT = 100`; RSI 35 gives LONG 0 and SHORT 50; the histogram is negative and falling, so MACD gives LONG 0 and SHORT 30 + 20 = 50. **Spot**: T = 0, Mo = 0. **Futures**: T = 100, Mo = 100, `dominant_side = SHORT`.
 Level in the same example, with support 70 and resistance 92 (close just under resistance): `q_LONG = 2/20 = 0.1`, `L_LONG = 100·0.1/3 ≈ 3.33`; `q_SHORT = 20/2 = 10`, `L_SHORT = 100`. **Spot**: L ≈ 3.33. **Futures**: L = 100.
 
-**`dominant_side` (Futures only):** `LONG` if `T_LONG > T_SHORT`, `SHORT` if `T_SHORT > T_LONG`, `NEUTRAL` if equal. It is information that accompanies the score: computed at read time (T-029) from the stored EMAs and close of the same candle, returned beside the setup score, never an input of the score, never stored (T-028 is unchanged), and absent on Spot. It does not contradict A-07 (D-53).
+**`dominant_side` (Futures only):** `LONG` if `T_LONG > T_SHORT`, `SHORT` if `T_SHORT > T_LONG`, `NEUTRAL` if equal. It is information that accompanies the score: computed at read time (T-029) from the EMAs stored in TECHNICAL_INDICATOR and the close of the same candle read from `ohlcv` (the close is not stored with the indicators), returned beside the setup score, never an input of the score, never stored (T-028 is unchanged), and absent on Spot. It does not contradict A-07 (D-53).
+
+**Rounding (T-027):** each component score is rounded half-up to 2 decimal places (scores are `NUMERIC(5,2)`, 5.4); the setup score is the weighted sum of those rounded components, rounded half-up to an integer. A volume SMA20 of 0 leaves `r` undefined, so the volume component cannot be computed and is null.
+
+**Known property of v1 (T-027):** the derivatives component is at least 25, because the funding part `50·clamp((0.0005 + abs(f))/0.001, 0, 1)` is at least 25 for any `f`; a Futures score therefore always carries at least 25 × the preset's derivatives weight / 100 (3.75 points at 15 %, 5 at 20 %). To be reviewed when the components are tuned in v2.
 
 Style presets v1 (weights in %, each column adds up to 100, none 0 or above 40; values and one-line reasons in ADR-013):
 
