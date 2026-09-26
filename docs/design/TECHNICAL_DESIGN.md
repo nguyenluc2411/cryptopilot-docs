@@ -690,10 +690,11 @@ Implementation (T-026): `market.calculator.SwingSupportResistance.nearest(List<S
 
 Two tiers. **Tier 1** — component scores, 0–100 each, computed once per closed candle of a (pair, market, timeframe) and stored (T-028). **Tier 2** — the setup score, computed at read time as the weighted sum of the stored components under one **style preset** (`SCALPING`, `DAY_TRADING`, `SWING`), rounded to an integer, returned with the preset name and version. The user's **risk profile** is never an input (D-53 rule 1). Neither a component nor the score carries a direction, and there is no `setup_bias` (rule 2, A-07 closed). No setup score is stored per user (rule 3).
 
-Component scores by market (formula version `v1`). Trend and momentum are **directional** components, so they are read per side: for a side `d` (LONG = +1, SHORT = −1) the one-sided reading is the former two-direction table below. **Spot** uses the LONG reading only, because a Spot plan is LONG only (BR-21) — a strong down-trend gives a low Spot score. **Futures** uses `max(LONG, SHORT)` of the whole component — a strong down-trend scores as high as its mirror up-trend. Volume, level and derivatives are **not directional** and have one formula on both markets.
+Component scores by market (formula version `v1`). Trend, momentum and level are **directional** components, so they are read per side: for a side `d` (LONG = +1, SHORT = −1) the one-sided reading is the former two-direction table below. **Spot** uses the LONG reading only, because a Spot plan is LONG only (BR-21) — a strong down-trend gives a low Spot score. **Futures** uses `max(LONG, SHORT)` of the whole component — a strong down-trend scores as high as its mirror up-trend. Volume and derivatives are **not directional** and have one formula on both markets.
 
 One-sided readings for side `d`:
 - `T_d = 25·(number of true conditions)` over `d·(close − EMA20) > 0`, `d·(EMA20 − EMA50) > 0`, `d·(EMA50 − EMA200) > 0`, `d·(close − EMA200) > 0`.
+- `L_d = 100·clamp(q_d/3, 0, 1)` with `q_LONG = (R − close)/(close − S)` (close near support → high, near resistance → low) and `q_SHORT = (close − S)/(R − close)`; `L_d = 50` if S or R is null (S, R from 7.3).
 - `Mo_d = RSI_d + MACD_d`. LONG RSI part: 50 if RSI ∈ [50,70]; 25 if RSI ∈ [40,50) or (70,80]; else 0. SHORT RSI part: 50 if RSI ∈ [30,50]; 25 if RSI ∈ (50,60] or [20,30); else 0. MACD part: 30 if `d·h > 0`, plus 20 if `d·(h − h_prev) > 0` (`h` = MACD histogram).
 
 | Component | Directional | Spot | Futures | Formula 0–100 |
@@ -701,10 +702,11 @@ One-sided readings for side `d`:
 | Trend T | yes | `T_LONG` | `max(T_LONG, T_SHORT)` | readings above |
 | Momentum Mo | yes | `Mo_LONG` | `max(Mo_LONG, Mo_SHORT)` | readings above; the max is taken over the whole component, not per part |
 | Volume V | no | same | same | `r = volume / VolSMA20`; `V = 100·clamp((r − 0.5)/1.0, 0, 1)` |
-| Level L | no | same | same | `q = max((R − close)/(close − S), (close − S)/(R − close))`; `L = 100·clamp(q/3, 0, 1)`; `L = 50` if S or R is null (S, R from 7.3) |
+| Level L | yes | `L_LONG` | `max(L_LONG, L_SHORT)` | readings above |
 | Derivatives D | no | — | futures only | funding part `50·clamp((0.0005 + abs(f))/0.001, 0, 1)` (f = current predicted funding rate) + OI part over the last 1 h: `Δprice ≠ 0` and `ΔOI > 0` → 50; `Δprice ≠ 0` and `ΔOI ≤ 0` → 25; else 0 |
 
 Worked example — one strong down-trend, close 90, EMA20 95, EMA50 100, EMA200 110, RSI 35, histogram −0.8 after −0.5: all four trend differences are negative, so `T_LONG = 0` and `T_SHORT = 100`; RSI 35 gives LONG 0 and SHORT 50; the histogram is negative and falling, so MACD gives LONG 0 and SHORT 30 + 20 = 50. **Spot**: T = 0, Mo = 0. **Futures**: T = 100, Mo = 100, `dominant_side = SHORT`.
+Level in the same example, with support 70 and resistance 92 (close just under resistance): `q_LONG = 2/20 = 0.1`, `L_LONG = 100·0.1/3 ≈ 3.33`; `q_SHORT = 20/2 = 10`, `L_SHORT = 100`. **Spot**: L ≈ 3.33. **Futures**: L = 100.
 
 **`dominant_side` (Futures only):** `LONG` if `T_LONG > T_SHORT`, `SHORT` if `T_SHORT > T_LONG`, `NEUTRAL` if equal. It is information that accompanies the score: computed at read time (T-029) from the stored EMAs and close of the same candle, returned beside the setup score, never an input of the score, never stored (T-028 is unchanged), and absent on Spot. It does not contradict A-07 (D-53).
 
@@ -1041,7 +1043,7 @@ Since T-025: `tools/golden/generate_indicator_fixture.py` writes `btcusdt-1h-tal
 | A-12 | Retention cannot keep funding settlements inside `futures_market_data` | Split them into `funding_rate_history`; `futures_market_data` holds periodic snapshots only and loses `snapshot_type` | NSF-17, BR-37, logical model |
 | A-06 | NSF-16 says AI Service stores the answer | AI Service stateless; backend persists | NSF-16, 4.1.3 |
 | A-07 | Setup score direction | **Closed 2026-09-26 (D-53): no direction**, no `setup_bias` column | BR-13, logical model |
-| A-34 | Setup score follows a style preset; risk profile drives BR-29 thresholds | **Approved 2026-09-26 (D-53, ADR-013):** two-tier score (stored components, trend and momentum read LONG-only on Spot and `max(LONG, SHORT)` on Futures, preset weights applied at read time; `dominant_side` beside the Futures score, not stored); BR-29 OVERSIZED_POSITION / HIGH_LEVERAGE thresholds and a total-open-risk check taken from the user's risk profile, replacing the seeded 2 % / 20x; the existing `trading_style` selects the preset (one source); risk profile on the user profile | BR-13, BR-29, SRS 3.2.5, logical model |
+| A-34 | Setup score follows a style preset; risk profile drives BR-29 thresholds | **Approved 2026-09-26 (D-53, ADR-013):** two-tier score (stored components, trend, momentum and level read LONG-only on Spot and `max(LONG, SHORT)` on Futures, preset weights applied at read time; `dominant_side` beside the Futures score, not stored); BR-29 OVERSIZED_POSITION / HIGH_LEVERAGE thresholds and a total-open-risk check taken from the user's risk profile, replacing the seeded 2 % / 20x; the existing `trading_style` selects the preset (one source); risk profile on the user profile | BR-13, BR-29, SRS 3.2.5, logical model |
 | A-08 | Backend runtime | SRS is technology-neutral; runtime recorded in ADR-002 only. No SRS change | — |
 | A-09 | Physical technical tables | `event_publication` (Spring Modulith) and `flyway_schema_history` documented as non-business tables | SRS 3.1.5 note |
 | A-30 | SRS 3.2.5 does not say what a wrong current password counts towards | **Resolved 2026-09-24:** a separate per-account counter with BR-03's threshold of five; the fifth ends all sessions of the account, the sign-in is not locked, success resets it (7.15) | SRS 3.2.5, BR-03 |

@@ -19,10 +19,10 @@ capital goes into a setup and when to warn. The risk profile never enters the sc
 ### Definitions
 - **Component score**: a 0–100 score of one BR-13 component (trend, momentum, volume, level, derivatives), computed
   from the market data of one symbol and one timeframe. It carries no direction (no LONG/SHORT field, never negative).
-  The directional components — trend and momentum — are read on the LONG side only on Spot, because a Spot plan is LONG
-  only (BR-21), so a strong down-trend scores low; on Futures they take `max(LONG, SHORT)`, so a strong down-trend scores
-  as high as its mirror up-trend. Volume, level and derivatives are not directional and are the same on both markets
-  (TECHNICAL_DESIGN 7.4).
+  The directional components — trend, momentum and level — are read on the LONG side only on Spot, because a Spot plan
+  is LONG only (BR-21), so a strong down-trend scores low and so does a close just under resistance; on Futures they
+  take `max(LONG, SHORT)`, so a strong down-trend scores as high as its mirror up-trend. Volume and derivatives are not
+  directional and are the same on both markets (TECHNICAL_DESIGN 7.4).
 - **Style preset**: a primary timeframe plus a weight for each component. Three presets: `SCALPING`, `DAY_TRADING`,
   `SWING`. Each preset has a version, starting at `v1`.
 - **Setup score**: the weighted sum of the component scores under one preset. 0–100, no direction.
@@ -120,7 +120,7 @@ any other task — because direction is not part of the score (invariant rule 2)
 ## Consequences
 - Component scores are computed once per (pair, market, timeframe) whatever the number of users; a score costs a
   weighted sum at read time.
-- Trend and momentum keep their one-sided readings: LONG only on Spot, `max(LONG, SHORT)` on Futures. Volume, level and
+- Trend, momentum and level keep their one-sided readings: LONG only on Spot, `max(LONG, SHORT)` on Futures. Volume and
   derivatives have one direction-free form (TECHNICAL_DESIGN 7.4, with a worked example).
 - BR-13, BR-29 and SRS 3.2.5 change; recorded as A-34 and carried into the SRS by T-097.
 - The risk profile field, the `trading_style` → preset mapping and the onboarding questionnaire are a new task, T-103;
