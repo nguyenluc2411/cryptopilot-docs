@@ -3,7 +3,8 @@
 **Status:** Accepted
 **Date:** 2026-09-26
 **Deciders:** BE1, BE2, FE, DO; supervisor
-**Related:** BR-13, BR-29, BR-30, SRS 3.2.5, SRS 3.3.5; TECHNICAL_DESIGN 7.4, 7.5; CURRENT_STATE D-53, Q-01, A-07, A-34; tasks T-027, T-028, T-029, T-035, T-037, T-103
+**Related:** BR-13, BR-21, BR-29, BR-30, SRS 3.2.5, SRS 3.3.5; TECHNICAL_DESIGN 7.4, 7.5; CURRENT_STATE D-53, Q-01, A-07, A-34; tasks T-027, T-028, T-029, T-033, T-035, T-037, T-103
+**Amended:** 2026-09-26 — directional components by market, `dominant_side`, one style field (`trading_style`), BR-29 thresholds from the risk profile, the alert minimum not used in v1
 
 ## Context
 BR-13 fixes one set of weights for everyone (Spot 35/30/15/20, Futures 30/25/15/15/15), and Q-01 left the weights and
@@ -17,7 +18,11 @@ capital goes into a setup and when to warn. The risk profile never enters the sc
 
 ### Definitions
 - **Component score**: a 0–100 score of one BR-13 component (trend, momentum, volume, level, derivatives), computed
-  from the market data of one symbol and one timeframe. It has no direction (no LONG/SHORT, never negative).
+  from the market data of one symbol and one timeframe. It carries no direction (no LONG/SHORT field, never negative).
+  The directional components — trend and momentum — are read on the LONG side only on Spot, because a Spot plan is LONG
+  only (BR-21), so a strong down-trend scores low; on Futures they take `max(LONG, SHORT)`, so a strong down-trend scores
+  as high as its mirror up-trend. Volume, level and derivatives are not directional and are the same on both markets
+  (TECHNICAL_DESIGN 7.4).
 - **Style preset**: a primary timeframe plus a weight for each component. Three presets: `SCALPING`, `DAY_TRADING`,
   `SWING`. Each preset has a version, starting at `v1`.
 - **Setup score**: the weighted sum of the component scores under one preset. 0–100, no direction.
@@ -28,6 +33,10 @@ capital goes into a setup and when to warn. The risk profile never enters the sc
    *(Setup score chỉ phụ thuộc dữ liệu thị trường và preset phong cách. Hồ sơ rủi ro KHÔNG BAO GIỜ là đầu vào khi tính score.)*
 2. Component scores and the setup score have no direction. Direction is not part of the score.
    *(Điểm thành phần và setup score không có hướng. Hướng không nằm trong score.)*
+   Note: `dominant_side` (Futures only: LONG, SHORT or NEUTRAL, the winning side of the trend component, NEUTRAL when
+   both sides are equal) is information that accompanies the score, not part of it, and is not stored; it does not
+   contradict A-07. It is computed at read time and returned beside the Futures setup score; Spot has no such field.
+   *(dominant_side là thông tin đi kèm, không phải một phần của score, không lưu trữ; không mâu thuẫn với A-07.)*
 3. Component scores are computed once per symbol + timeframe and stored. The setup score is computed at read time by
    applying the preset's weights. No setup score is stored per user.
    *(Điểm thành phần tính 1 lần cho mỗi symbol + timeframe và được lưu. Setup score được tính lúc đọc bằng cách áp trọng số preset. Không lưu setup score riêng cho từng user.)*
@@ -45,16 +54,26 @@ capital goes into a setup and when to warn. The risk profile never enters the sc
 | Parameter | CONSERVATIVE | BALANCED | AGGRESSIVE |
 |---|---|---|---|
 | Risk per trade (% of capital) | 0.5 | 1 | 2 |
-| Minimum setup score to alert | 75 | 65 | 55 |
+| Minimum setup score to alert (in configuration, no feature uses it in v1) | 75 | 65 | 55 |
 | Maximum futures leverage | 3x | 5x | 10x |
 | Maximum total open risk (% of capital) | 2 | 4 | 6 |
 
 - Hard ceiling: no profile may exceed the `AGGRESSIVE` values.
+- BR-29 thresholds come from the user's profile: OVERSIZED_POSITION is raised when the plan's risk per trade exceeds the
+  profile's, HIGH_LEVERAGE when the leverage exceeds the profile's maximum. The seeded fixed 2 % and 20x are replaced
+  (the hard ceiling is 10x); T-037 does it and updates `SeedDataTest` with it.
+- The minimum setup score to alert is kept in configuration; no feature uses it in v1 (no alert type is added).
 - Default profile of a new user: `BALANCED`.
 - The profile is determined by an onboarding questionnaire of 5–7 questions in two groups: financial capacity to bear
   losses, and attitude to risk. The user may change the profile; switching to `AGGRESSIVE` shows a warning.
 - Risk per trade follows the fixed fractional method (Vince 1990) in the common 0.5–2% range; position size and
   R-multiples follow Tharp 1999. The other three values: v1, chosen from experience, adjusted through configuration.
+
+### Style selection: one field
+The preset is selected by the existing profile field `trading_style` (SRS 3.2.5). It is the only source: there is no
+second style field. Mapping v1: `SCALPING` → SCALPING, `DAY` → DAY_TRADING, `SWING` → SWING, `POSITION` → SWING until a
+POSITION preset exists; not set → DAY_TRADING, which is also the preset of any read without a user. Whether the enum is
+renamed or a mapping class translates it is T-103's choice, as long as one source remains.
 
 ### Style presets v1
 
@@ -101,12 +120,13 @@ any other task — because direction is not part of the score (invariant rule 2)
 ## Consequences
 - Component scores are computed once per (pair, market, timeframe) whatever the number of users; a score costs a
   weighted sum at read time.
-- The component tables of TECHNICAL_DESIGN 7.4 lose their direction: each component takes the stronger of its two
-  former one-sided readings (TECHNICAL_DESIGN 7.4 states the direction-free forms).
+- Trend and momentum keep their one-sided readings: LONG only on Spot, `max(LONG, SHORT)` on Futures. Volume, level and
+  derivatives have one direction-free form (TECHNICAL_DESIGN 7.4, with a worked example).
 - BR-13, BR-29 and SRS 3.2.5 change; recorded as A-34 and carried into the SRS by T-097.
-- Profile fields and the onboarding questionnaire are a new task, T-103; T-014 stays DONE.
-- The "minimum setup score to alert" has no consumer yet: the alert types of SRS 3.4.2 (T-054, T-055) have no setup
-  score condition, and BR-29 has no setup score warning.
+- The risk profile field, the `trading_style` → preset mapping and the onboarding questionnaire are a new task, T-103;
+  T-014 stays DONE.
+- The minimum setup score to alert is in configuration and no feature uses it in v1: the alert types of SRS 3.4.2 have no
+  setup score condition and none is added.
 - A user who picks SCALPING gets 15m scores until 5m candles are ingested; the preset reports the timeframe it used.
 
 ## Alternatives considered

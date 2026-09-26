@@ -688,17 +688,25 @@ Implementation (T-026): `market.calculator.SwingSupportResistance.nearest(List<S
 
 ### 7.4 Setup score (BR-13) – two tiers: component scores and style presets (D-53, ADR-013)
 
-Two tiers. **Tier 1** — component scores, 0–100 each, no direction, computed once per closed candle of a (pair, market, timeframe) and stored (T-028). **Tier 2** — the setup score, computed at read time as the weighted sum of the stored components under one **style preset** (`SCALPING`, `DAY_TRADING`, `SWING`), rounded to an integer, returned with the preset name and version. The user's **risk profile** is never an input (D-53 rule 1); there is no direction and no `setup_bias` (rule 2, A-07 closed). No setup score is stored per user (rule 3).
+Two tiers. **Tier 1** — component scores, 0–100 each, computed once per closed candle of a (pair, market, timeframe) and stored (T-028). **Tier 2** — the setup score, computed at read time as the weighted sum of the stored components under one **style preset** (`SCALPING`, `DAY_TRADING`, `SWING`), rounded to an integer, returned with the preset name and version. The user's **risk profile** is never an input (D-53 rule 1). Neither a component nor the score carries a direction, and there is no `setup_bias` (rule 2, A-07 closed). No setup score is stored per user (rule 3).
 
-Component scores, direction-free (formula version `v1`). Each component takes the stronger of the two one-sided readings of the former two-direction table, so a strong down-trend scores as high as a strong up-trend:
+Component scores by market (formula version `v1`). Trend and momentum are **directional** components, so they are read per side: for a side `d` (LONG = +1, SHORT = −1) the one-sided reading is the former two-direction table below. **Spot** uses the LONG reading only, because a Spot plan is LONG only (BR-21) — a strong down-trend gives a low Spot score. **Futures** uses `max(LONG, SHORT)` of the whole component — a strong down-trend scores as high as its mirror up-trend. Volume, level and derivatives are **not directional** and have one formula on both markets.
 
-- Trend T: `n⁺` = number of `close − EMA20`, `EMA20 − EMA50`, `EMA50 − EMA200`, `close − EMA200` that are > 0, `n⁻` = number that are < 0; `T = 25·max(n⁺, n⁻)`.
-- Momentum Mo = RSI part (max 50) + MACD part (max 50).
-  - RSI part: 50 if RSI ∈ [30,70]; 25 if RSI ∈ [20,30) or (70,80]; else 0.
-  - MACD part, `h` = histogram, `Δh = h − h_prev`: 50 if `h ≠ 0` and `Δh` has the sign of `h`; else 30 if `h ≠ 0`; else 20 if `Δh ≠ 0`; else 0.
-- Volume V: `r = volume / VolSMA20`; `V = 100·clamp((r − 0.5)/1.0, 0, 1)`.
-- Level L: `q = max((R − close)/(close − S), (close − S)/(R − close))`; `L = 100·clamp(q/3, 0, 1)`; if S or R is null, `L = 50`. S and R are T-026's levels (7.3).
-- Derivatives D (futures only): funding part `50·clamp((0.0005 + |f|)/0.001, 0, 1)` where f is the current (predicted) funding rate; OI part (Δ over the last 1 h): `Δprice ≠ 0` and `ΔOI > 0` → 50; `Δprice ≠ 0` and `ΔOI ≤ 0` → 25; otherwise 0.
+One-sided readings for side `d`:
+- `T_d = 25·(number of true conditions)` over `d·(close − EMA20) > 0`, `d·(EMA20 − EMA50) > 0`, `d·(EMA50 − EMA200) > 0`, `d·(close − EMA200) > 0`.
+- `Mo_d = RSI_d + MACD_d`. LONG RSI part: 50 if RSI ∈ [50,70]; 25 if RSI ∈ [40,50) or (70,80]; else 0. SHORT RSI part: 50 if RSI ∈ [30,50]; 25 if RSI ∈ (50,60] or [20,30); else 0. MACD part: 30 if `d·h > 0`, plus 20 if `d·(h − h_prev) > 0` (`h` = MACD histogram).
+
+| Component | Directional | Spot | Futures | Formula 0–100 |
+|---|---|---|---|---|
+| Trend T | yes | `T_LONG` | `max(T_LONG, T_SHORT)` | readings above |
+| Momentum Mo | yes | `Mo_LONG` | `max(Mo_LONG, Mo_SHORT)` | readings above; the max is taken over the whole component, not per part |
+| Volume V | no | same | same | `r = volume / VolSMA20`; `V = 100·clamp((r − 0.5)/1.0, 0, 1)` |
+| Level L | no | same | same | `q = max((R − close)/(close − S), (close − S)/(R − close))`; `L = 100·clamp(q/3, 0, 1)`; `L = 50` if S or R is null (S, R from 7.3) |
+| Derivatives D | no | — | futures only | funding part `50·clamp((0.0005 + abs(f))/0.001, 0, 1)` (f = current predicted funding rate) + OI part over the last 1 h: `Δprice ≠ 0` and `ΔOI > 0` → 50; `Δprice ≠ 0` and `ΔOI ≤ 0` → 25; else 0 |
+
+Worked example — one strong down-trend, close 90, EMA20 95, EMA50 100, EMA200 110, RSI 35, histogram −0.8 after −0.5: all four trend differences are negative, so `T_LONG = 0` and `T_SHORT = 100`; RSI 35 gives LONG 0 and SHORT 50; the histogram is negative and falling, so MACD gives LONG 0 and SHORT 30 + 20 = 50. **Spot**: T = 0, Mo = 0. **Futures**: T = 100, Mo = 100, `dominant_side = SHORT`.
+
+**`dominant_side` (Futures only):** `LONG` if `T_LONG > T_SHORT`, `SHORT` if `T_SHORT > T_LONG`, `NEUTRAL` if equal. It is information that accompanies the score: computed at read time (T-029) from the stored EMAs and close of the same candle, returned beside the setup score, never an input of the score, never stored (T-028 is unchanged), and absent on Spot. It does not contradict A-07 (D-53).
 
 Style presets v1 (weights in %, each column adds up to 100, none 0 or above 40; values and one-line reasons in ADR-013):
 
@@ -711,7 +719,7 @@ Style presets v1 (weights in %, each column adds up to 100, none 0 or above 40; 
 | SWING v1 — Spot | 4h | 40 | 20 | 10 | 30 | — |
 | SWING v1 — Futures | 4h | 35 | 15 | 10 | 25 | 15 |
 
-DAY_TRADING v1 keeps the BR-13 weights. The preset weights, timeframes and versions live in configuration (rule 6) and users cannot edit them in the MVP (rule 7). The score of a preset is read from the components of that preset's timeframe; the response names the preset, its version and the timeframe used. A component that cannot be computed (fewer than 200 closed candles, SRS 3.3.2) makes the score null, never a partial sum. Any change of a component formula bumps the component version; any change of a preset's weights or timeframe bumps the preset version; stored components are never recomputed.
+DAY_TRADING v1 keeps the BR-13 weights. The preset weights, timeframes and versions live in configuration (rule 6) and users cannot edit them in the MVP (rule 7). The preset of a user is selected by the existing profile field `trading_style` — the only source, no second field (D-53): SCALPING → SCALPING, DAY → DAY_TRADING, SWING → SWING, POSITION → SWING until a POSITION preset exists, not set → DAY_TRADING. The score of a preset is read from the components of that preset's timeframe; the response names the preset, its version and the timeframe used. A component that cannot be computed (fewer than 200 closed candles, SRS 3.3.2) makes the score null, never a partial sum. Any change of a component formula bumps the component version; any change of a preset's weights or timeframe bumps the preset version; stored components are never recomputed.
 
 References: Wilder 1978 (RSI); Murphy 1999.
 
@@ -739,7 +747,7 @@ apply WarningRule list (BR-29) with thresholds from system_setting
 
 Each warning rule is one class implementing `WarningRule#evaluate(PlanCalculation) → Optional<Warning>` (package `trading.calculator.warning`).
 
-Risk profile (D-53, ADR-013): the user's profile (`CONSERVATIVE`, `BALANCED` default, `AGGRESSIVE`) supplies, from configuration, the risk per trade (0.5 / 1 / 2 % of capital), the maximum futures leverage (3 / 5 / 10x) and the maximum total open risk (2 / 4 / 6 % of capital); no profile exceeds the `AGGRESSIVE` values. These replace the fixed thresholds of BR-29 (A-34): OVERSIZED_POSITION compares the plan's risk % with the profile's risk per trade, HIGH_LEVERAGE compares the leverage with the profile's maximum, and the total open risk (the plan's risk amount plus the risk amounts of the Trader's other ACTIVE plans and open positions, over capital) is compared with the profile's maximum. The calculation (T-035) takes the parameters as input and exposes the three comparisons; the warnings that report them are T-037's. The BR-30 input ranges and the BR-26 bracket limit are unchanged. The profile never reaches the setup score (7.4).
+Risk profile (D-53, ADR-013): the user's profile (`CONSERVATIVE`, `BALANCED` default, `AGGRESSIVE`) supplies, from configuration, the risk per trade (0.5 / 1 / 2 % of capital), the maximum futures leverage (3 / 5 / 10x) and the maximum total open risk (2 / 4 / 6 % of capital); no profile exceeds the `AGGRESSIVE` values. These replace the fixed thresholds of BR-29 (A-34), including the seeded `WARN_OVERSIZED_POSITION_RISK_PERCENT` = 2 and `WARN_HIGH_LEVERAGE` = 20 (T-037 replaces them and `SeedDataTest` with it; the hard ceiling is the AGGRESSIVE 10x): OVERSIZED_POSITION is raised when the plan's risk % exceeds the profile's risk per trade, HIGH_LEVERAGE when the leverage exceeds the profile's maximum, and the total open risk (the plan's risk amount plus the risk amounts of the Trader's other ACTIVE plans and open positions, over capital) is compared with the profile's maximum. The calculation (T-035) takes the parameters as input and exposes the three comparisons; the warnings that report them are T-037's. The BR-30 input ranges and the BR-26 bracket limit are unchanged. The profile never reaches the setup score (7.4).
 
 References: Tharp 1999 and 2007 (position sizing, R-multiples); Vince 1990 (fixed fractional risk per trade).
 
@@ -1001,7 +1009,7 @@ Since T-025: `tools/golden/generate_indicator_fixture.py` writes `btcusdt-1h-tal
 | P/L (7.8) | Test vector 7.8; SHORT; liquidation; manual trade with user fees |
 | Indicators (7.2) | Golden data; incremental = batch (property); RSI with zero losses = 100; insufficient history → null |
 | S/R (7.3) | No swing → null; equal lows are not swings; unconfirmed last 2 candles ignored |
-| Setup score (7.4) | Fixed fixtures for strong up-trend, strong down-trend (scores as high as the mirror up-trend) and range; each preset's weights add up to 100; the score is unchanged when only the risk profile changes; spot has no derivatives component; preset name and version returned |
+| Setup score (7.4) | Fixed fixtures for strong up-trend, strong down-trend and range: on Spot the down-trend gives a low trend score, on Futures it scores as high as the mirror up-trend; `dominant_side` LONG / SHORT / NEUTRAL on Futures and absent on Spot; each preset's weights add up to 100; the score is unchanged when only the risk profile changes; spot has no derivatives component; preset name and version returned |
 | Alerts (7.9) | CROSS_ABOVE at exact threshold fires; prev = threshold does not fire; ONCE_PER_BAR; cooldown; expired not evaluated; watchlist removal deletes alerts (BR-16) |
 | Payment (7.11) | Valid VNPay IPN (sample signature from sandbox docs); duplicate IPN; wrong amount (04); bad signature (97); unknown order (01); late success after expiry; reconciliation path; renewal start = max(now, current end) |
 | Auth (7.15) | Lockout after 5 failures (BR-03); refresh rotation; reuse detection revokes family; reset revokes sessions (BR-04) |
@@ -1033,7 +1041,7 @@ Since T-025: `tools/golden/generate_indicator_fixture.py` writes `btcusdt-1h-tal
 | A-12 | Retention cannot keep funding settlements inside `futures_market_data` | Split them into `funding_rate_history`; `futures_market_data` holds periodic snapshots only and loses `snapshot_type` | NSF-17, BR-37, logical model |
 | A-06 | NSF-16 says AI Service stores the answer | AI Service stateless; backend persists | NSF-16, 4.1.3 |
 | A-07 | Setup score direction | **Closed 2026-09-26 (D-53): no direction**, no `setup_bias` column | BR-13, logical model |
-| A-34 | Setup score follows a style preset; risk profile drives BR-29 thresholds | **Approved 2026-09-26 (D-53, ADR-013):** two-tier score (stored direction-free components, preset weights applied at read time); BR-29 OVERSIZED_POSITION / HIGH_LEVERAGE thresholds and a total-open-risk check taken from the risk profile; style preset and risk profile on the user profile | BR-13, BR-29, SRS 3.2.5, logical model |
+| A-34 | Setup score follows a style preset; risk profile drives BR-29 thresholds | **Approved 2026-09-26 (D-53, ADR-013):** two-tier score (stored components, trend and momentum read LONG-only on Spot and `max(LONG, SHORT)` on Futures, preset weights applied at read time; `dominant_side` beside the Futures score, not stored); BR-29 OVERSIZED_POSITION / HIGH_LEVERAGE thresholds and a total-open-risk check taken from the user's risk profile, replacing the seeded 2 % / 20x; the existing `trading_style` selects the preset (one source); risk profile on the user profile | BR-13, BR-29, SRS 3.2.5, logical model |
 | A-08 | Backend runtime | SRS is technology-neutral; runtime recorded in ADR-002 only. No SRS change | — |
 | A-09 | Physical technical tables | `event_publication` (Spring Modulith) and `flyway_schema_history` documented as non-business tables | SRS 3.1.5 note |
 | A-30 | SRS 3.2.5 does not say what a wrong current password counts towards | **Resolved 2026-09-24:** a separate per-account counter with BR-03's threshold of five; the fifth ends all sessions of the account, the sign-in is not locked, success resets it (7.15) | SRS 3.2.5, BR-03 |
