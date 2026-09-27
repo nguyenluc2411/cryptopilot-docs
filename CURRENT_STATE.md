@@ -1,7 +1,7 @@
 # CURRENT_STATE.md — CryptoPilot Project State
 
-**Last updated:** 2026-09-27 · **Document version:** 2.33 · **Phase:** P0 done bar T-001 (branch protection DEFERRED, D-47), T-004, T-007 (READY) and the rest of T-009; P1 done bar T-015 (READY, RBAC only after D-54), T-105 and the web screens; P2 done and merged; P3 in progress (T-025–T-028 merged; T-029 NEXT)
-**Next task:** `T-029` — Analysis API and STOMP push (dependency T-028 merged, PR #19, `667e62a`). Also unblocked: T-035, T-103, T-016, T-053, and since 2026-09-27 (Q-04, Q-11, Q-12, Q-20 answered) T-007, T-015, T-066.
+**Last updated:** 2026-09-27 · **Document version:** 2.34 · **Phase:** P0 done bar T-001 (branch protection DEFERRED, D-47), T-004, T-007 (READY) and the rest of T-009; P1 done bar T-015 (READY, RBAC only after D-54), T-105 and the web screens; P2 done and merged; P3 done bar T-029 (PARTIAL: REST done, push waits on Q-21)
+**Next task:** `T-035` — Position sizing and risk calculator (dependency T-018 DONE; first task of P5 on the critical path). Waiting to merge: PR #20 (RSI, D-55) and `feature/T-029-analysis-api` (not pushed). Also unblocked: T-103, T-016, T-053, T-007, T-015, T-066.
 T-022 is merged (PR #15, `0510ae4`, CI 1178/1178). T-025 is merged (PR #16, `f36c291`, CI green 2026-09-25): the incremental
 indicator engine of TD 7.2 in `market.calculator` and `IndicatorService`, checked against TA-Lib golden data and a batch
 reference; persistence and the `CandleClosed` hook stay with T-028. Still open: T-001 `PARTIAL` (Q-17), T-015 `PARTIAL`
@@ -55,7 +55,7 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 | P0 Foundation | S0 | Repo, CI, database, docker, architecture tests | 9 | 5 | WIP — T-001, T-007, T-009 PARTIAL |
 | P1 Identity | S1 | Register, verify, login, tokens, profile, devices | 10 | 6 | WIP — T-015 READY (RBAC only, D-54), T-016 TODO (unblocked), T-103 TODO (added by D-53), T-105 TODO (added by D-57) |
 | P2 Market Data | S2 | Pairs, backfill, streams, futures metrics | 8 | 8 | DONE — T-017 to T-024 merged (T-022 PR #15, `0510ae4`) |
-| P3 Analysis | S2–S3 | Indicators, S/R, setup score | 5 | 4 | WIP — T-025 to T-028 merged (PR #16 to #19); NEXT T-029 |
+| P3 Analysis | S2–S3 | Indicators, S/R, setup score | 5 | 4 | WIP — T-025 to T-028 merged (PR #16 to #19); T-029 PARTIAL (REST done, push waits on Q-21) |
 | P4 Market UI | S3 | Public home, market list, spot/futures analysis | 5 | 0 | TODO |
 | P5 Trading Plan | S3–S4 | Risk calculation, warnings, plan lifecycle | 7 | 0 | TODO |
 | P6 Matching | S4–S5 | Simulated fills, exits, liquidation, funding | 6 | 0 | TODO |
@@ -239,7 +239,7 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 | T-015 | Authorization: role policies (RBAC); the entitlement handler moved to T-104 (D-54) | BE1 | T-012 | SRS 3.1.3 | Every row of the authorization matrix has an API test | **READY** 2026-09-27 — Q-12 answered (D-54): T-015 is RBAC only and does not depend on T-066. Left: mark the endpoints that need an entitlement (`/api/v1/ai/**`, the video upload under `/api/v1/media/**`) with a `TODO(T-104)` hook, then DONE. Earlier: PARTIAL 2026-09-21 — every row of SRS 3.1.3 is enforced by the filter chain and proved by an API test driven three ways (`11b4a92` … `e9f31a9`) |
 | T-016 | Web: register, verify, login, reset, profile screens (incl. the T-103 onboarding questionnaire, the risk profile field, `trading_style` as the one style choice, AGGRESSIVE warning) | FE | T-011…T-014 | SCR-02…07 | Screens work against the API; validation messages match section 5.3 | TODO |
 | T-100 | Backend hygiene: adopt Lombok inside the scope TD 1.3 and 3.4 already allow, and move the password pattern out of `service` so the `dto` layer rule holds in bytecode as well as in source | BE1 | T-015 | TD 1.3, 3.3, 3.4; SRS 4.2.5 | `@Getter` and `@RequiredArgsConstructor` used where TD 3.4 permits and nowhere else; `lombok.config` keeps generated members out of the coverage ratio; no `dto` class imports from `service`; the layer rule fails when one does; suite green with no test edited | **DONE** 2026-09-23 — 30 getters and 9 constructors generated; `PasswordPolicy` moved to the `auth` root and the layer rule now fails when a `dto` imports a `service`, which it could not before |
-| T-103 | Profile: risk profile, preset from `trading_style`, onboarding questionnaire | BE2 | T-014 | SRS 3.2.5, UC-06, D-53, A-34 | The existing `trading_style` is the only style source and selects the preset: SCALPING → SCALPING, DAY → DAY_TRADING, SWING → SWING, POSITION → SWING until a POSITION preset exists, not set → DAY_TRADING — no second style field (renaming the enum or a mapping class is this task's choice); the profile holds a risk profile (CONSERVATIVE, BALANCED, AGGRESSIVE; default BALANCED); a 5–7 question questionnaire in two groups (capacity to bear losses, attitude to risk) maps to a risk profile; the user can change it and a switch to AGGRESSIVE returns a warning to confirm; risk parameters and preset weights are read from configuration (no per-user values, D-53 rule 7); `default_risk_percent` stays as SRS 3.2.5 defines it. T-014 is not reopened | TODO |
+| T-103 | Profile: risk profile, preset from `trading_style`, onboarding questionnaire | BE2 | T-014 | SRS 3.2.5, UC-06, D-53, A-34 | The existing `trading_style` is the only style source and selects the preset: SCALPING → SCALPING, DAY → DAY_TRADING, SWING → SWING, POSITION → SWING until a POSITION preset exists, not set → DAY_TRADING — no second style field (renaming the enum or a mapping class is this task's choice); the profile holds a risk profile (CONSERVATIVE, BALANCED, AGGRESSIVE; default BALANCED); a 5–7 question questionnaire in two groups (capacity to bear losses, attitude to risk) maps to a risk profile; the user can change it and a switch to AGGRESSIVE returns a warning to confirm; risk parameters and preset weights are read from configuration (no per-user values, D-53 rule 7); `default_risk_percent` stays as SRS 3.2.5 defines it. T-014 is not reopened; the preset reaches the setup score by implementing `market.SetupStyleSource` (T-029), whose absence reads DAY_TRADING | TODO |
 | T-105 | Align the verification resend limit with D-57 | BE1 | T-011, A-36 | UC-02, SRS 3.2.2, D-57 | Counted per submitted address, whether or not an account holds it (A-36 (2)); rolling 24 h window of 5 and a 60 s cooldown; a new token invalidates the previous unused ones; an excess answers 429 with `retryAfter` in seconds and the message A-36 (1) settles; tests at, just before and just after both limits | TODO |
 
 ### P2 — Market Data (Sprint 2)
@@ -263,7 +263,7 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 | T-026 | Swing support/resistance detector | BE1 | T-020 | BR-14, TD 7.3 | Unconfirmed candles ignored; equal lows are not swings | **DONE** 2026-09-26, merged (PR #17, `982a264`) — `market.calculator.SwingSupportResistance`, prices only, no bias (A-07) |
 | T-027 | Setup score v1: component scores (0–100) by market and style presets applied to them, with preset name and version; `dominant_side` for Futures | BE1 | T-025, T-026 | BR-13, BR-21, TD 7.4, D-53 | Test proves the score is unchanged when only the risk profile changes; each preset's weights add up to exactly 100; every score carries preset name + version; a strong down-trend gives a low Spot trend score and a high Futures one; `dominant_side` correct for a Futures up-trend (LONG), down-trend (SHORT) and balanced series (NEUTRAL); fixtures for up-trend, down-trend and range; spot has no derivatives component. No risk profile in the score, no direction field | **DONE** 2026-09-26, merged (PR #18, `227c372`) — `SetupComponents`, `SetupScoreCalculator`, presets v1 in `cryptopilot.market.setup-score` |
 | T-028 | NSF-05 indicator pipeline and persistence | BE1 | T-025…T-027 | NSF-05, D-53 | Computed within 10s of candle close; idempotent upsert by PK; component scores stored per (pair, market, timeframe) with their formula version; no setup score stored per user or per preset; no `setup_bias` | **DONE** 2026-09-26, merged (PR #19, `667e62a`) — `IndicatorPipelineJob` + `IndicatorPipelineService` into `technical_indicator`; V9 drops `setup_score` |
-| T-029 | Analysis API and STOMP push | BE1 | T-028 | UC-10, UC-11, D-53 | Insufficient history returns nulls, never a wrong value; the setup score is computed at read time from the stored components under a preset and returned with preset name, version and the timeframe used (preset from the user's `trading_style`, DAY_TRADING when not set or without a user); Futures responses carry `dominant_side` beside the score, computed at read time and not stored, from the EMAs in TECHNICAL_INDICATOR and the close of the same candle in `ohlcv`; Spot responses have no such field | **NEXT** |
+| T-029 | Analysis API and STOMP push | BE1 | T-028 | UC-10, UC-11, D-53 | Insufficient history returns nulls, never a wrong value; the setup score is computed at read time from the stored components under a preset and returned with preset name, version and the timeframe used (preset from the user's `trading_style`, DAY_TRADING when not set or without a user); Futures responses carry `dominant_side` beside the score, computed at read time and not stored, from the EMAs in TECHNICAL_INDICATOR and the close of the same candle in `ohlcv`; Spot responses have no such field | **PARTIAL** 2026-09-27 — REST done on `feature/T-029-analysis-api` (not pushed): `GET /api/v1/analysis/{market}/{symbol}?tf=`, nulls for insufficient history, setup score read at request time under the preset with name, version and timeframe, `dominant_side` on Futures only from stored EMAs + `ohlcv` close; preset through `market.SetupStyleSource` (DAY_TRADING until T-103 implements it). **STOMP push not built: Q-21** |
 
 ### P4 — Market UI (Sprint 3)
 
@@ -279,7 +279,7 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 
 | ID | Task | Owner | Dep | Refs | Done when | Status |
 |---|---|---|---|---|---|---|
-| T-035 | Position sizing and risk calculator | BE1 | T-018 | BR-23…25, BR-30, TD 7.5, D-53 | Worked example of TD 7.6 reproduced; quantity floored to step size; risk per trade, maximum leverage and maximum total open risk come in as the user's risk profile parameters, not constants, and the three comparisons of TD 7.5 are exposed | TODO |
+| T-035 | Position sizing and risk calculator | BE1 | T-018 | BR-23…25, BR-30, TD 7.5, D-53 | Worked example of TD 7.6 reproduced; quantity floored to step size; risk per trade, maximum leverage and maximum total open risk come in as the user's risk profile parameters, not constants, and the three comparisons of TD 7.5 are exposed | **NEXT** |
 | T-036 | Liquidation price calculator with leverage brackets | BE1 | T-035, A-01 | BR-26, BR-27 | LONG and SHORT examples pass; bracket with non-zero maintenance amount covered | TODO |
 | T-037 | Warning evaluator (8 warning types, 3 severities) | BE1 | T-036 | BR-28, BR-29, A-34 | Every threshold tested at, just above and just below the boundary; OVERSIZED_POSITION (risk per trade above the profile's), HIGH_LEVERAGE (leverage above the profile's maximum, ceiling 10x) and the total open risk threshold read from the user's risk profile (D-53); the seeded fixed 2 % / 20x replaced and `SeedDataTest` updated in this task | TODO |
 | T-038 | Trading plan aggregate and state machine | BE1 | T-037 | BR-21, BR-22, BR-32 | Edit allowed only in DRAFT; activation blocked by a BLOCKING warning | TODO |
@@ -402,17 +402,13 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 
 ## 7. Detail block — current NEXT task
 
-### T-029 · Analysis API and STOMP push
+### T-035 · Position sizing and risk calculator
 
-**Unblocked 2026-09-26:** T-028 is DONE and merged (PR #19, `667e62a`). **Read first:** UC-10,
-UC-11, SRS 3.3.1–3.3.2, TD 7.4 (read path, `dominant_side` inputs), TD 8 and 9, D-49, D-50, D-51, D-53, then replace
-this block.
+**Unblocked:** dependency T-018 DONE. **Read first:** BR-23…BR-25, BR-30, TD 7.5 and 7.6 (worked example), TD 5.4,
+D-53 (risk profile parameters), A-32 (stop rounding direction), then replace this block.
 
-**Ready:** `TechnicalIndicatorRepository.latest(pair, market, timeframe)` (the row of the latest closed candle, with
-EMAs, S/R and the five `ComponentScores`), `SetupScoreCalculator.score(preset, components, dominantSide)`,
-`SetupComponents.dominantSide(market, close, indicators)` (close from `ohlcv`), `SetupScoreProperties.preset(style)`,
-`SetupStyle`. The preset comes from the user's `trading_style` once T-103 lands; DAY_TRADING until then and without a
-user. Read the components of the preset's timeframe. Insufficient history answers nulls, never a wrong value.
+**Ready:** `PairFilters` (tick and step rounding, T-018), `common` rounding helpers (T-008). Risk per trade, maximum
+leverage and maximum total open risk are inputs (the user's risk profile, T-103), never constants.
 
 ---
 
@@ -435,6 +431,7 @@ user. Read the components of the preset's timeframe. Insufficient history answer
 | Q-18 | T-024's criterion "OpenAPI documented": TECHNICAL_DESIGN 1.3 lists springdoc-openapi and section 8 promises `/v3/api-docs` and Swagger UI (off in `prod`), but the project has no springdoc and the team lead ruled out adding a library in T-024. Add springdoc (the version line for Spring Boot 4) in a small task of its own, or drop the criterion? Until then the contract is proved by the MockMvc tests only | 2026-09-25 | T-024 (criterion), every later API task | Team lead | **CLOSED 2026-09-25** by TD 1.3/8, on the team lead's instruction: springdoc-openapi 3.1.1 added in T-024 (PR #13, `d99e690`) |
 | Q-19 | The futures metrics (open interest, long/short ratio, settled funding) are served under the public `GET /api/v1/market/**`, following T-015's rule that raw market data is public and only the computed analysis (`/analysis/**`) is Trader-only. SRS 3.3.3 shows them only on SCR-11, which 3.1.3 places in the Trader area, while "Query Public Data (market overview)" is open to a Guest. Keep them public, or move `/market/futures/*/metrics` behind the Trader role? | 2026-09-25 | T-024 (access rule), T-034 | Team lead | **CLOSED 2026-09-25 by D-50** (team decision: keep all market data public, futures metrics included) |
 | Q-20 | RSI of a series that has not moved: with `AG = AL = 0` the ratio `AG/AL` is 0/0. TD 7.2 states "if `AL = 0` then RSI = 100", which read literally gives 100; TA-Lib gives 0, and many charting platforms 50 (neutral). It happens only on a completely flat stretch of 14+ candles (an illiquid pair or a halted market) | 2026-09-25 | T-025 (value) — not T-027, which only reads the RSI T-025 produces (removed 2026-09-26) | Team | **ANSWERED 2026-09-27 (D-55)** — 50 when `AG = AL = 0`; 100 when only the loss is zero; 0 when only the gain is zero. Code change: `WilderRsi`, PR #20 (`fix/Q-20-rsi-flat-series`, `d8d0e64`), not merged |
+| Q-21 | T-029 is "Analysis API **and STOMP push**", and NSF-05 says the result "is pushed to clients viewing the pair", but TD 9 defines no destination for it: its public topics are ticker, kline and overview, and the analysis is Trader-only (SRS 3.1.3; `/api/v1/analysis/**` is TRADER). Three things are undecided. (1) **Destination**: a topic per series, e.g. `/topic/analysis.{market}.{symbol}.{tf}`, admitted only to an authenticated TRADER session, or a per-user `/user/queue/analysis` fed from what each session views. (2) **Payload**: the setup score depends on the caller's preset and is read on the preset's timeframe, so a series topic can carry the preset-independent part (indicators, S/R, components of `tf`) with the client re-reading the score by REST, or also the score of every preset whose timeframe is `tf`. (3) **CONNECT authentication**: TD 9 describes the bearer on CONNECT, but `WebSocketConfig` admits only the public topics and D-51 left the bearer check to the task that adds a non-public destination — this one would be it | 2026-09-27 | T-029 (push half), T-032, T-033, T-034 (live update of the analysis) | Team lead | **OPEN** — recommended: (1) the series topic, TRADER-only, with the bearer check of TD 9 on CONNECT; (2) the preset-independent part only, plus `openTime`, and the client re-reads `GET /analysis` for the score — one message per candle close, no per-user fan-out, and the score logic stays in one place. Not built until answered: a public topic would leak Trader-only data, and a guessed per-user design is hard to undo |
 | Q-06 | Flutter chart library (ADR-012) | 2026-09-19 | T-090 | FE | OPEN |
 | Q-07 | Hosting for staging (VPS provider and size) and the demo domain. A managed PostgreSQL service usually cannot install TimescaleDB, so self-hosted Docker on a VPS is assumed. **Realtime constraint (T-022, 2026-09-25):** the STOMP market topics run on Spring's simple in-memory broker inside the backend process (`/topic`, `/queue`; publish order kept per session; inbound channel on one thread), so the backend runs as **one instance**; scaling out needs a STOMP broker relay (e.g. RabbitMQ) in place of the simple broker (ADR-005). The Redis cache is already external and shared | 2026-09-19 | T-096 | DO | OPEN |
 | Q-08 | Confirm the database stack: PostgreSQL 16 + TimescaleDB 2.x in Docker, EF Core migrations (earlier drafts mentioned Flyway and PostgreSQL 14/15) | 2026-09-19 | T-004, T-005, T-006, T-007, T-009 | BE1 + BE2 | ANSWERED 2026-09-20: PostgreSQL 16 + TimescaleDB 2.x on `timescale/timescaledb:2.30.1-pg16` pinned for dev, Testcontainers and staging; Flyway SQL migrations with the TimescaleDB DDL in its own migration; staging self-hosted Docker on a VPS, no managed PostgreSQL (D-18) |
@@ -448,6 +445,29 @@ Rule: an AI agent never answers an open question by guessing. It implements what
 ## 9. Session log
 
 Newest first. One block per working session, format in `CLAUDE.md` section 8.
+
+### 2026-09-27 – T-029 Analysis API and STOMP push
+- Result: PARTIAL
+- Summary: `GET /api/v1/analysis/{market}/{symbol}?tf=` (Trader only): the latest stored indicators, S/R and
+  components of `tf` (default 1h, SRS 3.3.2), and the setup score read at request time under the caller's preset on
+  the preset's timeframe with preset name, version and timeframe; Futures add `dominant_side` from the stored EMAs and
+  the `ohlcv` close of the same candle, Spot has no `derivatives` / `dominantSide` key; insufficient history answers
+  nulls. Preset via the new port `market.SetupStyleSource` (DAY_TRADING until T-103 implements it). The STOMP push is
+  not built: TD 9 defines no destination for Trader-only, preset-dependent data (Q-21).
+- Files: `market/SetupStyleSource`, `market/controller/AnalysisController`, `market/service/AnalysisService`,
+  `service/impl/AnalysisServiceImpl`, `service/impl/MarketRequests` (shared BR-08 check), 8 records in
+  `dto/response`; tests `AnalysisControllerTest`, `AnalysisServiceImplTest`, `OpenApiDocsTest` (new path); docs TD 7.4,
+  8, 9; traceability UC-10, UC-11
+- Tests: 22 added (18 + 4), 1 updated (OpenAPI path list 19 → 20 operations); suite 1348/1348 (baseline 1326/1326);
+  coverage `AnalysisServiceImpl` 100 % line (82/82) and branch (24/24) / Backend 99.60 % line (3742/3757), 95.65 % branch
+  (1122/1173)
+- BR/UC/NSF covered: UC-10, UC-11, BR-07, BR-08, BR-13 (read path); NSF-05 push not covered (Q-21)
+- Decisions: none (the preset seam follows D-53 and the T-029 detail block)
+- Open questions: Q-21 (analysis push: destination, payload, CONNECT authentication)
+- Next: T-035
+- Commits: `9318d55` refactor(market): share the BR-08 timeframe check between requests; `dcad6aa` feat(market): serve
+  the analysis with a setup score read on request; `8c149ee` test(market): cover the analysis API, presets, nulls and
+  refusals — branch `feature/T-029-analysis-api`, not pushed
 
 ### 2026-09-27 — Open questions Q-04, Q-11, Q-12, Q-17, Q-20 answered; RSI of a flat series (no task id; T-025)
 - Result: DONE
