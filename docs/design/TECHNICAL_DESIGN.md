@@ -661,7 +661,7 @@ State per (pair, market, timeframe) kept in memory and rebuilt at start-up from 
 |---|---|---|
 | SMA(n) | rolling sum over ring buffer: `S += c_t − c_{t−n}`; `SMA = S/n` | first n closes |
 | EMA(n) | `EMA_t = α·c_t + (1−α)·EMA_{t−1}`, `α = 2/(n+1)` | SMA of first n closes |
-| RSI(14), Wilder | `AG_t = (AG_{t−1}·13 + gain_t)/14`, `AL_t` same with loss; `RSI = 100 − 100/(1 + AG/AL)`; if `AL = 0` then RSI = 100 | simple mean of first 14 gains/losses |
+| RSI(14), Wilder | `AG_t = (AG_{t−1}·13 + gain_t)/14`, `AL_t` same with loss; `RSI = 100 − 100/(1 + AG/AL)`; if `AL = 0` and `AG > 0` then RSI = 100; if `AG = AL = 0` then RSI = 50 (D-55) | simple mean of first 14 gains/losses |
 | MACD | `MACD = EMA12 − EMA26`; `signal = EMA9(MACD)`; `hist = MACD − signal` | EMA seeds as above; signal seeded after 26+9−1 candles |
 | Bollinger(20,2) | middle = SMA20; σ = population std of last 20 closes recomputed over the window (20 ops, exact); bands = middle ± 2σ | – |
 | Volume SMA20 | rolling sum of volume | – |
@@ -674,7 +674,7 @@ Complexity: O(1) per candle per indicator (Bollinger O(20)); memory O(200) per s
 
 References: Wilder 1978 (RSI, smoothing); Appel 2005 (MACD); Bollinger 2001; Murphy 1999 (moving averages).
 
-Implementation (T-025, D-52): `market.calculator` holds one class per indicator and `IndicatorEngine`, which takes a candle only when it opens exactly one interval after the last one — the same candle again is `DUPLICATE`, an earlier one `OUT_OF_ORDER`, a later one `GAP`, and none of the three touches the state. `IndicatorService` (`service/impl/IndicatorServiceImpl`) keeps one engine per series; the first candle after start-up, and an out-of-order or gap candle, rebuild the series from the latest `cryptopilot.market.indicators.history-candles` (1000) stored candles up to the later of the offered and the last taken candle; a hole in the stored candles restarts the warm-up after it. Warm-up values are `null` (`IndicatorSnapshot`), never 0. MACD follows this table (EMA12 seeded at candle 12, not aligned with EMA26 as TA-Lib's `MACD` function does); an RSI with `AG = AL = 0` is 100 as the table states (Q-20). σ is computed shifted by the window's first value so equal closes give exactly 0. Persistence (rounded to 10 dp) and the `CandleClosed` hook are T-028.
+Implementation (T-025, D-52): `market.calculator` holds one class per indicator and `IndicatorEngine`, which takes a candle only when it opens exactly one interval after the last one — the same candle again is `DUPLICATE`, an earlier one `OUT_OF_ORDER`, a later one `GAP`, and none of the three touches the state. `IndicatorService` (`service/impl/IndicatorServiceImpl`) keeps one engine per series; the first candle after start-up, and an out-of-order or gap candle, rebuild the series from the latest `cryptopilot.market.indicators.history-candles` (1000) stored candles up to the later of the offered and the last taken candle; a hole in the stored candles restarts the warm-up after it. Warm-up values are `null` (`IndicatorSnapshot`), never 0. MACD follows this table (EMA12 seeded at candle 12, not aligned with EMA26 as TA-Lib's `MACD` function does); an RSI with `AG = AL = 0` is 50 as the table states (D-55, which replaced the earlier 100 of Q-20). σ is computed shifted by the window's first value so equal closes give exactly 0. Persistence (rounded to 10 dp) and the `CandleClosed` hook are T-028.
 
 ### 7.3 Swing support/resistance (BR-14)
 
@@ -864,6 +864,8 @@ Late success for an order already EXPIRED: money was captured, so the order is s
 Reconciliation job every 5 min: PENDING orders older than 5 min → gateway query → same handler; PENDING past expiry and confirmed unpaid → EXPIRED.
 
 ### 7.12 Entitlement check
+
+D-54: the gate is `EntitlementService.hasFeature(userId, featureCode)` / `consumeQuota(userId, featureCode)` in its own task (T-104), not part of T-066 and not a role; T-015 is RBAC only. Packages and prices per D-56. The rule below is what `hasFeature` answers.
 
 `BillingApi.hasActiveEntitlement(userId, feature, now)` = exists user_subscription with `start_at ≤ now < end_at` and package flag for the feature. Cached per request only (no long cache), so access ends exactly at `end_at`.
 
