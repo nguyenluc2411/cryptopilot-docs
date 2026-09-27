@@ -867,7 +867,7 @@ Reconciliation job every 5 min: PENDING orders older than 5 min → gateway quer
 
 ### 7.12 Entitlement check
 
-D-54: the gate is `EntitlementService.hasFeature(userId, featureCode)` / `consumeQuota(userId, featureCode)` in its own task (T-104), not part of T-066 and not a role; T-015 is RBAC only. Packages and prices per D-56. The rule below is what `hasFeature` answers.
+D-54: the gate is `EntitlementService.hasFeature(userId, featureCode)` / `consumeQuota(userId, featureCode)` in its own task (T-104), not part of T-066 and not a role; T-015 is RBAC only. **D-58 (SRS v1.1, BR-62, UC-53):** the effective plan is the tier of the ACTIVE subscription, else FREE; the feature codes and their FREE / PRO / PREMIUM values are those of D-58 (`FUTURES_ANALYSIS`, `SCORE_COMPONENTS`, `ACTIVE_PLAN_MAX`, `WATCHLIST_MAX`, `ACTIVE_ALERT_MAX`, `INDICATOR_ALERT`, `EXTERNAL_ALERT_CHANNELS`, `ADVANCED_PERFORMANCE`, `NEWS_AI_INSIGHT`, `AI_CHAT_DAILY`, `AI_PERFORMANCE_CONTEXT`, `VIDEO_POST`), held per tier in configuration; a feature refused answers MSG29, a limit reached MSG27. A plan change to lower limits applies BR-64 (T-070). The rule below is what `hasFeature` answers for a boolean code; `package flag` reads the tier's value.
 
 `BillingApi.hasActiveEntitlement(userId, feature, now)` = exists user_subscription with `start_at ≤ now < end_at` and package flag for the feature. Cached per request only (no long cache), so access ends exactly at `end_at`.
 
