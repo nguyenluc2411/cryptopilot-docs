@@ -1,7 +1,7 @@
 # CURRENT_STATE.md — CryptoPilot Project State
 
-**Last updated:** 2026-09-27 · **Document version:** 2.36 (Q-22 answered, D-59, D-60) · **Phase:** P0 done bar T-001 (branch protection DEFERRED, D-47), T-004, T-007 (waits on T-106) and the rest of T-009; P1 done bar T-015 (READY), T-105 and the web screens; P2 done and merged; P3 done bar T-029 (PARTIAL, Q-21); **P3b plan entitlements (S3) added by D-59**
-**Next task:** `T-106` — Plan tier and entitlement schema (the T-066a of D-59; dependency T-005 DONE). Order of D-59: T-106 → T-007 (package seed) → T-104 → T-107 → the BR-62 consumers. Still unblocked: T-035 (critical path), T-103, T-016, T-015. Waiting to merge: PR #20 (RSI) and `feature/T-029-analysis-api` (not pushed).
+**Last updated:** 2026-09-27 · **Document version:** 2.37 · **Phase:** P0 done bar T-001 (branch protection DEFERRED), T-004, T-007 (READY) and the rest of T-009; P1 done bar T-015 (READY), T-105 and the web screens; P2 done; P3 done bar T-029 (PARTIAL, Q-21); P3b in progress (T-106 DONE on PR #21)
+**Next task:** `T-104` — EntitlementService (dependency T-106 DONE on PR #21; its dev demo accounts wait for T-007, BE2, now READY). Then T-107. Waiting to merge: PR #20 (RSI), PR #21 (T-106), `feature/T-029-analysis-api` (not pushed). T-035 stays unblocked on the critical path.
 T-022 is merged (PR #15, `0510ae4`, CI 1178/1178). T-025 is merged (PR #16, `f36c291`, CI green 2026-09-25): the incremental
 indicator engine of TD 7.2 in `market.calculator` and `IndicatorService`, checked against TA-Lib golden data and a batch
 reference; persistence and the `CandleClosed` hook stay with T-028. Still open: T-001 `PARTIAL` (Q-17), T-015 `PARTIAL`
@@ -56,7 +56,7 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 | P1 Identity | S1 | Register, verify, login, tokens, profile, devices | 10 | 6 | WIP — T-015 READY (RBAC only, D-54), T-016 TODO (unblocked), T-103 TODO (added by D-53), T-105 TODO (added by D-57) |
 | P2 Market Data | S2 | Pairs, backfill, streams, futures metrics | 8 | 8 | DONE — T-017 to T-024 merged (T-022 PR #15, `0510ae4`) |
 | P3 Analysis | S2–S3 | Indicators, S/R, setup score | 5 | 4 | WIP — T-025 to T-028 merged (PR #16 to #19); T-029 PARTIAL (REST done, push waits on Q-21) |
-| P3b Plan entitlements | S3 | Tier schema, EntitlementService, gates on analysis and Futures data (D-59) | 3 | 0 | TODO — NEXT T-106 |
+| P3b Plan entitlements | S3 | Tier schema, EntitlementService, gates on analysis and Futures data (D-59) | 3 | 1 | WIP — T-106 DONE (PR #21); NEXT T-104; T-007 (P0, BE2) READY |
 | P4 Market UI | S3 | Public home, market list, spot/futures analysis | 5 | 0 | TODO |
 | P5 Trading Plan | S3–S4 | Risk calculation, warnings, plan lifecycle | 7 | 0 | TODO |
 | P6 Matching | S4–S5 | Simulated fills, exits, liquidation, funding | 6 | 0 | TODO |
@@ -69,7 +69,7 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 | P13 Administration | S10 | Users, moderation, config, reports, audit | 7 | 0 | TODO |
 | P14 Mobile | S11 | Flutter app, push, offline | 5 | 0 | TODO |
 | P15 Hardening | S12 | E2E, performance, security, deploy, docs | 7 | 0 | TODO |
-| **Total** | | | **106** | **20** | **19%** |
+| **Total** | | | **106** | **21** | **20%** |
 
 **Coverage:** `calculator` packages — `market.calculator` 100% line (16/16), 100% branch (12/12) (gate 90%) · Backend on PR #15 (measured 2026-09-25): 99.52% line (3089/3104), 94.25% branches (836/887); on `develop` (`06258cc`): 99.50% line, 95.03% branches — gate line 95 %, branch 90 % · AI Service —% (gate 80%).
 **Test suite:** `develop` (`06258cc`) 1150/1150; PR #15 1177/1177 (+27), locally and in CI. The 2-test gap between Maven's total and the XML report headers is Surefire's header of `RoundingTest`. No `Thread.sleep` in the market tests (T-102); the tests of T-022 wait on events only. Two `live` tests are excluded everywhere. Needs Docker (PostgreSQL + TimescaleDB and Redis 7.4.11 containers) and `JWT_SECRET` (supplied by Surefire, D-20); the test database runs with `max_connections=300` (D-40).
@@ -217,7 +217,7 @@ Deviations found while designing. Each needs team approval, then the SRS and the
 | T-004 | Extend `deploy/docker-compose.dev.yml` (DB and Redis already present) with backend, AI service and web; add `deploy/docker-compose.yml` for staging | DO | T-001, Q-08 | TD 12 | `docker compose up` starts all services; health checks green; `deploy/.env.example` lists every key used | TODO |
 | T-005 | Physical schema and initial Flyway migration (38 business tables + event publication registry). Flyway 10+ needs the `flyway-database-postgresql` module | BE2 | T-002, A-09, Q-08 | SRS 3.1.5, TD 6 | Migration applies on a clean database; all PK/FK/CHECK/UNIQUE of the logical model present | DONE |
 | T-006 | TimescaleDB hypertables, indexes and retention policies | BE2 | T-005 | TD 6 | `ohlcv` and snapshot tables are hypertables; documented indexes created; retention jobs configured | DONE |
-| T-007 | Seed data (roles, coins, pairs, strategies, packages, system settings, admin account) | BE2 | T-005, T-006, T-106 | SRS 5.1 | Seed is idempotent; a fresh database is usable for manual testing | **BLOCKED** 2026-09-27 on T-106 — package seed of D-58 in Sprint 3 (D-59): five packages FREE, PRO_MONTHLY, PRO_YEARLY, PREMIUM_MONTHLY, PREMIUM_YEARLY with the Table 3.1 entitlements, in a seed migration of its own. Earlier: READY / PARTIAL 2026-09-21 |
+| T-007 | Seed data (roles, coins, pairs, strategies, packages, system settings, admin account) | BE2 | T-005, T-006, T-106 | SRS 5.1 | Seed is idempotent; a fresh database is usable for manual testing | **READY** 2026-09-27 (T-106 DONE on PR #21) — package seed of D-58: FREE, PRO_MONTHLY, PRO_YEARLY, PREMIUM_MONTHLY, PREMIUM_YEARLY with the Table 3.1 entitlements, in a seed migration of its own (after V10). Earlier: BLOCKED / PARTIAL |
 | T-008 | Common building blocks: `BaseEntity`, `ErrorCode`, `BusinessException`, `GlobalExceptionHandler` (ProblemDetail), `Clock` bean, UUID v7, rounding helpers | BE1 | T-002, T-003 | TD 5.1, 5.2, 5.4 | Error codes map to SRS MSG codes; unit tests cover the mapping; the JaCoCo bundle gate holds with real classes present | DONE |
 | T-009 | CI pipeline: build, unit + architecture tests, integration tests, coverage gate, image build | DO | T-002, T-004 | TD 12 | Pipeline green on `develop`; gate blocks a coverage drop | **PARTIAL** 2026-09-27 — build-and-test done (`.github/workflows/ci.yml`, PR #7, green on `develop`). Requiring `build-and-test` as a check: **DEFERRED** with branch protection (Q-17, D-47), enabled later. **READY:** a gate that blocks a coverage **drop** (today only the 70 % minimum). Still **BLOCKED:** container image build and push, on T-004 and the registry secrets |
 
@@ -273,8 +273,8 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 
 | ID | Task | Owner | Dep | Refs | Done when | Status |
 |---|---|---|---|---|---|---|
-| T-106 | Plan tier and entitlement schema (the T-066a of D-59) | BE1 | T-005, D-58 | BR-62, UC-47, SRS 3.11.5, D-58, D-59 | New migration (V1 and V3 untouched): `subscription_package` gains `plan_tier` (FREE, PRO, PREMIUM), `tier_rank`, `is_purchasable` and the D-58 entitlements (`ai_daily_quota` = `AI_CHAT_DAILY`, `can_post_video` = `VIDEO_POST`, plus `futures_analysis`, `score_components`, `active_plan_max` (nullable = unlimited), `watchlist_max`, `active_alert_max`, `indicator_alert`, `external_alert_channels`, `advanced_performance`, `news_ai_insight`, `ai_performance_context`); `duration_days` nullable; CHECK `plan_tier = 'FREE'` ⇔ (`price_amount` = 0 and `duration_days` null and not `is_purchasable`), paid durations 1–366; partial unique index: one FREE package; `MAX_WATCHLIST_ITEMS` and `MAX_ACTIVE_ALERTS` deleted from `system_setting`. Entity and repository mapped; schema tests for every constraint; `SeedDataTest` updated for the two removed settings | **NEXT** — Sprint 3 (D-59) |
-| T-104 | Entitlement service: plan feature gates and daily quota | BE1 | T-106, D-58 | UC-53, UC-10, UC-11, UC-12, UC-13, UC-16, UC-18, UC-25, UC-28, UC-34, UC-35, BR-62, BR-43, BR-50, BR-52, SRS 4.2.4, TD 7.12, D-54, D-58 | `EntitlementService` in `service/` + impl (D-48): `hasFeature(userId, featureCode)`, `getLimit(userId, featureCode)` (null = unlimited) and `consumeQuota(userId, featureCode)` for the twelve codes of D-58, read from the tier's package row, never hard-coded; effective plan = tier of the ACTIVE `user_subscription`, else FREE, checked at request time (access changes exactly at `end_at`); refusals MSG29 (feature) and MSG27 (limit); the `TODO(T-104)` hooks of T-015 replaced. **Dev-only demo accounts** (profile `dev`, never `prod`): one FREE Trader, one with an ACTIVE PRO subscription, one with an ACTIVE PREMIUM subscription (each with the PAID order V1 requires). Tests per code at the tier boundaries and just before and after `end_at`; no stub (D-59) | TODO — Sprint 3 (D-59) |
+| T-106 | Plan tier and entitlement schema (the T-066a of D-59) | BE1 | T-005, D-58 | BR-62, UC-47, SRS 3.11.5, D-58, D-59 | New migration (V1 and V3 untouched): `subscription_package` gains `plan_tier` (FREE, PRO, PREMIUM), `tier_rank`, `is_purchasable` and the D-58 entitlements (`ai_daily_quota` = `AI_CHAT_DAILY`, `can_post_video` = `VIDEO_POST`, plus `futures_analysis`, `score_components`, `active_plan_max` (nullable = unlimited), `watchlist_max`, `active_alert_max`, `indicator_alert`, `external_alert_channels`, `advanced_performance`, `news_ai_insight`, `ai_performance_context`); `duration_days` nullable; CHECK `plan_tier = 'FREE'` ⇔ (`price_amount` = 0 and `duration_days` null and not `is_purchasable`), paid durations 1–366; partial unique index: one FREE package; `MAX_WATCHLIST_ITEMS` and `MAX_ACTIVE_ALERTS` deleted from `system_setting`. Entity and repository mapped; schema tests for every constraint; `SeedDataTest` updated for the two removed settings | **DONE** 2026-09-27, PR #21 (not merged) — `V10__subscription_package_plan_tier.sql`: `tier`, `tier_rank`, `is_purchasable`, 7 boolean entitlements, 3 nullable maxima, `duration_days` nullable, 10 CHECKs + `uq_subscription_package_one_free`, the two limit settings deleted; `billing` module: `PlanTier`, `PlanEntitlements`, `SubscriptionPackage`, `SubscriptionPackageRepository` |
+| T-104 | Entitlement service: plan feature gates and daily quota | BE1 | T-106, D-58 | UC-53, UC-10, UC-11, UC-12, UC-13, UC-16, UC-18, UC-25, UC-28, UC-34, UC-35, BR-62, BR-43, BR-50, BR-52, SRS 4.2.4, TD 7.12, D-54, D-58 | `EntitlementService` in `service/` + impl (D-48): `hasFeature(userId, featureCode)`, `getLimit(userId, featureCode)` (null = unlimited) and `consumeQuota(userId, featureCode)` for the twelve codes of D-58, read from the tier's package row, never hard-coded; effective plan = tier of the ACTIVE `user_subscription`, else FREE, checked at request time (access changes exactly at `end_at`); refusals MSG29 (feature) and MSG27 (limit); the `TODO(T-104)` hooks of T-015 replaced. **Dev-only demo accounts** (profile `dev`, never `prod`): one FREE Trader, one with an ACTIVE PRO subscription, one with an ACTIVE PREMIUM subscription (each with the PAID order V1 requires). Tests per code at the tier boundaries and just before and after `end_at`; no stub (D-59) | **NEXT** — Sprint 3 (D-59); the service and its tests need only T-106; the dev demo accounts need T-007's packages |
 | T-107 | Plan gates on the analysis and Futures market endpoints | BE1 | T-104, T-029 | UC-10, UC-11, UC-53, BR-62, SRS 3.3.1–3.3.3, D-60 | The access classes of D-60 enforced through `EntitlementService`: Futures analysis, `futures/{symbol}/metrics` and the open interest, long/short and settlement blocks of `futures/{symbol}/stats` need `FUTURES_ANALYSIS` (MSG29); the component scores need `SCORE_COMPONENTS` and are locked on FREE (CR-08); the public price data unchanged; API tests for a Guest, FREE, PRO and PREMIUM on every endpoint of D-60; OpenAPI updated. T-024 and T-029 are not reopened | TODO — Sprint 3 (D-59) |
 
 ### P4 — Market UI (Sprint 3)
@@ -413,15 +413,15 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 
 ## 7. Detail block — current NEXT task
 
-### T-106 · Plan tier and entitlement schema (D-59)
+### T-104 · Entitlement service: plan feature gates and daily quota (D-54, D-58, D-59)
 
-**Unblocked:** dependency T-005 DONE. **Read first:** SRS v1.1 Table 3.1, BR-62, SRS 3.11.5 (package fields), D-58,
-D-59, the V1 definition of `subscription_package` and the V3 seed of `system_setting`, then replace this block.
+**Unblocked 2026-09-27:** T-106 DONE (PR #21). **Read first:** SRS v1.1 UC-53, BR-62, BR-50, BR-52, BR-43, SRS 4.2.4,
+TD 7.12, D-54, D-58, D-59, D-60, then replace this block.
 
-**Scope:** one new migration only (V1 and V3 are merged and never edited); the package side of D-58 — no order type,
-credit or subscription status (those stay in T-066, P10). `ai_daily_quota` and `can_post_video` already exist and carry
-`AI_CHAT_DAILY` and `VIDEO_POST`. The seed of the five packages is T-007, right after this task. Next in order: T-007 →
-T-104 → T-107 (D-59). T-035 stays unblocked on the critical path.
+**Ready:** `billing.entity.SubscriptionPackage` with `entitlements()` (`PlanEntitlements`: seven switches, three maxima
+with null = unlimited, `aiChatDaily`), `PlanTier` with `rank()`, `SubscriptionPackageRepository`. The effective plan is
+the tier of the ACTIVE `user_subscription` (V1 statuses), else FREE; the FREE package is the single row with
+`tier = 'FREE'`. The dev demo accounts need the packages of T-007 (BE2, READY). No stub (D-59).
 
 ---
 
@@ -459,6 +459,38 @@ Rule: an AI agent never answers an open question by guessing. It implements what
 ## 9. Session log
 
 Newest first. One block per working session, format in `CLAUDE.md` section 8.
+
+### 2026-09-27 – T-106 Plan tier and entitlement schema
+- Result: DONE (PR #21, not merged)
+- Summary: `V10__subscription_package_plan_tier.sql` adds to `subscription_package`: `tier` (FREE/PRO/PREMIUM),
+  `tier_rank`, `is_purchasable`, `futures_analysis`, `score_components`, `indicator_alert`, `external_alert_channels`,
+  `advanced_performance`, `news_ai_insight`, `ai_performance_context` (boolean NOT NULL, no default) and
+  `active_plan_max`, `watchlist_max`, `active_alert_max` (integer, null = unlimited); `ai_daily_quota` and
+  `can_post_video` of V1 carry `AI_CHAT_DAILY` and `VIDEO_POST`; `duration_days` nullable. Constraints: tier list, rank
+  per tier, FREE ⇔ (price 0, no duration, not purchasable), paid tier has a duration, duration 1–366, price / quota /
+  maxima not negative, partial unique index for one FREE; `MAX_WATCHLIST_ITEMS` and `MAX_ACTIVE_ALERTS` deleted (no
+  production reader). New `billing` module: `PlanTier`, `PlanEntitlements`, `SubscriptionPackage`, repository.
+  Beyond the request, grounded in SRS 3.11.5: `ck_subscription_package_paid_duration` (the FREE equivalence alone lets a
+  priced PRO row have no duration) and `ck_subscription_package_price` (not negative).
+- Files: `db/migration/V10__…`, `billing/entity/{PlanTier,SubscriptionPackage}`, `billing/model/PlanEntitlements`,
+  `billing/repository/SubscriptionPackageRepository`; tests `PlanTierMigrationTest`, `SubscriptionPackageTest`,
+  `SubscriptionPackageRepositoryTest`; updated `expected-columns.csv` (+13, `duration_days` nullable),
+  `expected-enums.csv`, `EnumCheckConstraintTest` (companions), `SeedDataTest` (16 → 14 settings; the V3 re-application
+  test now expects exactly the two removed settings back and removes them again, since it commits to the shared
+  database), `DemoDatasetTest` (16 → 14)
+- Tests: 44 added, 2 replaced by 1 (the seeded 50/20 limits → the limits are no longer settings); suite 1369/1369
+  (baseline 1326/1326); coverage billing 100 % / Backend 99.60 % line (3707/3722), 95.63 % branch (1116/1167).
+  Constraint check: each of the 10 CHECKs, the unique index and the DELETE removed in turn — every removal failed at
+  least one test; V10 restored
+- BR/UC/NSF covered: BR-62 (schema), BR-56 (price not negative)
+- Traceability: BR-62 COVERED; **BR-17 regressed to NOT_COVERED** — its only test asserted the seeded
+  `MAX_ACTIVE_ALERTS` = 20, which V10 removes; the limit is per plan now and returns to coverage with T-104 / T-054
+- Decisions: none
+- Open questions: none
+- Next: T-104 (T-007 is BE2's and READY; T-104's demo accounts need it)
+- Commits: `124a7ed` feat(billing): add plan tiers and entitlements to packages; `3e08e10` feat(billing): map
+  subscription packages with their plan tier; `3ed16c8` test(billing): prove every package constraint and the mapping
+  — PR #21
 
 ### 2026-09-27 — Q-22 answered: entitlements before the features they limit (no task id; D-59, D-60)
 - Result: DONE (documents only; no code, migration or test, as instructed)
