@@ -69,7 +69,7 @@ same place. The resolution is almost always **keep both blocks, newest first** â
 two different sessions and neither replaces the other. Check afterwards that the task table and the
 `NEXT` marker still say one consistent thing, because that part is not append-only.
 
-`docs/srs/CryptoPilot_Report3_SRS.docx` is binary and git cannot merge it. Say in the group chat
+`docs/srs/CryptoPilot_Report3_SRS_v1.1.docx` is binary and git cannot merge it. Say in the group chat
 before editing it, and pull first.
 
 ---
