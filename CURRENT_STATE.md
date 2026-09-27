@@ -273,7 +273,7 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 
 | ID | Task | Owner | Dep | Refs | Done when | Status |
 |---|---|---|---|---|---|---|
-| T-106 | Plan tier and entitlement schema (the T-066a of D-59) | BE1 | T-005, D-58 | BR-62, UC-47, SRS 3.11.5, D-58, D-59 | New migration (V1 and V3 untouched): `subscription_package` gains `plan_tier` (FREE, PRO, PREMIUM), `tier_rank`, `is_purchasable` and the D-58 entitlements (`ai_daily_quota` = `AI_CHAT_DAILY`, `can_post_video` = `VIDEO_POST`, plus `futures_analysis`, `score_components`, `active_plan_max` (nullable = unlimited), `watchlist_max`, `active_alert_max`, `indicator_alert`, `external_alert_channels`, `advanced_performance`, `news_ai_insight`, `ai_performance_context`); `duration_days` nullable; CHECK `plan_tier = 'FREE'` ⇔ (`price_amount` = 0 and `duration_days` null and not `is_purchasable`), paid durations 1–366; partial unique index: one FREE package; `MAX_WATCHLIST_ITEMS` and `MAX_ACTIVE_ALERTS` deleted from `system_setting`. Entity and repository mapped; schema tests for every constraint; `SeedDataTest` updated for the two removed settings | **DONE** 2026-09-27, PR #21 (not merged) — `V10__subscription_package_plan_tier.sql`: `tier`, `tier_rank`, `is_purchasable`, 7 boolean entitlements, 3 nullable maxima, `duration_days` nullable, 10 CHECKs + `uq_subscription_package_one_free`, the two limit settings deleted; `billing` module: `PlanTier`, `PlanEntitlements`, `SubscriptionPackage`, `SubscriptionPackageRepository` |
+| T-106 | Plan tier and entitlement schema (the T-066a of D-59) | BE1 | T-005, D-58 | BR-62, UC-47, SRS 3.11.5, D-58, D-59 | New migration (V1 and V3 untouched): `subscription_package` gains `plan_tier` (FREE, PRO, PREMIUM), `tier_rank`, `is_purchasable` and the D-58 entitlements (`ai_daily_quota` = `AI_CHAT_DAILY`, `can_post_video` = `VIDEO_POST`, plus `futures_analysis`, `score_components`, `active_plan_max` (nullable = unlimited), `watchlist_max`, `active_alert_max`, `indicator_alert`, `external_alert_channels`, `advanced_performance`, `news_ai_insight`, `ai_performance_context`); `duration_days` nullable; CHECK `plan_tier = 'FREE'` ⇔ (`price_amount` = 0 and `duration_days` null and not `is_purchasable`), paid durations 1–366; partial unique index: one FREE package; `MAX_WATCHLIST_ITEMS` and `MAX_ACTIVE_ALERTS` deleted from `system_setting`. Entity and repository mapped; schema tests for every constraint; `SeedDataTest` updated for the two removed settings | **DONE** 2026-09-27, PR #21 (not merged) — `V10__subscription_package_plan_tier.sql`: `tier`, `tier_rank`, `is_purchasable`, 7 boolean entitlements, 3 nullable maxima, `duration_days` nullable, 11 CHECKs + `uq_subscription_package_one_free` (paid price > 0 and FREE always active added before merge, `2974810`), the two limit settings deleted; `billing` module: `PlanTier`, `PlanEntitlements`, `SubscriptionPackage`, `SubscriptionPackageRepository` |
 | T-104 | Entitlement service: plan feature gates and daily quota | BE1 | T-106, D-58 | UC-53, UC-10, UC-11, UC-12, UC-13, UC-16, UC-18, UC-25, UC-28, UC-34, UC-35, BR-62, BR-43, BR-50, BR-52, SRS 4.2.4, TD 7.12, D-54, D-58 | `EntitlementService` in `service/` + impl (D-48): `hasFeature(userId, featureCode)`, `getLimit(userId, featureCode)` (null = unlimited) and `consumeQuota(userId, featureCode)` for the twelve codes of D-58, read from the tier's package row, never hard-coded; effective plan = tier of the ACTIVE `user_subscription`, else FREE, checked at request time (access changes exactly at `end_at`); refusals MSG29 (feature) and MSG27 (limit); the `TODO(T-104)` hooks of T-015 replaced. **Dev-only demo accounts** (profile `dev`, never `prod`): one FREE Trader, one with an ACTIVE PRO subscription, one with an ACTIVE PREMIUM subscription (each with the PAID order V1 requires). Tests per code at the tier boundaries and just before and after `end_at`; no stub (D-59) | **NEXT** — Sprint 3 (D-59); the service and its tests need only T-106; the dev demo accounts need T-007's packages |
 | T-107 | Plan gates on the analysis and Futures market endpoints | BE1 | T-104, T-029 | UC-10, UC-11, UC-53, BR-62, SRS 3.3.1–3.3.3, D-60 | The access classes of D-60 enforced through `EntitlementService`: Futures analysis, `futures/{symbol}/metrics` and the open interest, long/short and settlement blocks of `futures/{symbol}/stats` need `FUTURES_ANALYSIS` (MSG29); the component scores need `SCORE_COMPONENTS` and are locked on FREE (CR-08); the public price data unchanged; API tests for a Guest, FREE, PRO and PREMIUM on every endpoint of D-60; OpenAPI updated. T-024 and T-029 are not reopened | TODO — Sprint 3 (D-59) |
 
@@ -459,6 +459,29 @@ Rule: an AI agent never answers an open question by guessing. It implements what
 ## 9. Session log
 
 Newest first. One block per working session, format in `CLAUDE.md` section 8.
+
+### 2026-09-27 – T-106 amended before merge: paid price and FREE active
+- Result: DONE (PR #21, not merged)
+- Summary: V10 edited in place (not on `develop`, PR open): `ck_subscription_package_paid_price` (`tier = 'FREE' OR
+  price_amount > 0` — the gateway charges a real amount and BR-63's credit is computed from it) and
+  `ck_subscription_package_free_active` (`tier <> 'FREE' OR is_active` — SRS 3.11.5, the default plan always exists).
+  `ck_subscription_package_price` (≥ 0) dropped: implied by FREE = 0 and paid > 0, and no test could catch its removal
+  because `…_paid_price` is checked first. `SubscriptionPackage.paid()` refuses a price of 0; the entity has no way to
+  deactivate a package, so no FREE guard was needed there.
+- Files: `V10__subscription_package_plan_tier.sql`, `SubscriptionPackage`, `PlanTierMigrationTest`,
+  `SubscriptionPackageTest`
+- Tests: +5 (FREE deactivated refused; PRO / PREMIUM deactivated accepted; paid price 0 and −1 refused in the schema
+  and in `paid()`); the test that accepted a paid package at 0 with a duration now expects the refusal; suite
+  1374/1374; coverage billing 100 % / Backend 99.60 % line (3707/3722), 95.63 % branch (1116/1167). Constraint check:
+  removing `…_paid_price` failed 3 cases, removing `…_free_active` failed 1; V10 restored
+- BR/UC/NSF covered: BR-62, BR-63 (price precondition)
+- Decisions: none
+- Open questions: none
+- **Local databases:** V10's checksum changed. A database that already ran V10 from this branch fails Flyway validation
+  on start-up: drop and re-create it (`docker compose -f deploy/docker-compose.dev.yml down -v`, then up) — never
+  `flyway repair` on a shared one. Testcontainers databases are fresh on every run and are not affected
+- Next: T-104
+- Commits: `2974810` fix(billing): require paid price and keep FREE active — pushed to PR #21
 
 ### 2026-09-27 – T-106 Plan tier and entitlement schema
 - Result: DONE (PR #21, not merged)
