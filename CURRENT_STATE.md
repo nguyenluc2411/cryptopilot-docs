@@ -169,7 +169,7 @@ Deviations found while designing. Each needs team approval, then the SRS and the
 
 | ID | Item | Proposal | Affects | Status | Blocks |
 |---|---|---|---|---|---|
-| A-01 | BR-27 ignores the maintenance amount of the bracket | Use the exact formula with `cum` (TD 7.6) | BR-27 | PENDING | T-036 |
+| A-01 | BR-27 ignores the maintenance amount of the bracket | Use the exact formula with `cum` (TD 7.6) | BR-27 | **RESOLVED 2026-09-29 (team lead)** — formula with `cum`: it keeps the maintenance margin continuous across brackets, and the exchange's bracket data already carries `cum`. SRS v1.0 BR-27 edited in place (Draft 1.0, no version bump); implemented by T-036 | T-036 |
 | A-02 | BR-35 "loss equals initial margin" conflicts with fees in BR-36 | Price loss = initial margin; fees and funding added separately | BR-35 | PENDING | T-044 |
 | A-03 | BR-53 requires PENDING, but the gateway can confirm after expiry | Accept a late success, activate, write an audit entry | BR-53, BR-54 | PENDING | T-069 |
 | A-04 | NSF-07 recovery uses 15m candles | Replay 1m klines fetched by REST | SRS 3.5.4 | PENDING | T-043 |

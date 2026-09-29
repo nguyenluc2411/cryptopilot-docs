@@ -770,7 +770,7 @@ LONG:  LP = ( E·(1 − 1/L) − cum/qty ) / (1 − MMR)
 SHORT: LP = ( E·(1 + 1/L) + cum/qty ) / (1 + MMR)
 ```
 
-With `cum = 0` this is exactly BR-27. Including `cum` is more accurate for higher brackets → alignment item A-01. Rounding is conservative (5.4). Fees are ignored (stated as estimate on screen).
+BR-27 uses this formula (A-01 resolved 2026-09-29); with `cum = 0` it reduces to `E·(1 ∓ 1/L) / (1 ∓ MMR)`. The maintenance margin is `N·MMR − cum`, and `cum` keeps it continuous across a bracket floor. A bracket stored without `cum` gets `cum_1 = 0`, `cum_n = cum_(n−1) + floor_n·(MMR_n − MMR_(n−1))`. Bracket = first `b` with `N ∈ [floor_b, cap_b)`; a notional above the last cap or a leverage above the bracket's maximum is a validation error (MSG15). A LONG whose estimate is ≤ 0 (1x with `cum > 0`) cannot be liquidated and reports 0. Rounding is conservative (5.4). Fees are ignored (stated as estimate on screen). Implemented by `trading.calculator.LiquidationCalculator` (T-036).
 
 Worked example (test vector): E = 100, S = 95, C = 1,000, p = 1, step 0.001, tick 0.01, MMR 0.004, cum 0.
 - qty = 10/5 = 2.000; notional 200.
