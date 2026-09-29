@@ -26,6 +26,7 @@ Do all of the following and summarize the findings in 5–10 lines before implem
 - Work on exactly one task (the `NEXT` task) per session unless the user says otherwise. Execute all its phases autonomously (analysis → implementation → tests → docs → state update) without asking for confirmation.
 - If a business rule is ambiguous or contradicts another source: do NOT guess. Implement what is unambiguous, add the question to "Open Questions" in `CURRENT_STATE.md` with the task id, and mark the task `BLOCKED` or `PARTIAL`.
 - Follow the priority of sources in TECHNICAL_DESIGN section 0.
+- After every checkout or rebase, run `./mvnw clean verify`, never plain `verify`: `target/classes` keeps the migrations of the previous branch and Flyway applies them, which fails tests that are not broken.
 - Every public domain calculation must have XML doc comments including `<remarks>` with the rule id and the academic/technical reference. Cite SRS ids, and where useful the id of a private document (`TECHNICAL_DESIGN 7.1`, `ADR-011`, `D-45`, `Q-16`, `A-33`); never copy text out of a private document (section 9), because code is committed and those documents are not, e.g.:
 
 ```csharp
