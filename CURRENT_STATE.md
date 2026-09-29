@@ -1,6 +1,6 @@
 # CURRENT_STATE.md — CryptoPilot Project State
 
-**Last updated:** 2026-09-28 · **Document version:** 2.42 (T-103; Q-24, Q-25 closed) · **Phase:** P0 done bar T-001 (branch protection DEFERRED), T-004 and the rest of T-009; P1 done bar T-015 (READY), T-016, T-105 and the web screens; T-103 DONE on PR #30; P2 done; P3 done bar T-029 (PARTIAL, Q-21); P3b: T-106, T-104, T-108 merged, T-107 READY (BE1); P5: T-035 merged
+**Last updated:** 2026-09-29 · **Document version:** 2.43 (#29, #33 in review; Q-26 closed) · **Phase:** P0 done bar T-001 (branch protection DEFERRED), T-004 and the rest of T-009; P1 done bar T-015 (READY), T-016, T-105 and the web screens; T-103 DONE on PR #30; P2 done; P3 done bar T-029 (PARTIAL, Q-21); P3b: T-106, T-104, T-108 merged, T-107 READY (BE1); P5: T-035 merged
 **Next task:** `T-036` — Liquidation price calculator with leverage brackets (dependency T-035 merged; A-01 PENDING decides whether the maintenance amount `cum` is used). Merged to `develop` on 2026-09-28 (`f5bcd68`): PR #25 (T-007), PR #26 (T-108, merged into #25's branch first), PR #27 (T-109). Waiting to merge: PR #30 (T-103). Issues open: #28 (flaky stream shard test), #29 (package test fixtures).
 T-022 is merged (PR #15, `0510ae4`, CI 1178/1178). T-025 is merged (PR #16, `f36c291`, CI green 2026-09-25): the incremental
 indicator engine of TD 7.2 in `market.calculator` and `IndicatorService`, checked against TA-Lib golden data and a batch
@@ -351,7 +351,7 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 | T-064 | Violation reports | BE2 | T-060 | UC-33, BR-46 | One report per user per post; self-reporting rejected | TODO |
 | T-065 | Web: community feed, post detail, editor, report dialog | FE | T-063, T-064 | SCR-24…27 | Official posts pinned; media preview | TODO |
 | T-101 | Profile avatar upload | BE2 | T-061, T-014 | UC-06, SRS 3.2.5 | The avatar of SCR-07 is uploaded through the Media Storage seam (JPG, PNG or WEBP, at most 2 MB, checked server-side); `PUT /me/profile` accepts only a reference from that store, never an arbitrary URL; replacing or removing an avatar deletes the old file | TODO |
-| T-102 | Stabilise the flaky stream shard test | BE2 | T-021 | NSF-03 | `BinanceStreamShardTest.NSF03_aFailedRenewal_keepsTheOldConnection_andTriesAgain` and `NSF03_theShard_connectsToTheCombinedStreamUnderTheConfiguredRoute` (2 of 5 isolated runs failed on 2026-09-25, "expected [false] …") pass 50 consecutive runs; the assertion reads a snapshot of the recorded list instead of the live one (it failed once on 2026-09-25 with "expected [false, false] … [false, false]", a race between the check and the message), no assertion weakened | **DONE** 2026-09-25, merged (PR #14, `06258cc`) — extended to every case of the pattern; both cases wait for the callback they assert on; the renewal case runs on a virtual-time `ManualScheduler` through the shard's existing scheduler parameter; no production code, timeout or assertion changed. 0/200 isolated each, 10/10 full suites. **Follow-up 2026-09-28:** PR #32 (NSF02, NSF03; closes #28, #31, open); #33 tech debt for the remaining time-dependent helpers — TODO, Sprint 1 |
+| T-102 | Stabilise the flaky stream shard test | BE2 | T-021 | NSF-03 | `BinanceStreamShardTest.NSF03_aFailedRenewal_keepsTheOldConnection_andTriesAgain` and `NSF03_theShard_connectsToTheCombinedStreamUnderTheConfiguredRoute` (2 of 5 isolated runs failed on 2026-09-25, "expected [false] …") pass 50 consecutive runs; the assertion reads a snapshot of the recorded list instead of the live one (it failed once on 2026-09-25 with "expected [false, false] … [false, false]", a race between the check and the message), no assertion weakened | **DONE** 2026-09-25, merged (PR #14, `06258cc`) — extended to every case of the pattern; both cases wait for the callback they assert on; the renewal case runs on a virtual-time `ManualScheduler` through the shard's existing scheduler parameter; no production code, timeout or assertion changed. 0/200 isolated each, 10/10 full suites. **Follow-up 2026-09-28:** PR #32 (NSF02, NSF03; closes #28, #31, open); #33 tech debt for the remaining time-dependent helpers — PR #35 in review 2026-09-29; #28 and #31 closed by hand |
 
 ### P10 — Billing (Sprint 8)
 
@@ -474,6 +474,15 @@ Rule: an AI agent never answers an open question by guessing. It implements what
 ## 9. Session log
 
 Newest first. One block per working session, format in `CLAUDE.md` section 8.
+
+## Update 2026-09-29 — Trực
+- Done: baseline develop 1567/1567 (`clean verify` green; the first attempt failed only because Docker was not running). Docs: TD 7.16 "Risk questionnaire v1" from `user.calculator.RiskQuestionnaire`; Q-26 closed; CLAUDE.md rule that a PR into `develop` leaves its issues open; the uncommitted state of 2026-09-28 committed separately. #29 on `test/T-104-seeded-plan-fixtures`: the seeded packages are read, never deleted (`TEST_` codes for own packages, FREE constraints broken on the seeded row by UPDATE, entitlement tests on the five seeded packages, `removeSeeded`/`storeAll` removed, +1 test proving the seeded entitlements per tier); `clean verify` 1568/1568, CI green. #33 on `fix/T-102-time-helpers`: `StubStreamServer.await` sleeps on a monitor woken by `signal()` (stub + test listeners), 20 ms re-check for unsignalled state, condition evaluated outside the monitor; `support/FixedClockConfig` for `MarketControllerTest` and `AnalysisControllerTest`; the three bounded waits kept as hang guards with a comment. Each changed class ×100 isolated and ×100 under 48 busy loops: 0 failures (for Spring-context classes the load starts after the context is up — with the load first, the TimescaleDB container cannot start within the Testcontainers timeout); `clean verify` 3/3 at 1567/1567
+- In review (PR): #34 (closes #29, CI green), #35 (closes #33)
+- Issues closed: #28, #31 (by hand, PR #32 merged into develop, `decad48`)
+- Decisions: Q-26 CLOSED; #29 assigned to Trực; issues of a PR into `develop` are closed by hand after the merge
+- Open questions: the updated SRS v1.0 file (BR-67 "fixed for version 1") was not on this machine, so `docs/srs/` still holds the previous v1.0 — copy it in; close #29 and #33 by hand after #34 and #35 merge
+- Next: T-081 after #33 is merged
+- Commits: `ad7f407` test(billing): read the seeded packages instead of deleting them; `163c90b` test(market): wait on signals and a fixed clock in the market tests
 
 ### 2026-09-28 (afternoon) – T-103 Risk profile and onboarding questionnaire
 - Result: DONE
