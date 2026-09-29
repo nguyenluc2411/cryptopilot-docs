@@ -908,6 +908,27 @@ The paths that end sessions and must evict: `FamilyRevoker` (logout, reuse), `Au
 
 **Wrong current password (A-30, resolved 2026-09-24).** `PUT /me/password` counts wrong current passwords in `user_account.failed_password_change_count` (V6), separate from the BR-03 sign-in counter, against the same threshold of five consecutive. The fifth ends every session of the account including the caller's (the answer to that request is still MSG08, 400, D-35; the next request is 401) and restarts the count; the sign-in is not locked, because the guesser holds a session and the owner does not need to be locked out. A successful change or reset restarts the count. The counter commits in its own transaction (`WrongCurrentPasswordRecorder`, `REQUIRES_NEW`), as BR-03's does.
 
+### 7.16 Risk questionnaire v1 (BR-66, BR-67, T-103)
+
+The questionnaire of SCR-07 and onboarding. Version 1 is fixed: the texts, points and bands below live as constants in `user.calculator.RiskQuestionnaire` (no framework, tested on its own) and change only with a new version of this section (Q-26, closed 2026-09-29). It only **suggests** a profile; nothing is saved until the Trader picks a profile, and AGGRESSIVE needs MSG48.
+
+Six questions, three per group, each answer worth 1, 2 or 3 points:
+
+| Group | Code | Question | 1 point | 2 points | 3 points |
+|---|---|---|---|---|---|
+| Capacity | `CAPACITY_SHARE_OF_SAVINGS` | What share of your savings is the capital you trade with? | More than half | Between a fifth and a half | Less than a fifth |
+| Capacity | `CAPACITY_EMERGENCY_FUND` | How many months of expenses could you cover without income and without this capital? | Less than 3 months | 3 to 6 months | More than 6 months |
+| Capacity | `CAPACITY_NEED_WITHIN_A_YEAR` | Will you need this capital for living costs or plans within the next year? | Yes | Possibly | No |
+| Attitude | `ATTITUDE_DROP_OF_20_PERCENT` | Your capital falls 20% in a month. What do you do? | Close everything to stop the loss | Hold and wait | Add to the positions |
+| Attitude | `ATTITUDE_PREFERRED_OUTCOME` | Which result over a year would you prefer? | A small, steady gain | A moderate gain with moderate swings | A large possible gain with large possible losses |
+| Attitude | `ATTITUDE_EXPERIENCE` | How long have you traded crypto or other volatile assets? | Less than a year | 1 to 3 years | More than 3 years |
+
+Answer codes, in the order of the columns: `MORE_THAN_HALF` / `A_FIFTH_TO_HALF` / `LESS_THAN_A_FIFTH`; `UNDER_3_MONTHS` / `3_TO_6_MONTHS` / `OVER_6_MONTHS`; `YES` / `MAYBE` / `NO`; `SELL_EVERYTHING` / `WAIT` / `ADD_MORE`; `SMALL_STEADY` / `MODERATE` / `LARGE_VOLATILE`; `UNDER_1_YEAR` / `1_TO_3_YEARS` / `OVER_3_YEARS`.
+
+Scoring: each group sums to 3–9 and maps to a band — **3–4 → CONSERVATIVE**, **5–7 → BALANCED**, **8–9 → AGGRESSIVE** (`LOW_UP_TO` = 4, `HIGH_FROM` = 8). The suggestion is the **lower** of the two group profiles, so willingness cannot outvote ability and the reverse. Every question must be answered with one of its own codes; an unknown question or answer is refused. The profile values it points to are those of 7.5 (BR-66).
+
+References: Grable & Lytton 1999 (summed-score risk tolerance instrument); Maginn, Tuttle, Pinto & McLeavey 2007, ch. 2 (ability and willingness assessed apart, the lower governs).
+
 ---
 
 ## 8. API design

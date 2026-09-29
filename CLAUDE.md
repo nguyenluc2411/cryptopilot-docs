@@ -57,6 +57,7 @@ Do all of the following and summarize the findings in 5–10 lines before implem
 - Do not stage, commit or push a local-only file (section 9). Never use `git add -f` / `--force`, `git commit --no-verify` or `-n`, and never edit `.git/info/exclude` or the hooks.
 - Committed files may cite private documents **by id only**: a section number of TECHNICAL_DESIGN, an ADR id, or a D-xx, Q-xx or A-xx id, next to the SRS ids (BR/UC/NSF/SCR/MSG) and task ids. Do not quote, paraphrase at length or paste content from any private document (SRS text, TECHNICAL_DESIGN, ADR, CURRENT_STATE.md, CLAUDE.md) into committed files, commit messages or pull requests — write the rule in your own words in the code, or cite the id. Do not link to the documents repository or name local-only paths (`docs/design/…`, `docs/srs/…`) in committed files.
 - Do not `git push` unless the user asks for it in the current session; commit locally and let the user review first.
+- A pull request into `develop` does not close its issues: `Closes #x` acts only on the default branch (`main`). After the merge, close each issue by hand with a comment that names the PR and the merge commit.
 - Do not refactor code outside the scope of the current task.
 
 ## 5. Coding standards
