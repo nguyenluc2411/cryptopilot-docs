@@ -162,12 +162,12 @@ Every module uses the same sub-packages. Create only the ones the module needs.
 | Package | Contains | May depend on | Must not depend on |
 |---|---|---|---|
 | `controller` | `@RestController`, STOMP `@Controller`; request validation; maps to/from DTOs | `service`, `dto` | `repository`, `entity` |
-| `service` | Service **interfaces** (`FooService`) and helper components of the use cases (D-48) | `repository`, `entity`, `dto`, `model`, `calculator`, `client`, `event`, other modules' root API and events, `common` | `controller` |
-| `service.impl` | `@Service` implementations (`FooServiceImpl implements FooService`): business use cases, `@Transactional` boundaries, authorization of ownership, calls to other modules' APIs, event publishing (D-48) | as `service` | `controller`; nothing outside the module's `service` injects an `impl` class |
+| `service` | Service **interfaces** (`FooService`) only; the one exception is `auth.service.LiveSessions`, which `auth.config` injects (D-48) | `repository`, `entity`, `dto`, `model`, `calculator`, `client`, `event`, other modules' root API and events, `common` | `controller` |
+| `service.impl` | `@Service` implementations (`FooServiceImpl implements FooService`): business use cases, `@Transactional` boundaries, authorization of ownership, calls to other modules' APIs, event publishing; and every other non-interface class of the service layer — helper components and pure helpers the implementations use (D-48; only exception `auth.service.LiveSessions`, injected by `auth.config`) | as `service` | `controller`; only the module's own `service.impl` classes and jobs inject a class of `impl`, never a controller or another module |
 | `repository` | Spring Data JPA repositories, native queries | `entity` | `service`, `controller` |
-| `entity` | JPA entities, enums, embeddable value objects; invariants and state transitions as methods | `common` | `service`, `repository`, `controller` |
-| `dto.request`, `dto.response` | API request and response records (`record`), request ones with Bean Validation annotations; `dto.request` = accepted by a controller, `dto.response` = returned by one (D-48) | `entity` enums only | `service`, `repository` |
-| `model` | Internal records that never cross the API: results and values passed between services, jobs, repositories and clients (e.g. `BackfillRun`, `IssuedSession`) (D-48) | `entity`, `common`, own `client` records | `controller`, `service` |
+| `entity` | JPA entities, embeddable value objects; invariants and state transitions as methods | `common`, `model.enums` | `service`, `repository`, `controller` |
+| `dto.request`, `dto.response` | API request and response records (`record`), request ones with Bean Validation annotations; `dto.request` = accepted by a controller, `dto.response` = returned by one (D-48) | `model.enums` | `service`, `repository`, `entity` |
+| `model` | Internal records that never cross the API: results and values passed between services, jobs, repositories and clients (e.g. `BackfillRun`, `IssuedSession`) (D-48). Every top-level enum lives in `model.enums`, the module's named interface `enums`, usable by every layer and by other modules | `entity`, `common`, own `client` records | `controller`, `service` |
 | `calculator` | Pure business formulas (risk, liquidation, fees, P/L, indicators, setup score, period calculation) | `java.*`, `common.util` | Spring, JPA, `repository`, `service` |
 | `client` | Adapters to external systems (Binance, VNPay, MoMo, AI Service, SMTP, FCM, Cloudinary, RSS) | own records, `common` | `repository`, `controller` |
 | `job` | `@Scheduled` jobs, stream workers, event listeners; orchestration only | `service` | `repository` directly |
@@ -235,7 +235,7 @@ The SRS layers map as follows: presentation = `controller`; application = `servi
 
 ### 4.1 Backend package tree (final)
 
-Every module follows the same pattern. A sub-package exists only when the module needs it; the tree below lists all of them. Since D-48 (2026-09-25) every `service/` holds interfaces and helper components, `service/impl/` the `@Service` implementations, `dto/` splits into `dto/request/` and `dto/response/`, and internal records live in `model/`; the per-module listings below name the classes and do not repeat the split.
+Every module follows the same pattern. A sub-package exists only when the module needs it; the tree below lists all of them. Since D-48 (2026-09-25) every `service/` holds interfaces only (exception: `auth.service.LiveSessions`), `service/impl/` the implementations and the helpers they use, `dto/` splits into `dto/request/` and `dto/response/`, internal records live in `model/`, and every top-level enum lives in `model/enums/`; the per-module listings below name the classes and do not repeat the split.
 
 ```
 backend/
@@ -257,15 +257,16 @@ backend/
     │   │   │   ├── AuthApi.java   PasswordPolicy.java   # BR-02 is read by dto and service, so it sits above both (D-30)
     │   │   │   ├── config/        SecurityConfig, JwtConfig
     │   │   │   ├── controller/    AuthController, PasswordChangeController   # PUT /me/password (UC-07)
-    │   │   │   ├── service/       AuthService, PasswordChangeService, AccessTokenIssuer, SecureTokenFactory, FamilyRevoker
+    │   │   │   ├── service/       AuthService, PasswordChangeService, LiveSessions   # LiveSessions: the one non-interface, auth.config injects it
     │   │   │   │                  # UC-07 is its own service: it has a session, names no address and spends no link (D-32)
     │   │   │   │                  # UC-04 lives on AuthService, not a PasswordResetService: it shares the
     │   │   │   │                  # token table, the non-enumeration rule and the session revocation with
     │   │   │   │                  # UC-02 and UC-05, and a second class would have to reach all three (D-32)
     │   │   │   ├── repository/    UserTokenRepository
-    │   │   │   ├── entity/        UserToken, TokenType
-    │   │   │   ├── service/impl/  AuthServiceImpl, PasswordChangeServiceImpl        # D-48
+    │   │   │   ├── entity/        UserToken
+    │   │   │   ├── service/impl/  AuthServiceImpl, PasswordChangeServiceImpl, AccessTokenIssuer, SecureTokenFactory, FamilyRevoker, WrongCurrentPasswordRecorder   # D-48
     │   │   │   ├── model/         IssuedSession                                        # D-48
+    │   │   │   ├── model/enums/   TokenType
     │   │   │   ├── dto/request/   RegisterRequest, LoginRequest …                      # D-48
     │   │   │   ├── dto/response/  SessionResponse …
     │   │   │   └── security/      JwtAuthenticationConverter, CurrentUser
@@ -273,17 +274,21 @@ backend/
     │   │   ├── user/                                 # account, profile, preferences, devices, admin user management
     │   │   │   ├── UserApi.java   UserSummary.java
     │   │   │   ├── controller/    ProfileController, DeviceController, AdminUserController
-    │   │   │   ├── service/       UserService, ProfileService, DeviceService
+    │   │   │   ├── service/       UserService, ProfileService, DeviceService, RiskProfileService
+    │   │   │   ├── service/impl/  UserServiceImpl, ProfileServiceImpl, DeviceServiceImpl, RiskProfileServiceImpl, FailedLoginRecorder, ProfileSetupStyleSource
     │   │   │   ├── repository/    UserAccountRepository, UserProfileRepository, UserDeviceRepository
-    │   │   │   ├── entity/        UserAccount, UserProfile, UserDevice, Role, AccountStatus
+    │   │   │   ├── entity/        UserAccount, UserProfile, UserDevice
+    │   │   │   ├── model/enums/   Role, UserRole, AccountStatus, DevicePlatform, TradingStyle, RiskProfile, QuestionGroup
     │   │   │   └── dto/
     │   │   │
     │   │   ├── market/                               # pairs, candles, snapshots, Binance, brackets, indicators, setup score
-    │   │   │   ├── MarketApi.java PairFilters.java MarketType.java   # PairFilters and MarketType exist since T-018 (D-38); MarketApi arrives with its first caller
+    │   │   │   ├── MarketApi.java PairFilters.java   # PairFilters exists since T-018 (D-38); MarketApi arrives with its first caller
     │   │   │   ├── controller/    MarketController, AnalysisController, AdminPairController
     │   │   │   ├── service/       PairService, CandleService, AnalysisService, LeverageBracketService, MarketBroadcastService
+    │   │   │   ├── service/impl/  one implementation per interface; helpers ExchangeSymbolMapper, LatestMarketData, SymbolSyncWriter, MarketRequests, PersistentBinanceBans
     │   │   │   ├── repository/    CoinRepository, CryptoPairRepository, OhlcvRepository, TechnicalIndicatorRepository …
     │   │   │   ├── entity/        Coin, CryptoPair, Ohlcv, SpotMarketData, FuturesMarketData, LeverageBracket, TechnicalIndicator
+    │   │   │   ├── model/enums/   MarketType, MarketInterval, BinanceVenue, ExchangeStatus, PairStatus, DominantSide, IndicatorOutcome, SetupStyle
     │   │   │   ├── dto/
     │   │   │   ├── calculator/    IndicatorEngine, SwingDetector, SetupScoreCalculator
     │   │   │   ├── client/        BinanceRestClient, BinanceStreamShard
@@ -294,7 +299,8 @@ backend/
     │   │   │   ├── controller/    WatchlistController, AlertController
     │   │   │   ├── service/       WatchlistService, AlertService
     │   │   │   ├── repository/    WatchlistRepository, AlertRepository
-    │   │   │   ├── entity/        Watchlist, Alert, AlertType, AlertStatus, TriggerMode
+    │   │   │   ├── entity/        Watchlist, Alert
+    │   │   │   ├── model/enums/   AlertType, AlertStatus, TriggerMode
     │   │   │   ├── dto/
     │   │   │   ├── calculator/    AlertConditionEvaluator, condition/ (PriceCrossCondition, RsiCondition …)
     │   │   │   ├── job/           AlertEngineWorker
@@ -305,7 +311,8 @@ backend/
     │   │   │   ├── controller/    TradingPlanController, StrategyController
     │   │   │   ├── service/       TradingPlanService, PositionService
     │   │   │   ├── repository/    TradingPlanRepository, TradingPlanWarningRepository, TradingStrategyRepository
-    │   │   │   ├── entity/        TradingPlan, TradingPlanWarning, TradingStrategy, PlanStatus, Direction, MarketType
+    │   │   │   ├── entity/        TradingPlan, TradingPlanWarning, TradingStrategy
+    │   │   │   ├── model/enums/   Direction, WarningType, WarningSeverity, PlanStatus
     │   │   │   ├── dto/
     │   │   │   ├── calculator/    RiskCalculator, LiquidationCalculator, FeeCalculator, FundingCalculator
     │   │   │   │   └── warning/   WarningRule, LowRiskRewardRule, HighLeverageRule, StopBeyondLiquidationRule …
@@ -318,7 +325,8 @@ backend/
     │   │   │   ├── controller/    JournalController, PerformanceController
     │   │   │   ├── service/       JournalService, PerformanceService
     │   │   │   ├── repository/    TradingJournalRepository, PerformanceQueryRepository
-    │   │   │   ├── entity/        TradingJournal, TradeSource, TradeStatus
+    │   │   │   ├── entity/        TradingJournal
+    │   │   │   ├── model/enums/   TradeSource, TradeStatus
     │   │   │   ├── dto/
     │   │   │   └── calculator/    PnlCalculator, PerformanceMetrics
     │   │   │
@@ -355,7 +363,8 @@ backend/
     │   │   │   ├── controller/    PackageController, OrderController, PaymentCallbackController, AdminBillingController
     │   │   │   ├── service/       OrderService, PaymentService, SubscriptionService, EntitlementService
     │   │   │   ├── repository/
-    │   │   │   ├── entity/        SubscriptionPackage, SubscriptionOrder, UserSubscription, OrderStatus
+    │   │   │   ├── entity/        SubscriptionPackage, SubscriptionOrder, UserSubscription
+    │   │   │   ├── model/enums/   Feature, PlanTier, OrderStatus
     │   │   │   ├── dto/
     │   │   │   ├── calculator/    SubscriptionPeriodCalculator
     │   │   │   ├── client/        PaymentGateway, VnPayGateway, MoMoGateway
@@ -367,7 +376,8 @@ backend/
     │   │   │   ├── controller/    NotificationController
     │   │   │   ├── service/       NotificationService
     │   │   │   ├── repository/    NotificationRepository
-    │   │   │   ├── entity/        Notification, NotificationType
+    │   │   │   ├── entity/        Notification
+    │   │   │   ├── model/enums/   NotificationType
     │   │   │   ├── dto/
     │   │   │   ├── client/        EmailSender, FcmSender
     │   │   │   └── job/           NotificationListeners (AlertTriggered, PositionClosed, SubscriptionActivated …)
@@ -402,7 +412,7 @@ backend/
 | If the code… | Put it in | Example |
 |---|---|---|
 | Receives an HTTP request or STOMP message | `controller/` | `TradingPlanController` |
-| Implements a use case, opens a transaction, checks ownership | `service/` | `TradingPlanService.create()` |
+| Implements a use case, opens a transaction, checks ownership | `service/` (interface) and `service/impl/` (implementation) | `TradingPlanService.create()` |
 | Reads or writes a table of this module | `repository/` | `TradingPlanRepository` |
 | Is a table row with its rules and state changes | `entity/` | `TradingPlan.activate()` |
 | Is a request/response shape | `dto/` (record) | `CreateTradingPlanRequest` |

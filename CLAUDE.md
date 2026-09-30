@@ -67,12 +67,28 @@ Do all of the following and summarize the findings in 5–10 lines before implem
 - Backend packages (D-48, the rule for every module and every new class):
   - `service/` holds interfaces. A new service is always two files: `service/FooService.java` (interface, only the methods callers outside the class use) and `service/impl/FooServiceImpl.java` (`@Service`, `@Transactional` and the other annotations live here). Inject `FooService`, never `FooServiceImpl`; tests construct the impl directly and mock the interface.
   - A bean that implements a port declared in `client` or in another module (e.g. `PersistentBinanceBans implements BinanceBanStore`) goes in `service/impl/` and needs no second interface.
-  - A helper `@Component` that is not a business service — a collaborator of the use cases such as `AccessTokenIssuer`, `LiveSessions`, `LatestMarketData`, `SymbolSyncWriter` — may stay a concrete class in `service/`. A business service (a use case callers invoke) is always interface + `service/impl/`. A helper that only an implementation uses, and that relies on package-private access, lives in `service/impl/` next to it.
+  - Helpers and components are not services: every class that is not an interface — `@Service` implementations, helper `@Component`s such as `AccessTokenIssuer`, `LatestMarketData`, `SymbolSyncWriter`, and pure helpers such as `ExchangeSymbolMapper` — lives in `service/impl/`. The rule and its only exception (`auth.service.LiveSessions`) are in "Service đặt ở đâu" below.
   - Classify every record before writing it: accepted by a controller → `dto/request/`; returned by a controller → `dto/response/`; never crosses the API (service, job, repository and client results) → `model/`; the shape of an external API (Binance, VNPay …) → the module's `client/` package. No record in `service/` or `service/impl/`.
-  - A DTO may use an entity enum and nothing else from `entity`. A class of `market.client` is not used outside `market`.
+  - A DTO never depends on `entity`; the enums it needs come from `model/enums/` (rule `dtos_doNotDependOnEntities`). A class of `market.client` is not used outside `market`.
 - Errors: return `Result`/`Error` with a stable code that maps to an SRS message code (MSGxx).
 - Web: TypeScript strict; feature folders; server state in TanStack Query; decimals from API kept as strings and formatted with a decimal library.
 - AI Service: TypeScript strict; validate every input with zod; no database access.
+
+### Enum đặt ở đâu
+
+- Top-level enum: `<module>/model/enums`, có `package-info.java` với `@NamedInterface("enums")`.
+- Enum chỉ có nghĩa trong 1 class: lồng trong class đó.
+- Ngoại lệ: `common.exception.ErrorCode`.
+- Tạo module mới có enum: nhớ tạo `package-info.java`, nếu không `ModularityTest` sẽ fail khi module khác dùng enum đó.
+- `PackageConventionTest.enums_resideInModelEnums` kiểm tra quy tắc này.
+
+### Service đặt ở đâu
+
+- `..service` chỉ chứa interface; class hiện thực và helper nội bộ nằm trong `..service.impl`.
+- Ngoại lệ duy nhất: `com.cryptopilot.auth.service.LiveSessions`, vì `auth.config` (`JwtConfig`, `SessionLivenessValidator`) inject nó; giữ làm ngoại lệ, không tách interface (team lead, 2026-09-30).
+- Một job được inject helper trong `service.impl` của chính module (ví dụ `MarketStreamSupervisor` → `LatestMarketData`); controller thì không bao giờ.
+- Javadoc `{@link}` tới một class không tính là phụ thuộc khi phân loại.
+- `PackageConventionTest.servicePackages_holdOnlyInterfaces` kiểm tra quy tắc này; ngoại lệ mới phải ghi tên đầy đủ trong rule kèm lý do.
 
 ## 6. Definition of Done (per task)
 
