@@ -310,9 +310,10 @@ backend/
     │   │   │   ├── TradingApi.java
     │   │   │   ├── controller/    TradingPlanController, StrategyController
     │   │   │   ├── service/       TradingPlanService, PositionService
-    │   │   │   ├── repository/    TradingPlanRepository, TradingPlanWarningRepository, TradingStrategyRepository
+    │   │   │   ├── repository/    TradingPlanRepository (warnings saved through the plan, D-68), TradingStrategyRepository
     │   │   │   ├── entity/        TradingPlan, TradingPlanWarning, TradingStrategy
-    │   │   │   ├── model/enums/   Direction, WarningType, WarningSeverity, PlanStatus
+    │   │   │   ├── model/enums/   Direction, WarningType, WarningSeverity, PlanStatus, EntryType, MarginMode
+    │   │   │   ├── exception/     IllegalPlanStateException, PlanActivationBlockedException (D-66)
     │   │   │   ├── dto/
     │   │   │   ├── calculator/    RiskCalculator, LiquidationCalculator, FeeCalculator, FundingCalculator
     │   │   │   │   └── warning/   WarningRule, LowRiskRewardRule, HighLeverageRule, StopBeyondLiquidationRule …
@@ -446,7 +447,7 @@ cryptopilot_project/
 | `trading/dto/CreateTradingPlanRequest.java`, `TradingPlanResponse.java` | Records |
 | `trading/service/TradingPlanService.java` | `@Transactional create(...)`: loads pair filters via `MarketApi`, calls the calculators, applies warning rules, saves |
 | `trading/calculator/RiskCalculator.java`, `LiquidationCalculator.java`, `warning/*Rule.java` | BR-23…29, pure |
-| `trading/entity/TradingPlan.java`, `TradingPlanWarning.java`, `PlanStatus.java` | Entity with `activate()`, `cancel()`, `markExecuted()` (BR-32) |
+| `trading/entity/TradingPlan.java`, `TradingPlanWarning.java`; `trading/model/enums/PlanStatus.java` | Aggregate root with `draft()`, `updateDraft()`, `activate()`, `markExecuted()`, `cancel()`, `expire()`; one transition table in `PlanStatus`; each terminal status stores its instant (BR-31, BR-32; D-66…D-69) |
 | `trading/repository/TradingPlanRepository.java` | Spring Data JPA |
 | `src/test/java/com/cryptopilot/trading/calculator/RiskCalculatorTest.java` | `BR23_…`, `BR24_…`, `BR25_…` |
 
@@ -455,7 +456,7 @@ cryptopilot_project/
 ## 5. Cross-cutting design
 
 ### 5.1 Errors and API responses
-- Business errors: `throw new BusinessException(ErrorCode.X, args)`. `ErrorCode` (in `common.exception`) has a stable code (e.g. `TRADING_BLOCKING_WARNING`), the HTTP status and the SRS message code (MSGxx).
+- Business errors: `throw new BusinessException(ErrorCode.X, args)`. A domain rule that rejects named input fields (e.g. a plan recalculated at activation) throws `FieldValidationException`: `VALIDATION_FAILED` (400, MSG01) with `errors` field → MSG code, the same shape as a failed request body (T-038). `ErrorCode` (in `common.exception`) has a stable code (e.g. `TRADING_BLOCKING_WARNING`), the HTTP status and the SRS message code (MSGxx).
 - `GlobalExceptionHandler` (`@RestControllerAdvice`) returns `ProblemDetail` (RFC 9457) with properties `code`, `messageCode`, `traceId` and, for validation, `errors` (field → message).
 - `ResourceNotFoundException` → 404 (MSG41 context); `MethodArgumentNotValidException` → 400 with field errors (MSG01/MSG15…); access denied → 403; unhandled → 500 with reference code (MSG43), no stack trace.
 

@@ -222,6 +222,9 @@ erDiagram
     text plan_note
     timestamp activated_at
     timestamp expires_at
+    timestamp executed_at "set with EXECUTED"
+    timestamp cancelled_at "set with CANCELLED"
+    timestamp expired_at "set with EXPIRED"
     timestamp created_at
     timestamp updated_at
   }
