@@ -1009,6 +1009,8 @@ Workers that read Binance streams and the in-process pipelines run on virtual th
 | NSF-17 Retention | `@Scheduled` | 01:00 UTC daily | Delete by predicate |
 | NSF-18 Audit | `AdminApi.audit(...)` inside the command transaction | Every admin/security command | Same transaction |
 
+Built in T-081 (D-74): `admin.AdminApi#audit(AuditEntry)`, implemented by `admin.service.impl.AuditServiceImpl` with `Propagation.MANDATORY` (no transaction → `IllegalTransactionStateException`); entity `admin.entity.AuditLog` (`@Immutable`) on the V1 table, repository with `save` only; values redacted by field name before they are stored; `ip_address` from the servlet request. Nothing calls it yet: each BR-57 task wires its own command (Q-28 for the auth security commands).
+
 In-process market pipeline: stream shard → `ArrayBlockingQueue<MarketEvent>` per partition (market, symbol hash mod N) → consumers for indicators, alerts and matching. Queues are bounded; when full, ticker updates for the same symbol are coalesced (latest wins); kline-close events are never dropped.
 
 ---
