@@ -157,7 +157,7 @@ erDiagram
     uuid watchlist_id FK
     varchar market_type "SPOT, FUTURES"
     varchar alert_type "PRICE, INDICATOR"
-    varchar indicator_name "null if PRICE"
+    varchar indicator_name "null if PRICE; RSI_14, MACD_CROSS, EMA_CROSS, FUNDING_RATE, OPEN_INTEREST_CHANGE"
     varchar timeframe "null if PRICE"
     varchar condition_operator "CROSS_ABOVE, CROSS_BELOW, GREATER_THAN, LESS_THAN"
     decimal threshold_value
@@ -169,6 +169,8 @@ erDiagram
     varchar alert_status "ACTIVE, PAUSED, TRIGGERED, EXPIRED"
     int trigger_count
     timestamp last_triggered_at
+    timestamp last_bar_open_time "ONCE_PER_BAR bookkeeping of NSF-06 (V17)"
+    decimal last_evaluated_value "previous value of a cross, NSF-06 (V17)"
     timestamp expires_at
     timestamp created_at
     timestamp updated_at
