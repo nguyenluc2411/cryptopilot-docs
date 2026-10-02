@@ -1,6 +1,6 @@
 # CURRENT_STATE.md — CryptoPilot Project State
 
-**Last updated:** 2026-10-02 · **Document version:** 2.55 (T-054 pre-PR fixes: NULL cross threshold, MSG26 `expectedAlertCount`; T-054 alert rules DONE, branch `feat/t-054-alert-rules` pushed, PR to open; D-76, A-40, Q-29 closed, Q-30, Q-31 opened; PRs #42 and #43 merged; PRs #42 (T-081) and #43 (T-053) opened, local pre-review notes in `reviews/`; T-053 watchlist API DONE, branch `feat/t-053-watchlist` pushed, PR to open; D-75, Q-29 opened; T-081 audit writer DONE, branch `feat/t-081-audit-log` pushed, PR to open; D-74, Q-28 opened; PR #41 (T-039) merged `bfddaf9`; T-039 built, PR #41 open; T-038 merged, PR #40 `e7ce968`; Q-26 closed: SRS BR-67 edited in place; #39 service refactor, #38 enum refactor and #37 T-037 merged; #34, #35, #36 merged; #29, #33 closed; Q-27 closed) · **Phase:** P0 done bar T-001 (branch protection DEFERRED), T-004 and the rest of T-009; P1 done bar T-015 (READY), T-016, T-105 and the web screens; T-103 DONE on PR #30; P2 done; P3 done bar T-029 (PARTIAL, Q-21); P3b: T-106, T-104, T-108 merged, T-107 READY (BE1); P5: T-035, T-036, T-037 merged; T-038 DONE on PR #40 (awaiting review and merge); NEXT T-039
+**Last updated:** 2026-10-02 · **Document version:** 2.56 (deterministic market stream tests, branch pushed, PR to open; T-054 pre-PR fixes: NULL cross threshold, MSG26 `expectedAlertCount`; T-054 alert rules DONE, branch `feat/t-054-alert-rules` pushed, PR to open; D-76, A-40, Q-29 closed, Q-30, Q-31 opened; PRs #42 and #43 merged; PRs #42 (T-081) and #43 (T-053) opened, local pre-review notes in `reviews/`; T-053 watchlist API DONE, branch `feat/t-053-watchlist` pushed, PR to open; D-75, Q-29 opened; T-081 audit writer DONE, branch `feat/t-081-audit-log` pushed, PR to open; D-74, Q-28 opened; PR #41 (T-039) merged `bfddaf9`; T-039 built, PR #41 open; T-038 merged, PR #40 `e7ce968`; Q-26 closed: SRS BR-67 edited in place; #39 service refactor, #38 enum refactor and #37 T-037 merged; #34, #35, #36 merged; #29, #33 closed; Q-27 closed) · **Phase:** P0 done bar T-001 (branch protection DEFERRED), T-004 and the rest of T-009; P1 done bar T-015 (READY), T-016, T-105 and the web screens; T-103 DONE on PR #30; P2 done; P3 done bar T-029 (PARTIAL, Q-21); P3b: T-106, T-104, T-108 merged, T-107 READY (BE1); P5: T-035, T-036, T-037 merged; T-038 DONE on PR #40 (awaiting review and merge); NEXT T-039
 **Next task:** `T-042` — Matching engine skeleton (BE1); PR #41 (T-039) is merged (`bfddaf9`), so its dependencies are DONE. BE2: T-081 and T-053 merged (PRs #42, #43, 2026-10-02); T-054 DONE (2026-10-02, PR to open); next for BE2 T-055 (alert engine; after the T-054 PR merges — T-028 is DONE — and Q-30 for FUNDING_RATE) or T-082 / T-085 / T-086 (T-081 merged); T-040 / T-041 (FE) are unblocked by the same merge. T-039 built on 2026-10-01: plan API, D-63 lock, V16. T-038 merged (PR #40, `e7ce968`).
 T-022 is merged (PR #15, `0510ae4`, CI 1178/1178). T-025 is merged (PR #16, `f36c291`, CI green 2026-09-25): the incremental
 indicator engine of TD 7.2 in `market.calculator` and `IndicatorService`, checked against TA-Lib golden data and a batch
@@ -508,6 +508,29 @@ Rule: an AI agent never answers an open question by guessing. It implements what
 ## 9. Session log
 
 Newest first. One block per working session, format in `CLAUDE.md` section 8.
+
+### 2026-10-02 – chore: deterministic market stream tests (no backlog task)
+- Result: DONE (branch `chore/deterministic-market-stream-tests` pushed, PR to open)
+- Summary: Coverage of `BinanceStreamShard` / `ClosedCandlePipeline` moved between identical builds (up to 3 lines and
+  1 branch of the global figure). 20 runs of the related tests on `develop` `6137e24` found lines covered only by
+  timing: 192–194 (handshake completing after `close()`), 241 (old renewal connection ending after its replacement),
+  311–312 (`Frames.onError` vs `onClose` on a dropped socket), then 196–199 (closed before the handshake arrived).
+  Fixed with a test double `ScriptedWebSocketClient` + `BinanceStreamShardScriptedTest` (virtual time, fixed clock),
+  and an injected `ThreadFactory` in `ClosedCandlePipeline` (virtual threads by default, same names; runtime unchanged)
+  with two tests that join the consumer threads. `BinanceStreamShard` already took `Clock` and the timer: no production
+  change there. BE1 had no branch touching these classes.
+- Files: `market/job/ClosedCandlePipeline.java`; tests `market/job/ClosedCandlePipelineTest`,
+  `market/client/{ScriptedWebSocketClient,BinanceStreamShardScriptedTest}`
+- Tests: +7; related classes 20 runs before: 1–5 lines / 5–7 branches missed, after: 0 / 4 in every run; suite
+  1970/1970, `clean verify` ×3 identical per class: 99.59 % line (5062/5083), 96.25 % branch (1538/1598) on this branch
+  (develop has no T-054 code); local merge with `feat/t-054-alert-rules`: 2113/2113, 99.61 % (5358/5379), 96.54 %
+  (1672/1732)
+- BR/UC/NSF covered: NSF-03 (tests only)
+- Decisions: none
+- Open questions: none
+- Next: T-042 (NEXT, BE1); BE2: T-055 (after the T-054 PR merges; Q-30), or T-082 / T-085 / T-086
+- Commits: 49baf8b refactor(market): inject thread factory into candle pipeline; fe0aee7 test(market): make stream shard
+  and candle pipeline tests deterministic. Pushed as TrucFPTU; the PR is opened by the person
 
 ### 2026-10-02 – T-054 pre-PR fixes (null cross threshold, MSG26 compare-and-set)
 - Result: DONE
