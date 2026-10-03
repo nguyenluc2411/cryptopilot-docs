@@ -813,6 +813,8 @@ Recovery after restart: rebuild books from ACTIVE plans and OPEN journal records
 
 References: Cormen et al. 2009 (balanced search trees); Hewitt et al. 1973 (actor model).
 
+Built in T-042 (PR #46): `trading.matching.{PriceLevelBook, MatchingEngine}` (pure, LIMIT entries only), `trading.job.MatchingWorker` (`cryptopilot.trading.matching.*`: partitions 4, queue 10000; ranges offered, track/untrack wait), `TradingPlanRepository.executeIfActive` (5.5 compare-and-set, version + 1), events `TradingPlanActivated` / `TradingPlanCancelled` read after commit. `executed_at` is the instant of the update that reached the entry. Not yet fed by `kline_1m` (Q-32); MARKET entries T-043, exits and mark books T-044.
+
 ### 7.8 Fees, funding and realized P/L (BR-36..38)
 
 ```

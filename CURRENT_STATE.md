@@ -1,7 +1,7 @@
 # CURRENT_STATE.md — CryptoPilot Project State
 
-**Last updated:** 2026-10-02 · **Document version:** 2.56 (deterministic market stream tests, branch pushed, PR to open; T-054 pre-PR fixes: NULL cross threshold, MSG26 `expectedAlertCount`; T-054 alert rules DONE, branch `feat/t-054-alert-rules` pushed, PR to open; D-76, A-40, Q-29 closed, Q-30, Q-31 opened; PRs #42 and #43 merged; PRs #42 (T-081) and #43 (T-053) opened, local pre-review notes in `reviews/`; T-053 watchlist API DONE, branch `feat/t-053-watchlist` pushed, PR to open; D-75, Q-29 opened; T-081 audit writer DONE, branch `feat/t-081-audit-log` pushed, PR to open; D-74, Q-28 opened; PR #41 (T-039) merged `bfddaf9`; T-039 built, PR #41 open; T-038 merged, PR #40 `e7ce968`; Q-26 closed: SRS BR-67 edited in place; #39 service refactor, #38 enum refactor and #37 T-037 merged; #34, #35, #36 merged; #29, #33 closed; Q-27 closed) · **Phase:** P0 done bar T-001 (branch protection DEFERRED), T-004 and the rest of T-009; P1 done bar T-015 (READY), T-016, T-105 and the web screens; T-103 DONE on PR #30; P2 done; P3 done bar T-029 (PARTIAL, Q-21); P3b: T-106, T-104, T-108 merged, T-107 READY (BE1); P5: T-035, T-036, T-037 merged; T-038 DONE on PR #40 (awaiting review and merge); NEXT T-039
-**Next task:** `T-042` — Matching engine skeleton (BE1); PR #41 (T-039) is merged (`bfddaf9`), so its dependencies are DONE. BE2: T-081 and T-053 merged (PRs #42, #43, 2026-10-02); T-054 DONE (2026-10-02, PR to open); next for BE2 T-055 (alert engine; after the T-054 PR merges — T-028 is DONE — and Q-30 for FUNDING_RATE) or T-082 / T-085 / T-086 (T-081 merged); T-040 / T-041 (FE) are unblocked by the same merge. T-039 built on 2026-10-01: plan API, D-63 lock, V16. T-038 merged (PR #40, `e7ce968`).
+**Last updated:** 2026-10-03 · **Document version:** 2.57 (T-042 matching engine skeleton DONE on PR #46, Q-32 opened; PRs #44 (T-054) and #45 (deterministic market stream tests) opened; deterministic market stream tests, branch pushed, PR to open; T-054 pre-PR fixes: NULL cross threshold, MSG26 `expectedAlertCount`; T-054 alert rules DONE, branch `feat/t-054-alert-rules` pushed, PR to open; D-76, A-40, Q-29 closed, Q-30, Q-31 opened; PRs #42 and #43 merged; PRs #42 (T-081) and #43 (T-053) opened, local pre-review notes in `reviews/`; T-053 watchlist API DONE, branch `feat/t-053-watchlist` pushed, PR to open; D-75, Q-29 opened; T-081 audit writer DONE, branch `feat/t-081-audit-log` pushed, PR to open; D-74, Q-28 opened; PR #41 (T-039) merged `bfddaf9`; T-039 built, PR #41 open; T-038 merged, PR #40 `e7ce968`; Q-26 closed: SRS BR-67 edited in place; #39 service refactor, #38 enum refactor and #37 T-037 merged; #34, #35, #36 merged; #29, #33 closed; Q-27 closed) · **Phase:** P0 done bar T-001 (branch protection DEFERRED), T-004 and the rest of T-009; P1 done bar T-015 (READY), T-016, T-105 and the web screens; T-103 DONE on PR #30; P2 done; P3 done bar T-029 (PARTIAL, Q-21); P3b: T-106, T-104, T-108 merged, T-107 READY (BE1); P5: T-035, T-036, T-037 merged; T-038 DONE on PR #40 (awaiting review and merge); NEXT T-039
+**Next task:** `T-043` — Entry fill rules and restart replay (BE1), after PR #46 (T-042) merges; Q-32 decides whether it also connects `kline_1m`. T-042 built 2026-10-03 (PR #46). BE2: T-055 after PR #44 (T-054) merges and Q-30; or T-082 / T-085 / T-086. T-040 / T-041 (FE, separate repository). Earlier: `T-042` — Matching engine skeleton (BE1); PR #41 (T-039) is merged (`bfddaf9`), so its dependencies are DONE. BE2: T-081 and T-053 merged (PRs #42, #43, 2026-10-02); T-054 DONE (2026-10-02, PR to open); next for BE2 T-055 (alert engine; after the T-054 PR merges — T-028 is DONE — and Q-30 for FUNDING_RATE) or T-082 / T-085 / T-086 (T-081 merged); T-040 / T-041 (FE) are unblocked by the same merge. T-039 built on 2026-10-01: plan API, D-63 lock, V16. T-038 merged (PR #40, `e7ce968`).
 T-022 is merged (PR #15, `0510ae4`, CI 1178/1178). T-025 is merged (PR #16, `f36c291`, CI green 2026-09-25): the incremental
 indicator engine of TD 7.2 in `market.calculator` and `IndicatorService`, checked against TA-Lib golden data and a batch
 reference; persistence and the `CandleClosed` hook stay with T-028. Still open: T-001 `PARTIAL` (Q-17), T-015 `PARTIAL`
@@ -325,8 +325,8 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 
 | ID | Task | Owner | Dep | Refs | Done when | Status |
 |---|---|---|---|---|---|---|
-| T-042 | Matching engine skeleton: partitions, channels, compare-and-set status | BE1 | T-039, T-021 | NSF-07, D-09 | A cancel/fill race produces exactly one outcome | **NEXT** (after PR #41 merges) |
-| T-043 | Entry fill rules and restart replay | BE1 | T-042, A-04 | BR-33, BR-34 | Replay after downtime equals live processing (test) | TODO |
+| T-042 | Matching engine skeleton: partitions, channels, compare-and-set status | BE1 | T-039, T-021 | NSF-07, D-09 | A cancel/fill race produces exactly one outcome | **DONE** 2026-10-03, PR #46 open (`feat/t-042-matching-engine`, awaiting review) — compare-and-set `executeIfActive` (ACTIVE → EXECUTED, version + 1), `trading.matching` books (`PriceLevelBook`, `MatchingEngine`), `trading.job.MatchingWorker` (bounded partitions, one virtual thread each), `TradingPlanActivated` / `TradingPlanCancelled` after commit, books rebuilt from ACTIVE LIMIT plans at start; race test 20/20. Not done: `kline_1m` feed (Q-32), MARKET entries (T-043), exits and mark books (T-044) |
+| T-043 | Entry fill rules and restart replay | BE1 | T-042, A-04 | BR-33, BR-34 | Replay after downtime equals live processing (test) | **NEXT** (after PR #46 merges; Q-32) |
 | T-044 | Exit rules: take profit, stop loss, liquidation, precedence | BE1 | T-043, A-02 | BR-35 | SL applied first when both reached in the same range; liquidation by mark price | TODO |
 | T-045 | Fees, funding settlement and realized P/L | BE1 | T-044, A-05 | BR-36…38 | Test vector of TD 7.8 reproduced for LONG, SHORT and liquidation | TODO |
 | T-046 | Manual close and NSF-09 plan expiry | BE2 | T-044 | UC-21, BR-39, NSF-09 | Close uses the taker fee; expiry only before a fill | TODO |
@@ -347,7 +347,7 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 | ID | Task | Owner | Dep | Refs | Done when | Status |
 |---|---|---|---|---|---|---|
 | T-053 | Watchlist model and API | BE2 | T-018, T-104, T-007 | UC-12, BR-15, BR-16, BR-62 (`WATCHLIST_MAX`, D-58; Q-22) | Unique per user and pair; limit enforced from system settings; **D-63:** watchlist items (`WATCHLIST_MAX`) counted and inserted in one transaction under `pg_advisory_xact_lock(hashtext(user_id::text))`, with a two-request concurrency test at `max − 1` | **DONE** 2026-10-01, branch `feat/t-053-watchlist` pushed (`60bccec`), PR #43 open (2026-10-02, awaiting review) — no migration (V1 `watchlist` + `uq_watchlist_user_pair` + `fk_alert_watchlist` cascade); `GET/POST /watchlist`, `PATCH/DELETE /watchlist/{id}`; `MarketApi#pairListings` (BR-07); D-63 advisory lock with two-request and ten-request concurrency tests; MSG45, MSG27, MSG26, MSG41 (D-75; Q-29 on unlisted watched pairs) |
-| T-054 | Alert rule model, conditions and validation | BE2 | T-053, T-104, T-007 | UC-13, BR-17…20, BR-62 (`ACTIVE_ALERT_MAX`, `INDICATOR_ALERT`, Futures alerts, D-58; Q-22) | Price and indicator conditions validated per type; **D-63:** ACTIVE alerts (`ACTIVE_ALERT_MAX`), on create and on resume counted and inserted in one transaction under `pg_advisory_xact_lock(hashtext(user_id::text))`, with a two-request concurrency test at `max − 1` | **DONE** 2026-10-02, branch `feat/t-054-alert-rules` pushed, PR to open — V17 (engine columns, cooldown, 90-day expiry, indicator names, A-40); `GET/POST /alerts`, `PUT/DELETE /alerts/{id}`, `POST /alerts/{id}/pause|resume`; BR-16 auto-add and `ACTIVE_ALERT_MAX` under the one D-63 key; races for create, auto-add, resume and re-activation; pre-PR fixes 2026-10-02: NULL threshold for line crosses, `expectedAlertCount` on the MSG26 confirmation (D-76; Q-29 closed; A-40; Q-30, Q-31 opened) |
+| T-054 | Alert rule model, conditions and validation | BE2 | T-053, T-104, T-007 | UC-13, BR-17…20, BR-62 (`ACTIVE_ALERT_MAX`, `INDICATOR_ALERT`, Futures alerts, D-58; Q-22) | Price and indicator conditions validated per type; **D-63:** ACTIVE alerts (`ACTIVE_ALERT_MAX`), on create and on resume counted and inserted in one transaction under `pg_advisory_xact_lock(hashtext(user_id::text))`, with a two-request concurrency test at `max − 1` | **DONE** 2026-10-02, PR #44 open 2026-10-03 (awaiting review) — V17 (engine columns, cooldown, 90-day expiry, indicator names, A-40); `GET/POST /alerts`, `PUT/DELETE /alerts/{id}`, `POST /alerts/{id}/pause|resume`; BR-16 auto-add and `ACTIVE_ALERT_MAX` under the one D-63 key; races for create, auto-add, resume and re-activation; pre-PR fixes 2026-10-02: NULL threshold for line crosses, `expectedAlertCount` on the MSG26 confirmation (D-76; Q-29 closed; A-40; Q-30, Q-31 opened) |
 | T-055 | NSF-06 alert engine | BE2 | T-054, T-028 | NSF-06, TD 7.9 | Cross semantics, trigger modes and cooldown covered by tests | TODO |
 | T-056 | Outbox processor and notification dispatch | DO | T-008 | NSF-15, D-08 | At-least-once delivery, retry ≤ 3, no duplicate in-app rows; adds `spring-modulith-events-jdbc` and re-runs the `event_publication` comparison against the schema that artifact ships (T-005 wrote the table before the artifact was on the classpath) | TODO |
 | T-057 | Email adapter (verification, reset, alert, receipt, reminder) | DO | T-056, T-104, T-007 | NSF-15, BR-62 (`EXTERNAL_ALERT_CHANNELS`, D-58; Q-22) | Templates render; failures retried, never lost | TODO |
@@ -500,6 +500,7 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 | Q-29 | BR-07 says only pairs enabled by Admin are shown. A pair the Trader already watches can later be disabled (or stop trading); T-053 keeps such rows in `GET /watchlist` with `spotListed` and `futuresListed` false, so the Trader can still see and remove them and they still count against `WATCHLIST_MAX` (BR-64 keeps data). Should SCR-12 hide them instead, and should they still count? | 2026-10-01 | Presentation of unlisted watched pairs (FE T-059 / SCR-12); not T-053's acceptance | Team lead | **CLOSED 2026-10-02 (team lead)** — the row stays visible with `spotListed` / `futuresListed` false and still counts toward `WATCHLIST_MAX` (T-053 behaviour kept); creating, resuming or re-activating an alert on a pair not enabled on the market is refused (404 MSG41, built in T-054) |
 | Q-30 | The unit of a FUNDING_RATE alert threshold. The market module returns the funding rate as a fraction (e.g. 0.0001), while screens usually show it in percent (0.01 %). SRS 3.4.2 states OPEN_INTEREST_CHANGE in percent but not FUNDING_RATE. T-054 stores the number as entered (any sign, `numeric(28,12)`); NSF-06 must know which unit it compares in | 2026-10-02 | T-055 (FUNDING_RATE evaluation), T-059 (the input on SCR-14) | Team lead | OPEN — recommended: percent, like OPEN_INTEREST_CHANGE and the screens, converted by the engine |
 | Q-31 | SRS 3.4.3 marks alerts "paused because of a plan change (BR-64)", but `alert` has no column for it, and T-054 does not own BR-64 (T-070 does). Add a marker (e.g. `paused_reason` PLAN_CHANGE / TRADER) with T-070, and does resuming such an alert clear it? | 2026-10-02 | T-070 (BR-64), T-059 (the mark on SCR-13) | Team lead | OPEN — follow-up, not T-054's acceptance |
+| Q-32 | D-43 assigns the `kline_1m` subscription to T-042, but T-042 has no fill rules (BR-33, T-043) and no journal (T-048): feeding live ranges now would mark plans EXECUTED with no position recorded. `MatchingWorker.submit` is ready and unfed. Connect `kline_1m` (stream name, a market-side listener port, `maxStreamsPerConnection` minimum 5 → 6) with T-043? | 2026-10-03 | T-043 (feed), T-042 (D-43 wording) | Team lead | OPEN — recommended: with T-043 |
 
 Rule: an AI agent never answers an open question by guessing. It implements what is unambiguous, adds or updates the row here and marks the task `PARTIAL` or `BLOCKED`.
 
@@ -508,6 +509,36 @@ Rule: an AI agent never answers an open question by guessing. It implements what
 ## 9. Session log
 
 Newest first. One block per working session, format in `CLAUDE.md` section 8.
+
+### 2026-10-03 – T-042 Matching engine skeleton (+ PRs #44, #45 opened)
+- Result: DONE (awaiting review of PR #46)
+- Summary: Opened PR #44 (T-054) and PR #45 (deterministic market stream tests); both 0 behind `develop`, `clean verify`
+  2106/2106 and 1970/1970, no rebase needed. No issue linked to #42/#43 or any T-xxx (repo has no open issues), nothing
+  closed. T-042 per spec (not a price-time order book): compare-and-set fill, books per (market, pair), partitioned
+  channels with one consumer each, plan events after commit, rebuild from ACTIVE LIMIT plans at start.
+- Files: `trading/{matching/*,job/MatchingWorker,config/Matching*,event/*,model/{TrackedEntry,PriceRange},
+  service/MatchingService,service/impl/{MatchingServiceImpl,TradingPlanServiceImpl},repository/TradingPlanRepository}`;
+  tests `trading/{matching,job,model,service}/*Matching*`, `PriceLevelBookTest`, `TradingPlanServiceImplTest`
+- Tests: +57; suite 1963 → 2020/2020 (`clean verify`); coverage Backend 99.60 % line (5219/5240), 96.31 % branch
+  (1590/1651); new classes 100 % / 100 %. CAS weakened (no status condition, no version bump): race test 21/24 failed;
+  restored
+- BR/UC/NSF covered: NSF-07 (skeleton), BR-32, UC-19 (cancel vs fill); D-09; TD 5.5, 7.7
+- Decisions: none (layout: `MatchingWorker` in `trading.job`, pure books in `trading.matching`; `executed_at` = update
+  time — both listed in the PR for review)
+- Open questions: Q-32 (new)
+- Next: T-043 (after PR #46 merges); BE2 T-055 after PR #44 and Q-30
+- Commits: a9412bb feat(trading): fill active plans with a compare-and-set status update; ada4fce feat(trading): add
+  matching books for limit entries; 65a1fb7 feat(trading): run the matching engine on partitioned channels; 745d34e
+  test(trading): cover the cancel and fill race on a real database. Pushed as TrucFPTU, PR #46
+
+## Update 2026-10-03
+- Done: PRs #44 and #45 opened (both verified green); T-042 matching engine skeleton built and pushed
+- PRs opened: #44 feat(watchlist): add alert rules (T-054); #45 test(market): make market stream tests deterministic;
+  #46 feat(trading): add matching engine skeleton (T-042)
+- Issues closed: none — no issue is linked to PR #42 or #43, and no T-081/T-053/T-042 issue exists
+- In progress: PR #44, #45, #46 awaiting review (none merged)
+- Blockers / open questions: Q-30, Q-31, Q-32 (new: when to connect `kline_1m`)
+- Next: T-043 after PR #46 merges (BE1); T-055 after PR #44 merges and Q-30 (BE2)
 
 ### 2026-10-02 – chore: deterministic market stream tests (no backlog task)
 - Result: DONE (branch `chore/deterministic-market-stream-tests` pushed, PR to open)
@@ -2735,3 +2766,10 @@ Kept current as tasks close (`/end-session` step 5). Each row: BR/UC/NSF/SCR id 
 - Known gaps: MARKET stays ACTIVE until T-042; open positions counted as 0 (no journal yet); Futures plans need leverage brackets, which arrive with T-085
 - Follow-ups: stored warning severity; FieldValidationException detail text exposure (T-040)
 - Next: T-040 / T-041 (FE), T-042 (matching)
+
+## Update 2026-10-03
+- Done: FE integration guide (docs/design/fe-guide — under `docs/design/` because `docs/fe-guide/` is not in the local-only exclude list), synced to develop @ 6137e2425cfe59a6c07ea84c2a86efe8a64a1e4f; docs repo commits 5ffefc4..cd3870c, pushed
+- Endpoints: 35 implemented / 6 pending PR (feat/t-054-alert-rules: alerts; plus `expectedAlertCount` on DELETE /watchlist/{id}) / 43 planned (+ 13 admin areas without methods)
+- Spec-vs-code mismatches: M-01 no pair id exposed while watchlist/plans/alerts take `pairId`; M-02 no CORS for REST, WS origins localhost only; M-03 Bucket4j rate limits absent; M-04 STOMP payloads likely carry nulls (TD 9 / D-51 say omitted); M-05 D-60 gates not built (T-107); M-06 STOMP CONNECT auth and /user queues absent; M-07 resend limit / MSG46 absent (T-105); M-08 watchlist row lacks price, change, 1h score (D-75); M-09 no Futures last price / 24h stats; M-10 plan rows lack symbol and position fields; M-11 MSG15/MSG16 placeholders not in field errors; M-12 Futures plans unusable without leverage brackets (D-70, T-085); M-13 no indicator series for chart overlays; M-14 TD 8 user row omits /me/risk-profile and /me/risk-questionnaire
+- Open questions affecting FE: Q-21, Q-30, Q-31, Q-06, Q-07, Q-02; new FEQ-01 (pair id), FEQ-02 (plan tier and limits for CR-08 locks), FEQ-03 (verification/reset link URL), FEQ-04 (indicator series), FEQ-05 (payment return target) — in docs/design/fe-guide/07-open-questions.md, to be promoted to Q-xx by the team lead
+- Next: re-sync guide after T-054 and T-042 PRs merge
