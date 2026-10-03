@@ -326,7 +326,7 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 | ID | Task | Owner | Dep | Refs | Done when | Status |
 |---|---|---|---|---|---|---|
 | T-042 | Matching engine skeleton: partitions, channels, compare-and-set status | BE1 | T-039, T-021 | NSF-07, D-09 | A cancel/fill race produces exactly one outcome | **DONE** 2026-10-03, PR #46 open, review fixes pushed (head `8278e79`) — compare-and-set `executeIfActive` (ACTIVE → EXECUTED, version + 1), `trading.matching` books (`PriceLevelBook`, `MatchingEngine`), `trading.job.MatchingWorker` (bounded partitions, one virtual thread each), `TradingPlanActivated` / `TradingPlanCancelled` after commit, books rebuilt from ACTIVE LIMIT plans at start; race test 20/20. Not done: `kline_1m` feed (Q-32), MARKET entries (T-043), exits and mark books (T-044) |
-| T-043 | Entry fill rules and restart replay | BE1 | T-042, A-04 | BR-33, BR-34 | Replay after downtime equals live processing (test) | **NEXT** (after PR #46 merges; Q-32) |
+| T-043 | Entry fill rules and restart replay | BE1 | T-042, A-04 | BR-33, BR-34 | Replay after downtime equals live processing (test) | **NEXT** (after PR #46 merges; Q-32, Q-33). Carried over from the PR #46 re-review: **N1** a pending range waits until the channel is empty under sustained backlog and its fill time drifts to the latest update, and each submit while pending also queues a `Flush`; **N3** a fill that always fails is retried on every range with an ERROR each time (add a cap or backoff); **N4** `stop()` does not join the consumers, so `start()` after `stop()` can reset a partition while an old consumer runs. The Q-33 guard can use `PriceRange.from` (earliest time of a merged range) |
 | T-044 | Exit rules: take profit, stop loss, liquidation, precedence | BE1 | T-043, A-02 | BR-35 | SL applied first when both reached in the same range; liquidation by mark price | TODO |
 | T-045 | Fees, funding settlement and realized P/L | BE1 | T-044, A-05 | BR-36…38 | Test vector of TD 7.8 reproduced for LONG, SHORT and liquidation | TODO |
 | T-046 | Manual close and NSF-09 plan expiry | BE2 | T-044 | UC-21, BR-39, NSF-09 | Close uses the taker fee; expiry only before a fill | TODO |
@@ -2802,3 +2802,38 @@ Kept current as tasks close (`/end-session` step 5). Each row: BR/UC/NSF/SCR id 
 - Deferred: Q-32 (kline_1m -> T-043), Q-33 (mid-minute activation -> T-043)
 - Separate: MarketHubTest.D50 flake (passed in this full run; not touched, separate ticket)
 - PR #46 head: 8278e79
+
+## Update 2026-10-03 (re-review T-042)
+- PR #46 re-review of the fixes (`ffe7e14..8278e79`; range-diff shows the 4 earlier commits rebased unchanged, branch 0 behind `develop` `9ed4957`). Verdict: **APPROVE WITH NITS**, on condition that F1 is fixed before `kline_1m` feeds `MatchingWorker.submit` (Q-32 / T-043). F1 cannot happen in production today because nothing calls `submit`.
+- `./mvnw clean verify` in a separate worktree at `8278e79`: **2179/2179, BUILD SUCCESS** (coverage gates hold; the PR body says 2177). MarketHubTest passed and was not touched.
+- Previous findings:
+  - Start-up hang: FIXED — `MatchingWorker.java:91` seeds each engine directly; test with 50 entries and capacity 2 covers start and stop under 5 s timeouts.
+  - TD 10 full-queue policy: FIXED — `:130` merges per pair (`merge` `:157-163`). See F1 for the new ordering defect.
+  - Failed fill retry list: FIXED — `:263` with the original `at`, cleared on untrack `:232` and on `reset` `:198`.
+  - Cancel conflict → MSG43: FIXED — `TradingPlanRepository.java:43-45` `PESSIMISTIC_WRITE`, `TradingPlanServiceImpl.java:157`; TD 5.5 updated.
+  - Cancel routing: FIXED — `TradingPlanCancelled(planId, market, pairId)`, one partition `:151`.
+  - Logging: FIXED — WARN on interrupt `:175`, catch-all `:218`.
+  - Start-up window: FIXED — `running` is set before the rebuild, so activations and cancels during it are queued; `track` replaces, so a duplicate does no harm.
+  - TD 4.1 tree: FIXED (`MatchingWorker` noted under `trading.job`). Rebase + clean verify: FIXED.
+- Focus checks:
+  - Lock: `SELECT … FOR UPDATE` on the one `trading_plan` row, for the cancel transaction only, released on commit or rollback (MSG43 and 404 included). The fill is one UPDATE of the same row in its own transaction, so there is a single resource and no deadlock cycle. With `@Lock` removed, `MatchingRaceTest` failed **20/20** (`ObjectOptimisticLockingFailureException`); restored.
+  - Merge: ranges of a pair stay in order relative to each other, and the lowest low and highest high are kept (`PriceRange` has no close; matching reads only the extremes). Order relative to Track/Untrack is NOT kept: F1.
+  - Retry list: size is bounded (each entry at most once, by the tracked entries of the pair), but there is no cap or backoff on attempts. A fired entry leaves the books, so a retry and a new range cannot both fill it; the compare-and-set is the backstop.
+  - Start-up test: covers both start and stop.
+- Findings:
+  - F1 (Medium, new, introduced by the merge fix): pending ranges are read only when the channel is empty (`:215`), so a later Track/Untrack of the same pair already in the channel is applied **before** an earlier pending range. A LIMIT plan activated after a range can be filled by that range, with `executed_at` before `activated_at`; a cancel can also overtake an earlier range that reached the entry. The merge sets `at` to the latest time, so a Q-33 guard based on `at` would not catch it. Proved with a deterministic probe (1 partition, capacity 1, gated fills; not committed, copy in the session scratchpad). Fix before Q-32 / T-043: keep commands and ranges of a pair in one order (e.g. apply the pair's pending range before handling a Track/Untrack of that pair, and stop merging across it), or carry `activatedAt` in `TrackedEntry` and the earliest time in the merged range. Record it under Q-33.
+  - N1 (Low): under sustained backlog a pending range waits until the channel is empty, possibly without limit, and keeps growing (fill time drifts to the latest). Each submit while pending exists also queues a `Flush`, which uses channel capacity.
+  - N2 (Low): `fill` catches only `RuntimeException` (`:261`). Anything else reaches the catch-all after `engine.onRange` and `retries.remove` have already taken the entries, so the rest of that range's fired entries and of the retry list are lost silently. Catch `Exception` in `fill`.
+  - N3 (Nit): a fill that always fails is retried on every range, with an ERROR log each time; consider a cap or backoff.
+  - N4 (Nit): `stop()` does not join consumers; a `start()` after `stop()` resets `engine`/`retries` while an old consumer may still be running a command (restart path, tests only).
+  - N5 (Nit): PR body test count 2177 vs 2179 observed.
+
+## Update 2026-10-03 (T-042 re-review fixes)
+- Fixed:
+  - F1: per-pair order across activations and cancels. Each pending range, activation and cancel of a pair takes a number from its partition; an activation or cancel closes the open pending range (no merging across it) and the pending ranges numbered below it are matched first; ranges arriving while a command waits for room stay pending behind it. `PriceRange` gains `from` (earliest time), and a merge keeps the earliest and the latest time (Q-33 guard input). The activation test fails on the previous head `8278e79` 3 runs out of 3; the cancel test fails on it too
+  - N2: `fill` catches `Exception`, logs the plan id, retries; the other entries of the range are still filled (checked-exception test). The consumer catch-all stays and is no longer reachable by a test
+  - N5: earlier totals added the surefire `tests` attributes; `RoundingTest` reports 34 cases with `tests="32"`, so the sum was 2 below Maven. Counting test cases now
+- Tests: `MatchingWorkerTest` 17 → 22 (old catch-all test replaced by the N2 test), `MatchingRecordsTest` 4 → 6; `clean verify` 2186 test cases, all passed; coverage 99.59 % line / 96.66 % branch; uncovered in `MatchingWorker`: the catch-all and one timing-only branch of `dueRanges()`
+- Deferred to T-043: N1, N3, N4 (noted on the T-043 row); Q-32, Q-33
+- Commits: 88003ed fix(trading): match pending ranges before activation or cancel; 64d64d9 fix(trading): keep a fill that fails with any exception for retry. Normal push (0 behind develop, no rebase)
+- PR #46 head: 64d64d9
