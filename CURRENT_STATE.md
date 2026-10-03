@@ -325,7 +325,7 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 
 | ID | Task | Owner | Dep | Refs | Done when | Status |
 |---|---|---|---|---|---|---|
-| T-042 | Matching engine skeleton: partitions, channels, compare-and-set status | BE1 | T-039, T-021 | NSF-07, D-09 | A cancel/fill race produces exactly one outcome | **DONE** 2026-10-03, PR #46 open (`feat/t-042-matching-engine`, awaiting review) — compare-and-set `executeIfActive` (ACTIVE → EXECUTED, version + 1), `trading.matching` books (`PriceLevelBook`, `MatchingEngine`), `trading.job.MatchingWorker` (bounded partitions, one virtual thread each), `TradingPlanActivated` / `TradingPlanCancelled` after commit, books rebuilt from ACTIVE LIMIT plans at start; race test 20/20. Not done: `kline_1m` feed (Q-32), MARKET entries (T-043), exits and mark books (T-044) |
+| T-042 | Matching engine skeleton: partitions, channels, compare-and-set status | BE1 | T-039, T-021 | NSF-07, D-09 | A cancel/fill race produces exactly one outcome | **DONE** 2026-10-03, PR #46 open, review fixes pushed (head `8278e79`) — compare-and-set `executeIfActive` (ACTIVE → EXECUTED, version + 1), `trading.matching` books (`PriceLevelBook`, `MatchingEngine`), `trading.job.MatchingWorker` (bounded partitions, one virtual thread each), `TradingPlanActivated` / `TradingPlanCancelled` after commit, books rebuilt from ACTIVE LIMIT plans at start; race test 20/20. Not done: `kline_1m` feed (Q-32), MARKET entries (T-043), exits and mark books (T-044) |
 | T-043 | Entry fill rules and restart replay | BE1 | T-042, A-04 | BR-33, BR-34 | Replay after downtime equals live processing (test) | **NEXT** (after PR #46 merges; Q-32) |
 | T-044 | Exit rules: take profit, stop loss, liquidation, precedence | BE1 | T-043, A-02 | BR-35 | SL applied first when both reached in the same range; liquidation by mark price | TODO |
 | T-045 | Fees, funding settlement and realized P/L | BE1 | T-044, A-05 | BR-36…38 | Test vector of TD 7.8 reproduced for LONG, SHORT and liquidation | TODO |
@@ -501,6 +501,7 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 | Q-30 | The unit of a FUNDING_RATE alert threshold. The market module returns the funding rate as a fraction (e.g. 0.0001), while screens usually show it in percent (0.01 %). SRS 3.4.2 states OPEN_INTEREST_CHANGE in percent but not FUNDING_RATE. T-054 stores the number as entered (any sign, `numeric(28,12)`); NSF-06 must know which unit it compares in | 2026-10-02 | T-055 (FUNDING_RATE evaluation), T-059 (the input on SCR-14) | Team lead | OPEN — recommended: percent, like OPEN_INTEREST_CHANGE and the screens, converted by the engine |
 | Q-31 | SRS 3.4.3 marks alerts "paused because of a plan change (BR-64)", but `alert` has no column for it, and T-054 does not own BR-64 (T-070 does). Add a marker (e.g. `paused_reason` PLAN_CHANGE / TRADER) with T-070, and does resuming such an alert clear it? | 2026-10-02 | T-070 (BR-64), T-059 (the mark on SCR-13) | Team lead | OPEN — follow-up, not T-054's acceptance |
 | Q-32 | D-43 assigns the `kline_1m` subscription to T-042, but T-042 has no fill rules (BR-33, T-043) and no journal (T-048): feeding live ranges now would mark plans EXECUTED with no position recorded. `MatchingWorker.submit` is ready and unfed. Connect `kline_1m` (stream name, a market-side listener port, `maxStreamsPerConnection` minimum 5 → 6) with T-043? | 2026-10-03 | T-043 (feed), T-042 (D-43 wording) | Team lead | OPEN — recommended: with T-043 |
+| Q-33 | The `kline_1m` high/low is cumulative for the forming minute, so the first range after a mid-minute activation can carry prices traded before the activation and fill the new entry on them. Guard (ignore ranges whose candle opened before `activated_at`, or require a fresh update) or accept? | 2026-10-03 | T-043 | Team lead | OPEN — raised in the PR #46 review; deferred to T-043 with the feed |
 
 Rule: an AI agent never answers an open question by guessing. It implements what is unambiguous, adds or updates the row here and marks the task `PARTIAL` or `BLOCKED`.
 
@@ -2773,3 +2774,31 @@ Kept current as tasks close (`/end-session` step 5). Each row: BR/UC/NSF/SCR id 
 - Spec-vs-code mismatches: M-01 no pair id exposed while watchlist/plans/alerts take `pairId`; M-02 no CORS for REST, WS origins localhost only; M-03 Bucket4j rate limits absent; M-04 STOMP payloads likely carry nulls (TD 9 / D-51 say omitted); M-05 D-60 gates not built (T-107); M-06 STOMP CONNECT auth and /user queues absent; M-07 resend limit / MSG46 absent (T-105); M-08 watchlist row lacks price, change, 1h score (D-75); M-09 no Futures last price / 24h stats; M-10 plan rows lack symbol and position fields; M-11 MSG15/MSG16 placeholders not in field errors; M-12 Futures plans unusable without leverage brackets (D-70, T-085); M-13 no indicator series for chart overlays; M-14 TD 8 user row omits /me/risk-profile and /me/risk-questionnaire
 - Open questions affecting FE: Q-21, Q-30, Q-31, Q-06, Q-07, Q-02; new FEQ-01 (pair id), FEQ-02 (plan tier and limits for CR-08 locks), FEQ-03 (verification/reset link URL), FEQ-04 (indicator series), FEQ-05 (payment return target) — in docs/design/fe-guide/07-open-questions.md, to be promoted to Q-xx by the team lead
 - Next: re-sync guide after T-054 and T-042 PRs merge
+
+## Update 2026-10-03 (review T-042)
+- PR #46 verdict: CHANGES REQUESTED (independent review of head `745d34e`). The compare-and-set fill, the books and the race test are correct and match TD 5.5 / 7.7 and BR-32/BR-33 (only LIMIT and MARKET exist; LONG low ≤ entry, SHORT high ≥ entry). `./mvnw clean verify` in a separate worktree: 2021/2022, 1 failure `MarketHubTest.D50_aSubscriptionOutsideThePublicMarketTopics_isRefused` (timeout, market module, not touched by the PR). It passed 3 runs out of 3 when run alone, so it looks like an existing flake. All 57 T-042 tests, ModularityTest and PackageConventionTest pass. The branch is 9 commits behind develop (PRs #44, #45 merged) and has not been verified rebased.
+- Blockers:
+  - `MatchingWorker.start()` puts the ACTIVE LIMIT entries into the bounded queues before it starts any consumer. If one partition gets more than `queue-capacity` entries (default 10000; one hot pair always lands in one partition), `put` blocks forever on the ApplicationReadyEvent thread while holding the `synchronized` monitor. Startup never finishes, `stop()` can never take the monitor, and the activation and cancel listeners block request threads. Fix: seed each partition's engine directly, or start the consumers before tracking; add a test with more entries than the capacity.
+- Follow-ups (not blocking, record or fix):
+  - The policy for a full queue (drop the range with a WARN) differs from TD 10 (coalesce; never drop the kline close). It is not listed among the PR's gaps. Dropping the last update of a minute can lose that minute's extreme. Decide before the `kline_1m` feed is connected (Q-32 / T-043): merge ranges per pair (min low / max high), or record a D-xx.
+  - When a fill fails, the entry goes back into the books but only fires again when a later range reaches it. A failed fill whose price moved away is silently missed. The Javadoc says "the next range tries again". Suggest a retry list that keeps the original `at`.
+  - Cancel uses the `@Version` optimistic lock rather than a status compare-and-set. The guarantee is equivalent (the fill raises the version), but a cancel that loses gets a generic 409 DATA_CONFLICT. Note it in TD 5.5 or map it to MSG43.
+  - `TradingPlanCancelled` carries no market or pair, so the untrack is sent to every partition with a blocking `put`. One saturated partition delays every cancel request. Add market and pairId to the event.
+  - Commands lost on interrupt are not logged. A RuntimeException outside `matching.fill` would end a consumer silently. Add a catch-all with a log in `drain`.
+  - Startup: a range offered while `start()` is still tracking can overtake that pair's Track. A cancel committed between `activeEntries()` and the tracking leaves a stale entry; the compare-and-set makes it harmless.
+  - TD 4.1 tree still lists `MatchingWorker` under `trading.matching` (it is in `trading.job`).
+  - Rebase on develop and run `clean verify` again before merge. MarketHubTest flake: open a separate ticket.
+
+## Update 2026-10-03 (T-042 review fixes)
+- Fixed: start-up hang, TD 10 merge policy, retry list, cancel routing, logging, MSG43
+  - start-up: ACTIVE LIMIT entries seeded straight into each engine before its consumer starts (50 entries, capacity 2: start/stop < 5 s)
+  - full queue: per-pair pending range merged (lowest low, highest high, latest time), never dropped; later ranges of that pair join it
+  - failed fill: per-pair retry list with the original time, retried on the pair's next range; untrack clears it
+  - `TradingPlanCancelled(planId, market, pairId)` routed to one partition
+  - lost-on-interrupt command logged (WARN); catch-all in the consumer loop (ERROR, consumer survives)
+  - cancel reads `FOR UPDATE`: a cancel losing to a fill answers MSG43 (`TRADING_PLAN_STATUS_TRANSITION_INVALID`, status EXECUTED); without the lock 19/20 race runs fail
+  - Rebased on develop (#44, #45), no conflicts. Tests: `MatchingWorkerTest` 10 → 17; suite 2177/2177 (`clean verify`), coverage 99.62 % line / 96.65 % branch, new classes 100 %
+  - Commits: 0eab6d3 fix(trading): rebuild books before starting partition consumers; 8278e79 fix(trading): answer a cancel that loses to a fill with MSG43
+- Deferred: Q-32 (kline_1m -> T-043), Q-33 (mid-minute activation -> T-043)
+- Separate: MarketHubTest.D50 flake (passed in this full run; not touched, separate ticket)
+- PR #46 head: 8278e79

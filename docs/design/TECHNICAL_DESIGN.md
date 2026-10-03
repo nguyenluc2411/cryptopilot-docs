@@ -317,7 +317,7 @@ backend/
     │   │   │   ├── dto/
     │   │   │   ├── calculator/    RiskCalculator, LiquidationCalculator, FeeCalculator, FundingCalculator
     │   │   │   │   └── warning/   WarningRule, LowRiskRewardRule, HighLeverageRule, StopBeyondLiquidationRule …
-    │   │   │   ├── matching/      OrderBook, MatchingEngine, MatchingWorker, ReplayService
+    │   │   │   ├── matching/      PriceLevelBook, MatchingEngine, ReplayService (MatchingWorker: trading.job, T-042)
     │   │   │   ├── job/           PlanExpiryJob
     │   │   │   └── event/         PlanExecuted, PositionClosed
     │   │   │
@@ -502,7 +502,7 @@ cryptopilot_project/
 
 ### 5.5 Concurrency and idempotency
 - Mutable entities use optimistic locking (`@Version long version`). Every table an entity maps — that is, every table with a single `uuid` primary key — carries `version bigint NOT NULL DEFAULT 0`, so `ddl-auto=validate` accepts the mapping. The four time-series tables, the association tables with composite keys, `system_setting`, `leverage_bracket` and `event_publication` are not entities and carry no version.
-- State transitions that race (fill vs cancel, IPN vs reconciliation) use a compare-and-set update: `@Modifying @Query("update TradingPlan p set p.status = :to … where p.id = :id and p.status = :expected")`; exactly one caller gets `1` row updated.
+- State transitions that race (fill vs cancel, IPN vs reconciliation) use a compare-and-set update: `@Modifying @Query("update TradingPlan p set p.status = :to … where p.id = :id and p.status = :expected")`; exactly one caller gets `1` row updated. T-042: the fill is `executeIfActive` (version + 1); the cancel reads the plan `FOR UPDATE` (`findForUpdate`), so a cancel that loses sees EXECUTED and answers `TRADING_PLAN_STATUS_TRANSITION_INVALID` (MSG43).
 - Upserts use native `INSERT … ON CONFLICT DO NOTHING` (candles, snapshots, articles).
 - IPN processing locks the order row (`@Lock(PESSIMISTIC_WRITE)`) inside one transaction.
 - Event listeners are idempotent: they check a natural key (notification id, order code, AI message id) before acting.
@@ -813,7 +813,7 @@ Recovery after restart: rebuild books from ACTIVE plans and OPEN journal records
 
 References: Cormen et al. 2009 (balanced search trees); Hewitt et al. 1973 (actor model).
 
-Built in T-042 (PR #46): `trading.matching.{PriceLevelBook, MatchingEngine}` (pure, LIMIT entries only), `trading.job.MatchingWorker` (`cryptopilot.trading.matching.*`: partitions 4, queue 10000; ranges offered, track/untrack wait), `TradingPlanRepository.executeIfActive` (5.5 compare-and-set, version + 1), events `TradingPlanActivated` / `TradingPlanCancelled` read after commit. `executed_at` is the instant of the update that reached the entry. Not yet fed by `kline_1m` (Q-32); MARKET entries T-043, exits and mark books T-044.
+Built in T-042 (PR #46): `trading.matching.{PriceLevelBook, MatchingEngine}` (pure, LIMIT entries only), `trading.job.MatchingWorker` (`cryptopilot.trading.matching.*`: partitions 4, queue 10000). Start-up writes the ACTIVE LIMIT entries straight into each engine before its consumer starts. A full queue merges the pair's ranges into one pending range (lowest low, highest high, latest time; later ranges of that pair join it; read when the queue is empty) — never dropped (section 10). A failed fill waits in a per-pair retry list with its original time. Track/untrack (`TradingPlanActivated`, `TradingPlanCancelled` with market and pair) go to one partition after commit. `executed_at` = time of the reaching update. Not yet fed by `kline_1m` (Q-32); MARKET entries and pre-activation ranges T-043 (Q-33), exits and mark books T-044.
 
 ### 7.8 Fees, funding and realized P/L (BR-36..38)
 
