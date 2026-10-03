@@ -1,0 +1,34 @@
+# 06 · FE task map
+
+FE tasks from the backlog in `CURRENT_STATE.md` section 6 (owner FE), all `TODO` at this sync.
+FE code lives in a separate repository; its progress is not visible from here.
+
+Status of the API a task needs: **Ready** = every endpoint IMPLEMENTED on `develop`; **Partial** =
+some ready, some pending/planned or a blocker; **Blocked** = the core API does not exist.
+
+| Task | Screens | Endpoints / topics | API status | Notes and gotchas |
+|---|---|---|---|---|
+| T-016 Web: register, verify, login, reset, profile (+ questionnaire, risk profile, trading style, AGGRESSIVE warning) | SCR-02…07 | `POST /auth/register, verify-email, resend-verification, login, refresh, logout, forgot-password, reset-password`; `PUT /me/password`; `GET/PUT /me/profile`; `PUT /me/notification-preferences`; `GET/PUT /me/risk-profile`; `GET/POST /me/risk-questionnaire` | **Ready** | No mail is sent yet (T-057): test with seeded accounts. Confirm-password error key is `confirmPasswordMatching`. `PUT /me/profile` is a full replacement. MSG48 before AGGRESSIVE. Avatar upload not available (T-101). Resend cooldown client-side only (T-105). Subscription tab has no API (FEQ-02) |
+| T-030 Web shell: routing, layout, auth guard, error and message handling | all | `POST /auth/refresh`; problem detail on every call | **Ready** | Single-flight refresh. Map `code`/`messageCode`/`messageArgs` to the MSG table (03-conventions). 401 on `/auth/login` is MSG08, not a session end. Vite proxy until CORS exists (M-02). Plan-based locks need FEQ-02 |
+| T-031 Public home and market list | SCR-01, SCR-09 | `GET /market/pairs`; `GET /market/{m}/{s}/candles` (1d, 90); `/topic/overview.SPOT`, `/topic/overview.FUTURES`; `/topic/ticker.*` | **Partial** | Spot: ready. Futures tab: no last price / 24h stats anywhere (M-09) — only mark, index, funding. Pairs have no prices; merge with overview. Search/sort client-side. Live/Delayed + 10 s polling (CR-09). MSG42 footer |
+| T-032 Chart component with indicator overlays and panels | SCR-10 | `GET /market/{m}/{s}/candles`; `/topic/kline.{M}.{S}.{tf}`; `GET /analysis/{m}/{s}` | **Ready** | Forming candle only from the kline topic (`closed: false`). Indicators are the latest values only, not a series: overlays over history must be computed client-side or wait for an API (FEQ-04). Toggles remembered per device (local storage) |
+| T-033 Spot analysis screen | SCR-10 | `GET /analysis/spot/{s}?tf=`; `GET /market/spot/{s}/stats`; ticker topic | **Partial** | Score is on the preset's timeframe; show preset name + version. `null` = "Insufficient data". Components must be locked on FREE (CR-08) but the server returns them (T-107 not built; FEQ-02). Actions need `pairId` (FEQ-01). No analysis push (Q-21): re-fetch on closed kline. "Ask AI" and news are planned |
+| T-034 Futures analysis screen | SCR-11 | `GET /analysis/futures/{s}`; `GET /market/futures/{s}/stats`; `GET /market/futures/{s}/metrics`; ticker topic | **Partial** | Funding countdown from `nextFundingTime`. Metrics sparse; state the available period from `availableFrom`. FREE must see MSG29 (spec) but the server answers 200 today (T-107). `dominantSide` beside the score. Futures last price missing (M-09) |
+| T-040 Web: create/edit plan screen with live risk panel | SCR-17 | `POST /plans/calculate`; `POST /plans`; `PUT /plans/{id}`; `GET /me/profile`; `GET /me/risk-profile`; `GET /market/pairs` (tick/step) | **Partial** | Spot: ready. Futures: every call 400 `errors.leverage` (no brackets, D-70) until T-085. Needs `pairId` (FEQ-01). Debounce + abort for the 300 ms target. Fill MSG15/MSG16 placeholders client-side. "Save and Activate" = `activate: true`; on MSG18/MSG27 nothing is saved |
+| T-041 Web: plan list and plan detail screens | SCR-16, SCR-18 | `GET /plans`; `GET /plans/{id}`; `POST /plans/{id}/activate`; `POST /plans/{id}/cancel` | **Partial** | List/detail/activate/cancel ready. Rows have no symbol (FEQ-01). `market` filter upper case only. Live position block, P/L and EXECUTED data need T-042+; close-position planned |
+| T-047 Web: close position dialog and position status | SCR-19 | `POST /plans/{id}/close-position`; `/user/queue/positions` | **Blocked** | Planned (T-046). MSG21 |
+| T-052 Web: journal, entry detail, manual trade, performance | SCR-20…23 | `/journal/**`; `GET /performance` | **Blocked** | Planned (T-048…T-051) |
+| T-059 Web: watchlist, alert list, alert dialog, notification center | SCR-12…15 | `GET/POST /watchlist`; `PATCH/DELETE /watchlist/{id}`; `/alerts/**` (pending); `/notifications/**` (planned) | **Partial** | Watchlist ready except adding (FEQ-01). **Removing a row with alerts: send `confirm=true&expectedAlertCount={n}`** with the `n` from MSG26 (D-76); re-show MSG26 if the server answers it again. Reorder = PATCH each moved row. Rows have no price/score. Alerts: PENDING PR `feat/t-054-alert-rules`. FUNDING_RATE threshold unit open (Q-30). Plan-change pause marker open (Q-31). Notifications planned (T-056) |
+| T-065 Web: community feed, post detail, editor, report dialog | SCR-24…27 | `/posts/**`, `/comments/**`, `/media/upload-signature` | **Blocked** | Planned (T-060…T-064) |
+| T-071 Web: packages, checkout, payment result, payment history | SCR-30…32 | `/billing/**` | **Blocked** | Planned (T-066…T-070). Result from order status only |
+| T-076 Web: AI assistant screen with context selector | SCR-29 | `/ai/**`; `/user/queue/ai` | **Blocked** | Planned (T-072…T-075) |
+| T-080 News API and web feed | SCR-28 | `GET /news`; `GET /news/sentiment-summary` | **Blocked** | Planned; task row mixes BE and FE |
+| T-087 Admin console UI | SCR-33…44 | `/admin/**` | **Blocked** | Only `PUT /me/password` exists for admins |
+| T-088 Flutter skeleton, routing, auth, secure token storage | — | `POST /auth/login, refresh, logout`; `POST /me/devices` | **Ready** | Secure storage for the refresh token; register FCM token after login; send `fcmToken` on logout. Emulator host `10.0.2.2` |
+| T-089 Mobile market, watchlist and alert screens | SCR-08…15 | as T-031, T-059; STOMP via `stomp_dart_client` | **Partial** | Same blockers as T-031/T-059. Topic names are upper case |
+| T-090 Mobile chart and analysis screens | SCR-10, SCR-11 | as T-032…T-034 | **Partial** | Chart library ADR-012 / Q-06 open |
+| T-091 Mobile plan, position and journal screens | SCR-18…21 | as T-041, T-047, T-052 | **Partial** | Plans ready; position/journal planned |
+| T-092 Push notification integration and deep links | — | `POST /me/devices`; FCM (T-058) | **Partial** | Device registration ready; sending push is T-058; deep-link targets depend on notifications (planned) |
+
+Dashboard SCR-08 has no task row and no API of its own; compose it from plans, watchlist and market
+calls.
