@@ -225,6 +225,7 @@ erDiagram
     timestamp activated_at
     timestamp expires_at
     timestamp executed_at "set with EXECUTED"
+    decimal fill_price "set with EXECUTED: entry price, or last price when filled at activation"
     timestamp cancelled_at "set with CANCELLED"
     timestamp expired_at "set with EXPIRED"
     timestamp created_at
