@@ -560,6 +560,32 @@ Newest first. One block per working session, format in `CLAUDE.md` section 8.
 
 
 
+## Update 2026-10-03 (T-043 re-review fixes)
+- #47: F3, F4 (head `ff124db`; 2228/2228)
+- #48: F1, F2 (head `d380ee2`, rebased on `ff124db`, V19 after V18; 2278/2278, 99.43 % line / 96.54 % branch)
+- F1 probe: fails on `bb226e0`, passes on `d380ee2`. A failed replay is retried from its cursor with no deadline, so a pair disabled while it replays keeps retrying, at most every 30 s, until a restart.
+- Open: Q-34
+- Next: merge #47, retarget #48 to develop, verify, merge #48
+
+## Update 2026-10-03 (re-review T-043)
+- Re-review of PR #47 (head `569664b`, diff from `97095a6`) and PR #48 (head `bb226e0`, fix commits on top of `f5a5e08`). Each head and each old head has its own worktree. Read only: nothing edited, committed, pushed or approved on GitHub; probes and mutations were reverted.
+- Verdicts: **#47 APPROVE WITH NITS**; **#48 APPROVE WITH NITS** (one residual R1 path, follow-up suggested).
+- `./mvnw clean verify`: both EXIT 0. Reports: #47 2224 tests, #48 2272 tests, 0 failures, 0 errors (the author reported 2226 / 2274; gap not explained). ModularityTest, PackageConventionTest and LayerRules are green, so Q3 holds.
+- Probes (copies in the session scratchpad):
+  - R1: a stream drop, and a closed update that never came, each fail on `3f3c9de` and pass on `bb226e0`.
+  - R2: after a give-up the watermark does not pass the lost candle; fails on `3f3c9de`, passes on `bb226e0`.
+  - R5: with the overlap drop removed from `MinuteKlineFeed`, `MatchingReplayTest` now fails 3 of 7 ("watermark advances per minute"); before, it passed.
+- R3 OK: the wait starts at 1 s, doubles to 30 s and loses up to 20 % to jitter; the deadline is 10 min from the first failure. The pending fill keeps its price and time, and a success after a retry fills once (the retry leaves the list before it runs, plus compare-and-set). A retry only runs on the pair's next range.
+- R2 + Q-34: the watermark stays held until a restart. If the hold outlasts replay.max-window (24 h), the restart skips the candle that reached the plan, with a WARN. The plan is put back into the books from the ACTIVE LIMIT rebuild and fills later, at another price time, or expires. The ERROR names the hold but does not say a restart is required, nor that it must come within the window.
+- V18, tested on timescale pg16 at V17 with seeded rows: EXECUTED LIMIT and MARKET rows get fill_price = entry_price. An EXECUTED MARKET row with a NULL entry_price fails `ck_trading_plan_fill_price`, so the migration aborts. Develop never writes such a row: MARKET stores the last price, and only engine-tracked LIMIT plans reach EXECUTED.
+- Migration numbers: only `feat/t-043-entry-fill-rules` (V18) and `feat/t-043-kline-replay` (V18, V19) use V18/V19.
+- Findings:
+  - F1 (#48, Medium-Low) `MinuteKlineFeed:267-274`: when a runtime replay throws (for example a DB error in `pairs.findById`), `goLiveAfterReplay(cursor, true)` accepts the hole. The next closed candle then moves the watermark past minutes that were never replayed, which the probe confirms. An empty REJECTED/MALFORMED page has the same effect after the catch-ups. Suggest re-queueing the replay with a back-off on an exception, and keeping "accept the hole" for a confirmed empty exchange answer. Follow-up is fine.
+  - F2 (#48, Nit) `MatchingWorker` give-up ERROR: say that a restart is required within replay.max-window.
+  - F3 (#47, Nit) V18: document the precondition that no EXECUTED row has a NULL entry_price, or check it first and abort with a clear message.
+  - F4 (#47, Nit) retries run only when a range arrives; fine with `kline_1m` (about every 2 s), worth a line in the Javadoc.
+- Merge checklist: (1) merge #47 into develop; (2) retarget #48 to develop, then rebase and run `clean verify` (V19 after V18); (3) merge #48; (4) open a follow-up for F1 (or fix it in #48); (5) Q-34 stays OPEN; (6) close issues by hand after each merge.
+
 ## Update 2026-10-03 (T-043 review fixes)
 - #47: R3, R7, R9, Q1 fill price
 - #48: R1, R2, R4, R5, R6, R8, Q3
