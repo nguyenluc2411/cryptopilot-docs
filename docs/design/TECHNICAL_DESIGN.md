@@ -85,7 +85,7 @@ Only the backend owns the database (single writer). The AI Service has no databa
 | Resilience | Timeouts on every client; Spring Framework 7 `RetryTemplate` / `@Retryable` / `@ConcurrencyLimit`; the Binance client's circuit breaker is written in the client (D-37, accepted 2026-09-24, 7.1.2) because Resilience4j's Boot 4 support was not confirmed; its IP ban is persisted in `binance_ban` | |
 | Validation | Jakarta Bean Validation (`spring-boot-starter-validation`) | Request DTOs |
 | Security | Spring Security, OAuth2 Resource Server (JWT, HS256), `BCryptPasswordEncoder(12)` | |
-| Rate limiting | Bucket4j (in-memory) in a servlet filter | |
+| Rate limiting | Fixed-window counter in Redis (`StringRedisTemplate` + one Lua script) in a servlet filter, no extra library | ADR-014 (2026-10-04) replaces the Bucket4j plan: counters shared across instances and kept across restarts, window testable on the injected clock |
 | API docs | springdoc-openapi (release line compatible with Spring Boot 4) | `springdoc-openapi-starter-webmvc-ui` 3.1.1 since T-024 (2026-09-25): the 3.x line is the one for Boot 4, and 3.1.1 is built on Boot 4.1.0; `common.config.OpenApiConfig` describes `BigDecimal` as a string of format `decimal` and declares the `bearerAuth` scheme |
 | Logging | SLF4J + Logback; Spring Boot structured logging (JSON) outside `dev` | Correlation id in MDC |
 | IDs | UUID v7 from `com.fasterxml.uuid:java-uuid-generator` | ADR-009 |
@@ -472,8 +472,9 @@ cryptopilot_project/
   - **Ownership** — checked in services (`resource.userId == currentUser.id`), because it is a property of the row and not of the path: the matrix grants two Traders the same area and they must not read each other's rows.
   - **Entitlement** — subscription state, via `@PreAuthorize("@entitlement.has(authentication, 'AI')")` backed by `BillingApi` (7.12). Applies to SCR-29 and to posting a video; both are `TRADER` in the chain with the entitlement as a second check, because "Trader (Subscribed)" is an entitlement of the Trader role and not a fourth role (SRS 3.1.3), and because a fact that expires must not be encoded in a token that cannot be recalled.
 - The payment callbacks `/billing/ipn/*` and `/billing/return/{gateway}` are not screens and carry no bearer token: they are authenticated by the gateway signature (BR-53) and must never fall under a role rule.
-- Rate limits (Bucket4j filter): login 10/min/IP, API 120/min/user, AI 10/min/user.
-- CORS restricted to the configured web origins.
+- Rate limits (ADR-014, `common.web.RateLimitFilter`, Redis fixed window): login 10/min per client address, other public auth calls 20/min per client address, authenticated API 120/min per account; AI 10/min/user when the AI endpoints exist. Over the limit: 429, `Retry-After` in seconds, `RATE_LIMITED` / MSG50 with the seconds as its argument. Off without a profile, on in `dev` (x10) and `prod`; `RATE_LIMIT_LOGIN`, `RATE_LIMIT_AUTH`, `RATE_LIMIT_API`.
+- Client address (R-11, `common.web.ClientAddressFilter`): `X-Forwarded-For` is read only when the direct peer is in `TRUSTED_PROXIES` (addresses or CIDR ranges), from the right, skipping trusted hops; otherwise the peer is the client. Every `getRemoteAddr()` (audit, limiter) sees the result; `server.forward-headers-strategy` stays `none`.
+- CORS restricted to the configured web origins: `CORS_ALLOWED_ORIGINS` (`cryptopilot.web.cors.allowed-origins`) feeds both the REST policy (`common.config.CorsConfig`, applied by `http.cors(...)`) and the STOMP endpoint. No credentials, no bare `*`; a wildcard port only on localhost. Empty in `prod` until set, which refuses every cross-origin caller.
 
 ### 5.4 Numeric precision and rounding (ADR-008)
 
@@ -513,6 +514,8 @@ cryptopilot_project/
 |---|---|---|---|
 | `px:{market}:{symbol}` | hash | 5 min | last, bid, ask, mark, index, funding, nextFundingTime, updatedAt |
 | `k1m:{market}:{symbol}` | hash | 5 min | forming 1m candle o/h/l/c, openTime |
+| `rl:{rule}:{subject}:{window}` | string (counter) | one window (1 min) | requests of one client address or account in one window (ADR-014) |
+| `rpl:{market}:{pairId}` | string (holder token) | 90 s, renewed every 30 s | a pair's restart replay is running (D-85); set NX, deleted when the replay ends, left to expire after a crash |
 
 Redis is a cache: losing it must never lose business data.
 
