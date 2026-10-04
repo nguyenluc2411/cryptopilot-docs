@@ -104,7 +104,7 @@ interface ApiProblem {
   detail: string;            // English, for logs and developers. Never show it to users
   instance?: string;         // request path
   code: ErrorCode;           // stable; branch on this
-  messageCode: string;       // "MSG01".."MSG48"; the text to show (table below)
+  messageCode: string;       // "MSG01".."MSG50"; the text to show (table below)
   traceId?: string;          // show as the reference in MSG43, send in bug reports
   messageArgs?: string[];    // values for the {placeholders} of the message, in order
   errors?: Record<string, string>; // field -> "MSG01" | "MSG15" | ..., or a parser note
@@ -164,10 +164,11 @@ Spec: TD 5.1, D-25, RFC 9457.
 | `PLAN_FEATURE_NOT_INCLUDED` | 403 | MSG29 | Feature not in plan; `messageArgs[0]` = lowest tier | MSG29 dialog with "View plans" |
 | `PLAN_LIMIT_REACHED` | 409 | MSG27 | Limit; `messageArgs` = `[max, items, tier]` | Inline MSG27 with upgrade link |
 | `AI_DAILY_QUOTA_EXHAUSTED` | 429 | MSG30 | (planned AI) `messageArgs[0]` = quota | Inline |
+| `RATE_LIMITED` | 429 | MSG50 | Too many requests in the current minute (ADR-014); `messageArgs[0]` = seconds to wait, same as `Retry-After` | Inline or toast; disable submit for that many seconds; do not auto-retry |
 | `RISK_PROFILE_CONFIRMATION_REQUIRED` | 400 | MSG48 | AGGRESSIVE chosen without confirmation | Show MSG48 dialog, resend with `confirmAggressive: true` |
 | `TRADING_BLOCKING_WARNING` | 409 | MSG18 | Activate a plan with a BLOCKING warning | Error banner |
 | `TRADING_PLAN_STATUS_TRANSITION_INVALID` | 409 | MSG43 | Edit/activate/cancel in the wrong status (A-38) | Reload plan; it changed elsewhere |
-| `MARKET_PRICE_UNAVAILABLE` | 503 | MSG43 | MARKET plan with no live last price (A-39) | "Price unavailable, try again", keep form |
+| `MARKET_PRICE_UNAVAILABLE` | 503 | MSG43 | MARKET plan with no current price: last price on Spot, mark price on Futures (A-39, D-84) | "Price unavailable, try again", keep form |
 | `WATCHLIST_PAIR_ALREADY_WATCHED` | 409 | MSG45 | Pair already watched; `messageArgs[0]` = symbol | Inline |
 | `WATCHLIST_REMOVAL_CONFIRMATION_REQUIRED` | 400 | MSG26 | Remove a watched pair that has alerts; `messageArgs` = `[symbol, n]` | MSG26 confirm dialog, resend with `confirm=true` |
 | `ALERT_STATUS_TRANSITION_INVALID` | 409 | MSG43 | **PENDING PR (T-054).** Pause a non-ACTIVE / resume a non-PAUSED alert | Reload alert |
@@ -231,9 +232,10 @@ order, or by the client where noted.
 | MSG47 | Inline | The remaining value of your current subscriptions ({credit}) covers this package. Please choose a longer package. *(planned)* |
 | MSG48 | Confirm dialog | The Aggressive profile allows higher risk per trade and higher leverage and can lead to large losses. Continue? |
 | MSG49 | Notification | Your plan is now {plan}. {n} alerts have been paused because of the plan limits. *(planned)* |
+| MSG50 | Inline | Too many requests. Please try again in {seconds} seconds. *(new, A-42; pending SRS 5.3)* |
 
 `messageArgs` order per code (develop): MSG09 `[minutes]`; MSG10 `[status]`; MSG26 `[symbol, n]`;
-MSG27 `[max, items, tier]`; MSG29 `[tier]`; MSG30 `[quota]`; MSG45 `[symbol]`. `items` is an English
+MSG27 `[max, items, tier]`; MSG29 `[tier]`; MSG30 `[quota]`; MSG45 `[symbol]`; MSG50 `[seconds]`. `items` is an English
 phrase (`"active plans and open positions"`, `"watchlist items"`, `"active alerts"`); translate it on
 the client if the UI is not English.
 
@@ -248,5 +250,14 @@ the client if the UI is not English.
 
 ## Rate limits
 
-TD 5.3 lists Bucket4j limits (login 10/min/IP, API 120/min/user, AI 10/min/user). **Not in code.** The
-only 429 today is MSG09 (login lockout). Recorded as M-03.
+In code since 2026-10-04 (ADR-014): sign-in 10/min per client address, the other public auth calls
+20/min per client address, authenticated calls 120/min per account (prod values; dev is ten times
+looser). Over the limit: 429 `RATE_LIMITED` / MSG50, `Retry-After` = seconds to the end of the
+minute, the same number in `messageArgs[0]`. Do not retry automatically; wait that long.
+
+Refresh: the server keeps strict reuse detection (R-04), so two tabs refreshing with one token end the
+session. Run refresh single-flight: one refresh in flight, other tabs/requests wait for its result
+(BroadcastChannel or the Web Locks API on web; one shared future on Flutter).
+
+CORS: the API and `/ws` accept browser calls only from `CORS_ALLOWED_ORIGINS` (dev: any localhost
+port). A request from another origin answers 403 before reaching the API.
