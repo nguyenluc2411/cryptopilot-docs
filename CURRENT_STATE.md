@@ -2979,3 +2979,9 @@ Kept current as tasks close (`/end-session` step 5). Each row: BR/UC/NSF/SCR id 
 - ADR: docs/adr/ADR-014-rate-limiting-with-a-redis-fixed-window-counter.md
 - Tests: 2300 → 2382 run, 0 failed, coverage gate met
 - Next: set staging/prod env values (CORS origins, trusted proxies, rate limits); client single-flight refresh (web + Flutter); merge fix branches to develop
+
+## [2026-10-04] Review fixes PR
+- PR: https://github.com/nguyenluc2411/cryptopilot_project/pull/49 (into develop, opened as TrucFPTU)
+- Identity fix: skipped: dd6aebf, eef72da, 266749a kept as authored (Đoàn Trung Trực / BE2, confirmed by user); branch was not on the remote before this push
+- Verify on 266749a: BUILD SUCCESS — 2382 run, 0 failed, 0 errors, 0 skipped; coverage gate met (clean verify, 4:32 min)
+- Merge method: merge commit (history kept)
