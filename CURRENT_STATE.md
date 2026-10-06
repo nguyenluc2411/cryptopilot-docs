@@ -1,6 +1,6 @@
 # CURRENT_STATE.md — CryptoPilot Project State
 
-**Last updated:** 2026-10-04 · **Document version:** 2.60 (review fixes R-01, R-03, R-04, R-07, R-10, R-13 on `fix/review-2026-10-04`, R-08 not reproduced; status sync: PRs #44–#48 merged; Team row names the DevOps member "BE3 (DO)"; per-owner progress added; T-044 waits on A-02 only; T-043 DONE on PRs #47 and #48, D-77, D-78 recorded, Q-32 and Q-33 answered, Q-34 opened; T-042 matching engine skeleton DONE on PR #46, Q-32 opened; PRs #44 (T-054) and #45 (deterministic market stream tests) opened; deterministic market stream tests, branch pushed, PR to open; T-054 pre-PR fixes: NULL cross threshold, MSG26 `expectedAlertCount`; T-054 alert rules DONE, branch `feat/t-054-alert-rules` pushed, PR to open; D-76, A-40, Q-29 closed, Q-30, Q-31 opened; PRs #42 and #43 merged; PRs #42 (T-081) and #43 (T-053) opened, local pre-review notes in `reviews/`; T-053 watchlist API DONE, branch `feat/t-053-watchlist` pushed, PR to open; D-75, Q-29 opened; T-081 audit writer DONE, branch `feat/t-081-audit-log` pushed, PR to open; D-74, Q-28 opened; PR #41 (T-039) merged `bfddaf9`; T-039 built, PR #41 open; T-038 merged, PR #40 `e7ce968`; Q-26 closed: SRS BR-67 edited in place; #39 service refactor, #38 enum refactor and #37 T-037 merged; #34, #35, #36 merged; #29, #33 closed; Q-27 closed) · **Phase:** P0 done bar T-001 (branch protection DEFERRED), T-004 and the rest of T-009; P1 done bar T-015 (READY), T-016, T-105 and the web screens; T-103 DONE on PR #30; P2 done; P3 done bar T-029 (PARTIAL, Q-21); P3b: T-106, T-104, T-108 merged, T-107 READY (BE1); P5 done bar T-040, T-041 (FE); P6: T-042, T-043 merged (PRs #46, #47, #48); P8: T-053, T-054 merged; P13: T-081 merged; NEXT T-044
+**Last updated:** 2026-10-06 · **Document version:** 2.61 (demo trading P6b added by D-86: TR-02 schema V21 and TR-04 paper account API built on `feat/tr-02-paper-trading-schema`, pushed, PR to open; plan in `docs/design/paper-trading-plan.md`; Q-35 opened; review fixes R-01, R-03, R-04, R-07, R-10, R-13 on `fix/review-2026-10-04`, R-08 not reproduced; status sync: PRs #44–#48 merged; Team row names the DevOps member "BE3 (DO)"; per-owner progress added; T-044 waits on A-02 only; T-043 DONE on PRs #47 and #48, D-77, D-78 recorded, Q-32 and Q-33 answered, Q-34 opened; T-042 matching engine skeleton DONE on PR #46, Q-32 opened; PRs #44 (T-054) and #45 (deterministic market stream tests) opened; deterministic market stream tests, branch pushed, PR to open; T-054 pre-PR fixes: NULL cross threshold, MSG26 `expectedAlertCount`; T-054 alert rules DONE, branch `feat/t-054-alert-rules` pushed, PR to open; D-76, A-40, Q-29 closed, Q-30, Q-31 opened; PRs #42 and #43 merged; PRs #42 (T-081) and #43 (T-053) opened, local pre-review notes in `reviews/`; T-053 watchlist API DONE, branch `feat/t-053-watchlist` pushed, PR to open; D-75, Q-29 opened; T-081 audit writer DONE, branch `feat/t-081-audit-log` pushed, PR to open; D-74, Q-28 opened; PR #41 (T-039) merged `bfddaf9`; T-039 built, PR #41 open; T-038 merged, PR #40 `e7ce968`; Q-26 closed: SRS BR-67 edited in place; #39 service refactor, #38 enum refactor and #37 T-037 merged; #34, #35, #36 merged; #29, #33 closed; Q-27 closed) · **Phase:** P0 done bar T-001 (branch protection DEFERRED), T-004 and the rest of T-009; P1 done bar T-015 (READY), T-016, T-105 and the web screens; T-103 DONE on PR #30; P2 done; P3 done bar T-029 (PARTIAL, Q-21); P3b: T-106, T-104, T-108 merged, T-107 READY (BE1); P5 done bar T-040, T-041 (FE); P6: T-042, T-043 merged (PRs #46, #47, #48); P8: T-053, T-054 merged; P13: T-081 merged; NEXT T-044
 **Next task:** `T-044` — Exit rules (BE1); PRs #47 and #48 are merged (2026-10-03), so only A-02 (PENDING) is left. BE2: T-055 alert engine (T-054 merged in PR #44, T-028 DONE; FUNDING_RATE waits on Q-30), else T-082. BE3 (DO): T-056 outbox processor (unblocked; T-055 and T-057/T-058 need it), then T-004, then the coverage-drop gate of T-009. T-040 / T-041 (FE, separate repository). Earlier: `T-044` — Exit rules (BE1), after PRs #47 and #48 (T-043) merge and A-02 is settled. T-043 built 2026-10-03 (PR #47 rules, PR #48 feed + replay; retarget #48 to develop after #47 merges). BE2: T-055 after PR #44 (T-054) merges and Q-30; or T-082 / T-085 / T-086. T-040 / T-041 (FE, separate repository). Earlier: `T-043` — Entry fill rules and restart replay (BE1), after PR #46 (T-042) merges; Q-32 decides whether it also connects `kline_1m`. T-042 built 2026-10-03 (PR #46). BE2: T-055 after PR #44 (T-054) merges and Q-30; or T-082 / T-085 / T-086. T-040 / T-041 (FE, separate repository). Earlier: `T-042` — Matching engine skeleton (BE1); PR #41 (T-039) is merged (`bfddaf9`), so its dependencies are DONE. BE2: T-081 and T-053 merged (PRs #42, #43, 2026-10-02); T-054 DONE (2026-10-02, PR to open); next for BE2 T-055 (alert engine; after the T-054 PR merges — T-028 is DONE — and Q-30 for FUNDING_RATE) or T-082 / T-085 / T-086 (T-081 merged); T-040 / T-041 (FE) are unblocked by the same merge. T-039 built on 2026-10-01: plan API, D-63 lock, V16. T-038 merged (PR #40, `e7ce968`).
 T-022 is merged (PR #15, `0510ae4`, CI 1178/1178). T-025 is merged (PR #16, `f36c291`, CI green 2026-09-25): the incremental
 indicator engine of TD 7.2 in `market.calculator` and `IndicatorService`, checked against TA-Lib golden data and a batch
@@ -60,6 +60,7 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 | P4 Market UI | S3 | Public home, market list, spot/futures analysis | 5 | 0 | TODO |
 | P5 Trading Plan | S3–S4 | Risk calculation, warnings, plan lifecycle | 7 | 6 | WIP — T-035 (PR #24), T-036 (#36), T-037 (#37), T-038 (#40), T-039 (#41) merged; T-040, T-041 (FE) left |
 | P6 Matching | S4–S5 | Simulated fills, exits, liquidation, funding | 6 | 2 | WIP — T-042 (PR #46), T-043 (#47, #48) merged; T-044 NEXT (A-02 PENDING) |
+| P6b Demo trading | S4–S9 | Paper exchange like Binance Demo Trading: wallets, Spot and Futures orders, positions, risk, realtime (D-86) | 41 | 2 | WIP — TR-02, TR-04 built (branch `feat/tr-02-paper-trading-schema`, PR to open); TR-01 PARTIAL (Q-35) |
 | P7 Journal | S5 | Journal, manual trades, performance dashboard | 5 | 0 | TODO |
 | P8 Monitoring | S6 | Watchlist, alerts, alert engine, notifications | 7 | 2 | WIP — T-053 (PR #43), T-054 (#44) merged; T-055 unblocked (Q-30 for FUNDING_RATE); T-056 (BE3) unblocked |
 | P9 Community | S7 | Posts, media, comments, engagement, reports | 7 | 0 | TODO |
@@ -69,7 +70,7 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 | P13 Administration | S10 | Users, moderation, config, reports, audit | 7 | 1 | WIP — T-081 merged (PR #42); T-082, T-085, T-086 unblocked |
 | P14 Mobile | S11 | Flutter app, push, offline | 5 | 0 | TODO |
 | P15 Hardening | S12 | E2E, performance, security, deploy, docs | 7 | 0 | TODO |
-| **Total** | | | **109** | **40** | **37%** |
+| **Total** | | | **150** | **42** | **28%** |
 
 **By owner (2026-10-04, counted from section 6):** BE1 21/37 · BE2 19/38 · BE3 (DO) 0/12 — T-001 DEFERRED (branch protection), T-009 PARTIAL · FE 0/21 (separate repository, progress not tracked here) · Team 0/1.
 
@@ -181,6 +182,7 @@ Decisions that bind the code. An AI agent must follow `APPROVED` rows and must n
 | D-83 | 2026-10-04 | **CORS (review R-05):** one per-profile list `CORS_ALLOWED_ORIGINS` for REST and `/ws`; no credentials, no bare wildcard, wildcard port on localhost only; prod has no default; staging runs the `prod` profile (TD 12), no staging profile file | ACCEPTED 2026-10-04 (team lead) | TD 5.3, TD 12 |
 | D-84 | 2026-10-04 | **Futures MARKET price (review R-02):** a Futures MARKET paper trade executes at the cached mark price (`MarketApi.currentMarkPrice`), with the cache's freshness rule; missing or stale gives 503 MSG43; Spot keeps the last price | ACCEPTED 2026-10-04 (team lead) | BR-33, A-41, ADR-011 |
 | D-85 | 2026-10-04 | **Replay running state (review R-09):** one Redis key per pair `rpl:{market}:{pairId}`, SET NX with TTL (90 s) at the start of a replay, renewed by heartbeat (30 s, also during retry backoff), held across failed attempts, deleted on finish or abandon; a crash leaves it to expire. `MinuteKlineFeed.isReplaying` reads it as the D-79 gate | ACCEPTED 2026-10-04 (team lead) | NSF-07, D-79, TD 5.6 |
+| D-86 | 2026-10-06 | **Demo trading, a paper exchange modelled on Binance Demo Trading (P6b, TR-xx tasks).** A new module `paper`, independent of the trading plan: no table or class of `trading` is read or changed, and the plan matching of T-042/T-043 keeps running as it is (Q-T1). Settled on 2026-10-06 (plan `docs/design/paper-trading-plan.md`, section 3): Cross and Isolated margin (Q-T2, revises D-10 for this module); leverage up to the bracket maximum, the risk profile only warns (Q-T3); One-way and Hedge (Q-T4); the virtual funds (Spot 10 000 USDT, 0.1 BTC, 1 ETH, 10 BNB; Futures 5 000 USDT) are granted once when the account is opened with `POST /api/v1/paper/account`, and there is **no reset** (Q-T5, revised the same day); live fills from `@aggTrade`/`@bookTicker` with the 1m kline replay kept for recovery (Q-T6); market orders at the depth20 VWAP (Q-T7); a resting limit fills when a trade crosses its price, configurable TOUCH/CROSS (Q-T8); the journal is out of scope, the module publishes a position-closed event (Q-T9); Futures demo for packages with `futures_analysis` (Q-T10). Only USDT moves between the wallets; transfers and orders are idempotent per client id. | APPROVED (user, 2026-10-06) | plan section 3 |
 **Action:** D-02 and D-03 were confirmed by the team on 2026-09-19 and are `APPROVED`; D-18 on 2026-09-20. D-04 … D-09 still need confirmation; D-06 and D-07 are already load-bearing in committed code (T-008). D-19 and D-20 are load-bearing as of T-007 and need confirmation before the first staging deployment, because D-20 decides how an operator obtains the first administrator. D-21 and D-22 are load-bearing as of T-010; D-21 is the one worth arguing about, because reversing it later means touching every entity that was written under it. D-29 and D-30 are load-bearing as of T-100; D-31 and D-32 as of T-013. D-23 … D-26 are load-bearing as of T-011 and T-012; D-26 is the one to re-read if the refresh windows of SRS 3.2.3 are ever changed, because it infers "Remember me" from the length of the window rather than from a stored flag.
 
 ---
@@ -344,6 +346,54 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 | T-045 | Fees, funding settlement and realized P/L | BE1 | T-044, A-05 | BR-36…38 | Test vector of TD 7.8 reproduced for LONG, SHORT and liquidation | TODO |
 | T-046 | Manual close and NSF-09 plan expiry | BE2 | T-044 | UC-21, BR-39, NSF-09 | Close uses the taker fee; expiry only before a fill; **expiry never runs on a pair while its matching replay is in progress (D-79, T-043: `MinuteKlineFeed`)** | TODO |
 | T-047 | Web: close position dialog and position status | FE | T-046 | SCR-19 | Estimated exit price and P/L shown before confirmation | TODO |
+
+### P6b — Demo trading (paper exchange, added by D-86)
+
+Plan and estimates: `docs/design/paper-trading-plan.md`, section 17. Owner to be assigned by the team.
+
+| ID | Task | Owner | Estimate | Status |
+|---|---|---|---|---|
+| TR-01 | Chốt Q-T2…Q-T10, viết BR mới cho demo trading (không sửa BR của plan) | TBD | 1d | PARTIAL 2026-10-06 (Q-T1…Q-T10 settled in D-86; Q-35 open) |
+| TR-02 | Migration: paper_account, paper_balance, paper_ledger_entry, paper_order, order_list, paper_fill, paper_futures_setting, paper_position, paper_funding_payment, paper_equity_snapshot, paper_matching_watermark | TBD | 2d | **DONE** 2026-10-06, branch `feat/tr-02-paper-trading-schema` (`6a1c022`), pushed, PR to open |
+| TR-03 | Stream `@bookTicker`, `@aggTrade`, `@depth20` (subscribe theo nhu cầu), cache Redis, topic public | TBD | 3d | TODO |
+| TR-04 | Demo account, số dư ban đầu, ví Spot/Futures, ledger, chuyển tiền | TBD | 3d | **DONE** 2026-10-06, same branch (`c2e0685`, shared helpers `0a8fd59`), pushed, PR to open |
+| TR-05 | Engine khớp lệnh demo (`RestingOrder`, dùng lại `PriceLevelBook`), đường live và recovery | TBD | 4d | TODO |
+| TR-06 | Spot Limit/Market: kiểm tra filter, khóa số dư, VWAP depth, phí, hủy / hủy tất cả | TBD | 4d | TODO |
+| TR-07 | Open orders, order history, fill history API | TBD | 2d | TODO |
+| TR-08 | User queue STOMP (orders, fills, balances) | TBD | 2d | TODO |
+| TR-09 | Stop-Limit, trigger theo Last | TBD | 2d | TODO |
+| TR-10 | OCO, OTO, OTOCO (order_list) | TBD | 3d | TODO |
+| TR-11 | Trailing Stop | TBD | 2d | TODO |
+| TR-12 | TIF IOC/FOK, Post-only | TBD | 2d | TODO |
+| TR-13 | Giá vốn trung bình và PnL theo coin, equity snapshot | TBD | 2d | TODO |
+| TR-14 | Cài đặt đòn bẩy và margin mode, position mode One-way/Hedge | TBD | 2d | TODO |
+| TR-15 | Futures Limit/Market, kiểm tra notional tối đa theo bracket, phí | TBD | 3d | TODO |
+| TR-16 | Vị thế: mở, cộng dồn, giảm, đảo chiều; entry trung bình; realized PnL; reduce-only | TBD | 4d | TODO |
+| TR-17 | Đóng Market/Limit, close-all, thêm/bớt margin isolated | TBD | 2d | TODO |
+| TR-18 | Liq price isolated cho Hedge, break-even, margin ratio | TBD | 2d | TODO |
+| TR-19 | Lịch sử lệnh, fill, vị thế, income | TBD | 2d | TODO |
+| TR-20 | Stop/TP Limit/Market theo Mark/Last, TP/SL kèm lệnh, TP/SL vị thế | TBD | 4d | TODO |
+| TR-21 | Trailing Stop Futures | TBD | 1d | TODO |
+| TR-22 | Liquidation engine (isolated) và margin call | TBD | 3d | TODO |
+| TR-23 | Cross margin: liq price, liquidation, tính lại khi mark đổi | TBD | 4d | TODO |
+| TR-24 | Funding job idempotent | TBD | 2d | TODO |
+| TR-25 | Sửa lệnh Limit, Calculator 5 tab | TBD | 2d | TODO |
+| TR-26 | Panel cảnh báo rủi ro cho lệnh Spot/Futures (dùng lại rule có sẵn), chặn mức BLOCKING | TBD | 3d | TODO |
+| TR-27 | Cảnh báo khi giữ vị thế (margin ratio, gần liq, funding, thiếu SL) có cooldown; phát event vị thế đóng | TBD | 3d | TODO |
+| TR-28 | PnL analysis API | TBD | 3d | TODO |
+| TR-29 | Notification lưu bảng, FCM, tôn trọng preferences | TBD | 2d | TODO |
+| TR-30 | Admin config và giám sát, audit | TBD | 2d | TODO |
+| TR-31 | Test restart/replay, mất stream, double-submit, race giữa hủy và khớp | TBD | 3d | TODO |
+| TR-32 | Load test: 500 account × 20 lệnh chờ, độ trễ đầu cuối p95 < 300 ms, fill p95 dưới 1s | TBD | 2d | TODO |
+| TR-33 | OpenAPI, tài liệu, dữ liệu demo cho buổi bảo vệ (mở rộng `R__demo_dataset.sql`) | TBD | 2d | TODO |
+| TR-34 | Realtime độ trễ thấp: đẩy theo sự kiện, đếm subscriber theo topic, hàng đợi tách luồng đọc stream, snapshot kèm id | TBD | 4d | TODO |
+| TR-35 | Nến đang chạy dựng từ aggTrade cho mọi khung, lịch sử nến 16 khung (gộp từ DB hoặc REST + cache) | TBD | 4d | TODO |
+| TR-36 | Đo độ trễ (Micrometer, mẫu đo từ client) | TBD | 1d | TODO |
+| TR-F1 | Khung layout trading, chọn cặp, ticker bar, chart (từ GĐ 1) | FE | — | TODO |
+| TR-F2 | Order book, trades, depth, chọn khung nến, vẽ theo requestAnimationFrame, chấm trạng thái độ trễ (sau TR-03, TR-34) | FE | — | TODO |
+| TR-F3 | Form Spot, panel lệnh, ví, transfer (sau TR-06) | FE | — | TODO |
+| TR-F4 | Form Futures, positions, các modal (sau TR-16) | FE | — | TODO |
+| TR-F5 | Vẽ lệnh và vị thế trên chart, PnL analysis, calculator | FE | — | TODO |
 
 ### P7 — Journal and performance (Sprint 5)
 
@@ -516,6 +566,7 @@ migration (`V4__…`) as soon as its question is answered; none of them is guess
 | Q-32 | D-43 assigns the `kline_1m` subscription to T-042, but T-042 has no fill rules (BR-33, T-043) and no journal (T-048): feeding live ranges now would mark plans EXECUTED with no position recorded. `MatchingWorker.submit` is ready and unfed. Connect `kline_1m` (stream name, a market-side listener port, `maxStreamsPerConnection` minimum 5 → 6) with T-043? | 2026-10-03 | T-043 (feed), T-042 (D-43 wording) | Team lead | ANSWERED 2026-10-03 (team lead): yes — T-043 connects `kline_1m` to the matching worker; the minimum `maxStreamsPerConnection` goes 5 → 6 |
 | Q-33 | The `kline_1m` high/low is cumulative for the forming minute, so the first range after a mid-minute activation can carry prices traded before the activation and fill the new entry on them. Guard (ignore ranges whose candle opened before `activated_at`, or require a fresh update) or accept? | 2026-10-03 | T-043 | Team lead | ANSWERED 2026-10-03 (team lead): guard — D-77 |
 | Q-34 | A-04 and TECHNICAL_DESIGN 7.7 say how the restart replay works (1m klines by REST from the last processed candle) but set no limit on how far back it may go. T-043 makes it a setting, `cryptopilot.trading.matching.replay.max-window`, default 24 h: beyond it the replay starts at now − window, logs a WARN with the skipped interval, and never fills from guessed prices. Is 24 h the right default, or should the limit follow the LIMIT expiry (7 days, SRS 3.5.1), and should a skipped interval be shown to the Traders whose plans it affects? | 2026-10-03 | — (default in place) | Team lead | OPEN |
+| Q-35 | Market data for the trading screens (plan Q-T11): relayed by the server with the low-latency changes of plan section 12 (proposed: one price for display and for fills), or read by the browser straight from Binance's public WebSocket (fastest, but the display can drift from the fill price and depends on the user's route to Binance). | 2026-10-06 | TR-03, TR-34, TR-F2 | Team | OPEN |
 
 Rule: an AI agent never answers an open question by guessing. It implements what is unambiguous, adds or updates the row here and marks the task `PARTIAL` or `BLOCKED`.
 
@@ -524,6 +575,17 @@ Rule: an AI agent never answers an open question by guessing. It implements what
 ## 9. Session log
 
 Newest first. One block per working session, format in `CLAUDE.md` section 8.
+
+### 2026-10-06 – TR-02 Paper trading schema, TR-04 Paper account API
+- Result: DONE (both, PR to open); TR-01 PARTIAL (Q-35)
+- Summary: plan for a Binance-like demo exchange written and settled (D-86). V21 adds the `paper_*` tables (12, one technical). Module `paper`: open an account with the virtual funds once, Spot/Futures wallets valued from one batched price read, idempotent USDT transfers, ledger history. Shared `UserLock`, `Paging`, `TimeBounds`, `PageResponse.of`; `CoinWriter` commits each coin alone so opening and the symbol sync cannot deadlock. Three review rounds applied.
+- Files: `backend/src/main/resources/db/migration/V21__paper_trading.sql`, `backend/src/main/java/com/cryptopilot/paper/`, `common/lock`, `common/web/Paging`, `common/util/TimeBounds`, `market` (MarketApi coins and batch prices, CoinWriter, SymbolSyncWriter)
+- Tests: 2467/2467 (`mvnw verify`, local); coverage checks met; new: PaperTradingSchemaTest, PaperAccountApiTest, PaperAccountPropertiesTest, PaperBalanceTest, PaperAccountTest, PagingTest, CoinWriterTest and cases in the market tests
+- BR/UC/NSF covered: BR-21 (Spot holds no short or leverage, paper tables); TR-02, TR-04
+- Decisions: D-86 (Q-T1…Q-T10; Q-T5 revised: no reset)
+- Open questions: Q-35 (market data relayed or read by the browser)
+- Next: TR-03 (streams) or TR-05/TR-06 (paper matching engine, Spot orders)
+- Commits: `0a8fd59` refactor(common): share the user lock, paging and time bound checks · `6a1c022` feat(paper): add the paper trading schema · `c2e0685` feat(paper): open demo accounts with wallets, transfers and a ledger
 
 ### 2026-10-04 – Status sync (no task)
 - Result: DONE
