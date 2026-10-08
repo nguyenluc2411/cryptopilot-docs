@@ -93,7 +93,7 @@ Only the backend owns the database (single writer). The AI Service has no databa
 | Formatting | Spotless with Palantir Java Format | `./mvnw spotless:apply` |
 | Coverage | JaCoCo | Gates in section 11 |
 | AI Service | Node.js LTS, TypeScript, Fastify, zod, @anthropic-ai/sdk, bottleneck | Unchanged |
-| Web | React 18 + TypeScript + Vite, TanStack Query, React Router, React Hook Form + zod, @stomp/stompjs, TradingView Lightweight Charts | |
+| Web | React 19 + TypeScript + Vite, Tailwind CSS 4, React Router, React Hook Form + zod; TanStack Query, @stomp/stompjs and TradingView Lightweight Charts added by the first task that needs them | Separate repository `cryptopilot-frontend` (D-90, ADR-015); React 19 and the added packages in ADR-016 (D-91) |
 | Mobile | Flutter (stable), Riverpod, dio, go_router, stomp_dart_client | Chart library in ADR-012 |
 | Tests | JUnit Jupiter, AssertJ, Mockito — Boot 4 has no single `spring-boot-starter-test`; pull the per-slice starters (`spring-boot-starter-webmvc-test`, `-actuator-test`, `-validation-test`, later `-data-jpa-test`). Plus Testcontainers, WireMock (not yet added — the Binance client is tested against a JDK `com.sun.net.httpserver` stand-in, D-36, accepted 2026-09-24), ArchUnit, Spring Modulith Test, jqwik; Vitest, Playwright, k6 | |
 
@@ -430,7 +430,7 @@ Other folders of the repository:
 cryptopilot_project/
 ├── backend/                    # above
 ├── ai-service/src/ { server.ts, config/, routes/, llm/, prompts/, limiter/, schemas/ }, test/
-├── web/src/ { app/, features/<module>/{api,components,hooks,pages}, shared/{api,components,lib,realtime,i18n} }
+├── web/                       # empty: the web client is the repository cryptopilot-frontend (4.4, D-90)
 ├── mobile/lib/ { core/, features/<module>/{data,domain,presentation} }, test/
 ├── tools/golden/               # script that generates reference indicator data
 ├── deploy/ { docker-compose.dev.yml, docker-compose.yml, .env.example, nginx/ }
@@ -450,6 +450,36 @@ cryptopilot_project/
 | `trading/entity/TradingPlan.java`, `TradingPlanWarning.java`; `trading/model/enums/PlanStatus.java` | Aggregate root with `draft()`, `updateDraft()`, `activate()`, `markExecuted()`, `cancel()`, `expire()`; one transition table in `PlanStatus`; each terminal status stores its instant (BR-31, BR-32; D-66…D-69) |
 | `trading/repository/TradingPlanRepository.java` | Spring Data JPA |
 | `src/test/java/com/cryptopilot/trading/calculator/RiskCalculatorTest.java` | `BR23_…`, `BR24_…`, `BR25_…` |
+
+### 4.4 Web client (separate repository, D-90)
+
+The web client is the repository `cryptopilot-frontend` (ADR-015), not `web/` of this repository.
+Stack: TECHNICAL_DESIGN 1.3 with the additions of ADR-016 (D-91). Folders under `src/` (as of T-030 and T-016):
+
+| Folder | Holds | Must not |
+|---|---|---|
+| `app/` | Composition root (`providers/create-services.ts`), router and route guards, shells (`layouts/`), theme, environment | Hold business rules |
+| `pages/{guest,trader,admin}/` | One thin page per screen (SCR-xx), composing feature components | Call services, `fetch` or `WebSocket` (ESLint) |
+| `features/<module>/` | `components/`, `hooks/`, `schemas.ts` of one area (auth, market, trading-plan, …) | Import another feature's internals |
+| `components/{ui,layout,feedback,charts,brand}/` | Domain-neutral controls from the design system | Know business data |
+| `services/{api,auth,websocket}/` | Service interfaces, HTTP client (problem detail, MSG ids), session store, realtime client | Be imported by pages or components (ESLint) |
+| `i18n/` | Every interface string, MSG texts of SRS 5.3 (A-43) | — |
+| `types/domain.ts` | Client domain model; decimals stay strings (5.4) | Mirror wire DTOs; adapters map them |
+| `dev/` | Development data and the labelled development sign-in | Reach a production build (the build fails) |
+
+Rules:
+
+1. Direction: page → feature hook → service interface → adapter → backend. A hook owns the request
+   lifecycle and aborts on unmount.
+2. An adapter decodes every response body at runtime before it becomes a typed value, and keeps only
+   `code`, `messageCode`, `messageArgs`, field `errors` and `traceId` of a problem detail (5.1); the
+   user sees the SRS message, never `detail`.
+3. The contract is `docs/design/fe-guide/`. A service whose endpoint is not merged rejects with
+   `NOT_CONFIGURED`; no endpoint, field or status is invented, and a failed request never falls back to
+   development data.
+4. Role guards follow SRS 3.1.3; plan tiers (D-58) only decide what the client offers, the backend
+   decides every request.
+5. Tests: Vitest, with Testing Library under jsdom for components (11.1).
 
 ---
 
@@ -1048,7 +1078,7 @@ In-process market pipeline: stream shard → `ArrayBlockingQueue<MarketEvent>` p
 | API | Auth, authorization matrix (SRS 3.1.3), validation, ProblemDetail | `@SpringBootTest` + MockMvc / `RestTestClient` | All pass |
 | Module | One module in isolation with its events | Spring Modulith `@ApplicationModuleTest`, `Scenario` | All pass |
 | AI Service | Schema validation, retry, timeout, disclaimer | Vitest, nock | All pass; coverage ≥ 80% |
-| Web | Components and hooks | Vitest, Testing Library | All pass |
+| Web | Components and hooks (separate repository, 4.4) | Vitest, Testing Library, jsdom | All pass |
 | E2E | Register → verify → login; create/activate plan → fill → close → journal; purchase (sandbox) | Playwright | Nightly |
 | Mobile | Widget and provider tests | flutter_test | All pass |
 | Performance | NFR 4.2.3 targets | k6 | Before release |
