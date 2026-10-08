@@ -22,11 +22,18 @@ Put the base URLs in client config, never in code:
 
 | Channel | What the code does | Effect for the web app |
 |---|---|---|
-| REST `/api/v1/**` | **No CORS configuration exists.** `SecurityConfig` sets none and there is no `CorsConfigurationSource` bean | A browser page on `http://localhost:5173` calling `http://localhost:8080` directly is blocked by the browser (no `Access-Control-Allow-Origin`, and the preflight `OPTIONS` falls to `denyAll`) |
-| STOMP `/ws` | Origins from `cryptopilot.realtime.allowed-origin-patterns`, default `http://localhost:*` | Any local port works. No other origin is configured, in any profile |
+| REST `/api/v1/**` | `common.config.CorsConfig` (D-83, review R-05): origins from `CORS_ALLOWED_ORIGINS`; methods GET, POST, PUT, PATCH, DELETE, OPTIONS; request headers `Authorization`, `Content-Type`, `Accept`, `X-Correlation-Id`; exposed headers `X-Correlation-Id`, `Retry-After`; no credentials; preflight cached 1 h | A page on an allowed origin calls the API directly. Any other origin is refused with 403 before the API |
+| STOMP `/ws` | The same `CORS_ALLOWED_ORIGINS` list | Same origins as REST |
 
-Until CORS is added (recorded as a mismatch in `07-open-questions.md`, M-02), run the web app through
-the Vite dev proxy so the browser sees one origin:
+| Profile | `CORS_ALLOWED_ORIGINS` default |
+|---|---|
+| `dev` | `http://localhost:*,http://127.0.0.1:*` — any local port |
+| `prod` (also staging, TD 12) | none: every cross-origin caller is refused until it is set |
+| no profile (tests) | none |
+
+With the `dev` profile, `VITE_API_BASE_URL=http://localhost:8080/api/v1` and
+`VITE_WS_URL=ws://localhost:8080/ws` work without a proxy. A Vite dev proxy remains an option when the
+web app should see one origin (for example to mirror a same-origin deployment):
 
 ```ts
 // vite.config.ts (web repo)
@@ -40,13 +47,13 @@ export default defineConfig({
 });
 ```
 
-Then use `VITE_API_BASE_URL=/api/v1` and `VITE_WS_URL=ws://localhost:5173/ws`. Mobile apps are not
-affected by CORS.
+With the proxy, use `VITE_API_BASE_URL=/api/v1` and `VITE_WS_URL=ws://localhost:5173/ws`. Mobile apps
+are not affected by CORS.
 
-Source: `backend/src/main/java/com/cryptopilot/auth/config/SecurityConfig.java#L142` (no CORS
-anywhere in the chain); `backend/src/main/java/com/cryptopilot/common/config/WebSocketConfig.java#L61`;
-`backend/src/main/resources/application.yml#L43`. Spec: TD 5.3 ("CORS restricted to the configured
-web origins").
+Source: `backend/src/main/java/com/cryptopilot/common/config/CorsConfig.java#L34`;
+`backend/src/main/java/com/cryptopilot/auth/config/SecurityConfig.java#L223`; `backend/src/main/java/com/cryptopilot/common/config/WebSocketConfig.java#L67`;
+`backend/src/main/resources/application.yml#L47`, `application-dev.yml#L24`, `application-prod.yml#L19`.
+Spec: TD 5.3, D-83.
 
 ## Run the backend locally
 

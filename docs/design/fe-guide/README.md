@@ -5,9 +5,9 @@ exists in code, marks what is not built yet, and lists the gaps that need a deci
 
 | | |
 |---|---|
-| Synced to | `develop` @ `6137e2425cfe59a6c07ea84c2a86efe8a64a1e4f` (`6137e24`, merge of PR #42, 2026-10-02) |
-| Pending branch read | `feat/t-054-alert-rules` @ `0803903` (alerts; not merged) |
-| Sync date | 2026-10-03 |
+| Synced to | `develop` @ `0d92def60ce54f2b026a48fb5dcf63159464ec5f` (`0d92def`, T-055 squash merge of PR #51, 2026-10-08) |
+| Pending branch read | none — alerts merged with PR #44; the demo trading API (`feat/tr-02-paper-trading-schema`) is not covered yet |
+| Sync date | 2026-10-08 (first version 2026-10-03 at `6137e24`) |
 | Backend | Java 21, Spring Boot 4.1, base path `/api/v1` |
 | Spec | SRS v1.0 (`docs/srs/`), TECHNICAL_DESIGN (TD) sections 5, 8, 9, decisions D-xx in `CURRENT_STATE.md` |
 
@@ -53,8 +53,8 @@ exists in code, marks what is not built yet, and lists the gaps that need a deci
 
 | Status | REST | STOMP destinations |
 |---|---|---|
-| IMPLEMENTED (develop) | 35 | 3 topic families |
-| PENDING PR (`feat/t-054-alert-rules`) | 6 new + 1 changed (`DELETE /watchlist/{id}`) | 0 |
+| IMPLEMENTED (develop) | 41 | 3 topic families |
+| PENDING PR | 0 | 0 |
 | PLANNED (spec only) | 43 listed in TD 8 (42 in `modules/planned.md` + close-position) + 13 admin areas without methods | 3 user queues + analysis push (Q-21) |
 
 ## Where the rules come from
@@ -70,7 +70,8 @@ exists in code, marks what is not built yet, and lists the gaps that need a deci
 
 Re-sync after each backend PR that touches a controller, a DTO, `ErrorCode`, `SecurityConfig` or
 `WebSocketConfig`. Update the SHA above, the affected module file, `06-task-map.md` and
-`CHANGELOG.md`. Next expected re-sync: after the T-054 (alerts) and T-042 (matching engine) PRs merge.
+`CHANGELOG.md`. Next expected re-sync: when T-110 (other alert types), T-056 (notifications) or the
+demo trading API (TR-04 onwards) merges.
 
 ## References
 

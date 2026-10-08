@@ -8,13 +8,13 @@
 | Transport | Plain WebSocket (RFC 6455). **No SockJS** fallback |
 | Protocol | STOMP 1.2 frames over the socket |
 | Auth on CONNECT | None today. Every implemented topic is public; a bearer header is ignored |
-| Allowed browser origins | `cryptopilot.realtime.allowed-origin-patterns`, default `http://localhost:*` (any profile) |
+| Allowed browser origins | `CORS_ALLOWED_ORIGINS`, the list REST uses (D-83; `dev`: any localhost port, `prod`: none until set) |
 | Client libraries | Web `@stomp/stompjs`; Flutter `stomp_dart_client` (TD 9) |
 | Client → server messages | **Refused.** Any `SEND` gets an ERROR frame and the session is closed. Only `SUBSCRIBE`/`UNSUBSCRIBE` |
 | Limits per session | Server send time limit 10 s, send buffer 512 KB; a client too slow to read is disconnected |
 
-Source: `backend/src/main/java/com/cryptopilot/common/config/WebSocketConfig.java#L61` (endpoint),
-`#L67` (broker), `#L51` (topic filter); `backend/src/main/resources/application.yml#L43`.
+Source: `backend/src/main/java/com/cryptopilot/common/config/WebSocketConfig.java#L67` (endpoint),
+`#L73` (broker), `#L55` (topic filter); `backend/src/main/resources/application.yml#L47` (origins).
 Spec: TD 9, D-51, ADR-005.
 
 ## Destinations
@@ -175,7 +175,7 @@ Rules:
 ```ts
 import { Client } from '@stomp/stompjs';
 const client = new Client({
-  brokerURL: import.meta.env.VITE_WS_URL,      // ws://localhost:5173/ws via the Vite proxy
+  brokerURL: import.meta.env.VITE_WS_URL,      // dev: ws://localhost:8080/ws (or ws://localhost:5173/ws via a proxy)
   reconnectDelay: 2000,
   onConnect: () => {
     client.subscribe('/topic/overview.SPOT', m => onOverview(JSON.parse(m.body)));

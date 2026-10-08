@@ -3,7 +3,7 @@
 This file records; it does not decide. Each item cites both sources. Answers belong to the team lead
 and go to `CURRENT_STATE.md` (Q-xx, D-xx, A-xx); then this file is updated.
 
-Code paths are relative to the `cryptopilot_project` root at `6137e24` unless a branch is named.
+Code paths are relative to the `cryptopilot_project` root at `0d92def` unless a branch is named.
 
 ## A. Existing open questions that affect FE (`CURRENT_STATE.md` section 8)
 
@@ -45,11 +45,11 @@ Not yet in `CURRENT_STATE.md` section 8; the team lead may promote them to Q-xx.
 | Id | Topic | Spec says | Code does | FE workaround |
 |---|---|---|---|---|
 | M-01 | Pair id | TD 8 / D-75: requests name the pair by `pairId` | No read returns a pair's id for a symbol (see FEQ-01) | None clean; wait for FEQ-01 |
-| M-02 | CORS | TD 5.3: "CORS restricted to the configured web origins" | No CORS configuration for REST (`backend/src/main/java/com/cryptopilot/auth/config/SecurityConfig.java#L142`, no `CorsConfigurationSource`); WS origins only `http://localhost:*` in every profile (`backend/src/main/resources/application.yml#L43`) | Vite dev proxy (01-setup). Staging origins need configuration (Q-07) |
-| M-03 | Rate limits | TD 5.3: Bucket4j login 10/min/IP, API 120/min/user, AI 10/min/user | Not in code or `pom.xml` | Handle 429 generically anyway |
+| M-02 | CORS | TD 5.3: "CORS restricted to the configured web origins" | **Resolved 2026-10-04 (D-83, PR #50):** `common.config.CorsConfig` for REST and `/ws` (`backend/src/main/java/com/cryptopilot/common/config/CorsConfig.java#L34`) | None. Staging origins still need `CORS_ALLOWED_ORIGINS` (Q-07) |
+| M-03 | Rate limits | TD 5.3: login 10/min/IP, API 120/min/user, AI 10/min/user | **Resolved 2026-10-04 (ADR-014, D-82):** `common.web.RateLimitFilter`, 429 `RATE_LIMITED` / MSG50 | Wait `Retry-After` seconds (03-conventions) |
 | M-04 | Null fields in realtime payloads | TD 9 / D-51: "absent fields omitted" | No omit-null setting (`backend/src/main/java/com/cryptopilot/common/config/JacksonConfig.java#L39`); REST bodies carry `null` keys (`AnalysisControllerTest`), and the STOMP converter uses the same mapper (decimals arrive as strings in `MarketHubTest`), so ticker frames most likely carry `null` for the other market's fields. Not checked on a live frame | Treat missing and `null` alike |
 | M-05 | Plan gates on market data and analysis | SRS 3.1.3, D-60: Futures analysis, Futures metrics, OI / long-short / settlement blocks and score components are PRO+ (MSG29) | Public / any Trader; no entitlement check (`backend/src/main/java/com/cryptopilot/market/controller/MarketController.java#L101`, `#L113`; `backend/src/main/java/com/cryptopilot/market/controller/AnalysisController.java#L50`). T-107 is READY, not built | Build the locks; expect 403 MSG29 after T-107 |
-| M-06 | STOMP authentication and user queues | TD 9: bearer on CONNECT; `/user/queue/notifications`, `/positions`, `/ai` | Only the three public topic families; every other SUBSCRIBE refused (`backend/src/main/java/com/cryptopilot/common/config/WebSocketConfig.java#L51`) | None; planned |
+| M-06 | STOMP authentication and user queues | TD 9: bearer on CONNECT; `/user/queue/notifications`, `/positions`, `/ai` | Only the three public topic families; every other SUBSCRIBE refused (`backend/src/main/java/com/cryptopilot/common/config/WebSocketConfig.java#L55`) | None; planned |
 | M-07 | Verification resend limit | SRS 3.2.2, D-57: once per 60 s, 5 per rolling 24 h, MSG46 | Always 202 (`backend/src/main/java/com/cryptopilot/auth/controller/AuthController.java#L105`); T-105 TODO | Client-side 60 s cooldown |
 | M-08 | Watchlist row content | SRS 3.4.1: symbol, last price, 24h change, 1h setup score, active alerts | Row has symbol and active alerts, no price, change or score (`backend/src/main/java/com/cryptopilot/watchlist/dto/response/WatchlistItemResponse.java#L23`); D-75 records this choice | Prices from the overview topic; score per row from `GET /analysis` |
 | M-09 | Futures last price and 24h statistics | SRS 3.3.1: Futures tab lists last price, 24h change, high, low, quote volume, plus mark price and funding; D-60 calls the Futures 24h ticker public | Futures stats and ticker topic carry only mark, index, funding rate, next funding time (`backend/src/main/java/com/cryptopilot/market/dto/response/FuturesStatsResponse.java#L22`, `backend/src/main/java/com/cryptopilot/market/dto/response/TickerUpdateResponse.java#L29`) | Show mark price in place of last price; leave 24h columns empty on Futures |
@@ -58,10 +58,11 @@ Not yet in `CURRENT_STATE.md` section 8; the team lead may promote them to Q-xx.
 | M-12 | Futures plans | SRS 3.5.1: Futures plans with leverage 1 to the bracket maximum | Every Futures calculation fails: no leverage brackets are stored anywhere until T-085 (`backend/src/main/java/com/cryptopilot/trading/service/impl/PlanCalculationAssembler.java#L70`; D-70) | Disable Futures in SCR-17 for now or show the 400 |
 | M-13 | Indicator overlays | SRS 3.3.2: overlays and panels over the chart | Latest values only (FEQ-04) | Client-side computation or wait |
 | M-14 | Endpoint catalogue | TD 8 `user` row lists profile, notification preferences and devices only | Code also serves `GET/PUT /me/risk-profile` and `GET/POST /me/risk-questionnaire` (T-103) (`backend/src/main/java/com/cryptopilot/user/controller/RiskProfileController.java#L45`, `#L54`, `#L62`, `#L73`) | None needed; this guide documents them (`modules/user.md`) |
+| M-15 | MSG50 | SRS v1.0 as submitted (Report 3, 3.7.4 and 5.3): MSG50 = "You have already reported this post." (BR-46). The `docs/srs/` copy (1.0 Draft) has no MSG50 | `RATE_LIMITED` answers MSG50 (`backend/src/main/java/com/cryptopilot/common/exception/ErrorCode.java#L223`; A-42) | Branch on `code`, not on `messageCode`, for 429 until Q-37 is answered |
 
 ## D. Checks done for this sync
 
-- Every `Source:` path and line in this guide was checked against `develop` @ `6137e24` (branch paths
-  against `feat/t-054-alert-rules` @ `0803903`).
+- Every `Source:` path and line in this guide was checked against `develop` @ `0d92def` (154 line
+  references; 12 had moved and were updated). First version: `6137e24`, alerts read on `0803903`.
 - Every enum value and error code named here exists in code at those commits.
 - Mermaid blocks were parsed with the Mermaid parser.

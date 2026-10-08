@@ -146,8 +146,8 @@ Role rules are path rules in the security filter chain (D-27). Anything not list
   tab of SCR-07 (`PUT /me/password`).
 - Paths listed for future modules return 403/404 until their controller exists; do not probe them.
 
-Source: `backend/src/main/java/com/cryptopilot/auth/config/SecurityConfig.java#L142` (public auth),
-`#L162` (market), `#L176` (ws), `#L187` (password), `#L193` (Trader area), `#L213` (admin).
+Source: `backend/src/main/java/com/cryptopilot/auth/config/SecurityConfig.java#L143` (public auth),
+`#L163` (market), `#L177` (ws), `#L188` (password), `#L194` (Trader area), `#L214` (admin).
 Spec: SRS 3.1.3, TD 5.3, D-27.
 
 ### Route guards (T-030)
@@ -164,13 +164,13 @@ Spec: SRS 3.1.3, TD 5.3, D-27.
 
 | Entitlement (`Feature`) | FREE | PRO | PREMIUM | Enforced today in |
 |---|---|---|---|---|
-| `FUTURES_ANALYSIS` — Futures analysis, Futures plans, Futures alerts | ✗ | ✔ | ✔ | Plans (develop); alerts (T-054 branch). **Not** on `/analysis` or `/market` yet (T-107) |
+| `FUTURES_ANALYSIS` — Futures analysis, Futures plans, Futures alerts | ✗ | ✔ | ✔ | Plans and alerts (develop). **Not** on `/analysis` or `/market` yet (T-107) |
 | `SCORE_COMPONENTS` — setup score components | ✗ | ✔ | ✔ | Not enforced yet (T-107) |
 | `ACTIVE_PLAN_MAX` — ACTIVE plans + open positions | 3 | unlimited | unlimited | Plans (develop) |
 | `WATCHLIST_MAX` | 5 | 50 | 100 | Watchlist (develop) |
-| `ACTIVE_ALERT_MAX` | 3 | 20 | 50 | Alerts (T-054 branch) |
-| `INDICATOR_ALERT` | ✗ | ✔ | ✔ | Alerts (T-054 branch) |
-| `EXTERNAL_ALERT_CHANNELS` — email/push for alerts | ✗ | ✔ | ✔ | Alerts (T-054 branch) |
+| `ACTIVE_ALERT_MAX` | 3 | 20 | 50 | Alerts (develop) |
+| `INDICATOR_ALERT` | ✗ | ✔ | ✔ | Alerts (develop) |
+| `EXTERNAL_ALERT_CHANNELS` — email/push for alerts | ✗ | ✔ | ✔ | Alerts (develop) |
 | `ADVANCED_PERFORMANCE` | ✗ | ✔ | ✔ | Planned (T-051) |
 | `NEWS_AI_INSIGHT` | ✗ | ✔ | ✔ | Planned (T-079) |
 | `AI_CHAT_DAILY` — questions per day | 0 | 30 | 100 | Planned (T-075) |

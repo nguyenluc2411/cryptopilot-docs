@@ -4,10 +4,12 @@ Screens SCR-12 (watchlist), SCR-13 (alert list), SCR-14 (alert dialog).
 All endpoints: TRADER only. Code prefix: `backend/src/main/java/com/cryptopilot/watchlist/`.
 
 - Watchlist: IMPLEMENTED on `develop` (T-053, D-75).
-- Alerts: **PENDING PR** on `feat/t-054-alert-rules` @ `0803903` (T-054, D-76). Not callable on
-  `develop`. The same branch changes `DELETE /watchlist/{id}`.
-- Alert evaluation (NSF-06, T-055) and notifications (T-056) do not exist: alerts never fire yet, so
-  `triggerCount` stays 0 and `TRIGGERED`/`EXPIRED` are never set.
+- Alerts: IMPLEMENTED on `develop` (T-054, PR #44, D-76), with the `expectedAlertCount` check of
+  `DELETE /watchlist/{id}`.
+- Alert evaluation (NSF-06): **PRICE** alerts are evaluated since T-055 (PR #51), so `triggerCount`
+  and `lastTriggeredAt` move, a ONCE alert becomes `TRIGGERED`, and a sweep sets `EXPIRED`.
+  **INDICATOR** alerts are stored but not evaluated yet (T-110). Notifications (T-056) do not exist:
+  a trigger reaches no inbox, e-mail or push yet.
 
 Shared type:
 
@@ -110,37 +112,37 @@ Purpose: Change label, note or position of one row.
 |---|---|---|---|
 | `label` | string | no | ≤ 100 → MSG01. `null`/absent = unchanged; `""` = clear |
 | `note` | string | no | ≤ 1000 → MSG01. `null`/absent = unchanged; `""` = clear |
-| `sortOrder` | int | no | ≥ 0 → MSG01. `null`/absent = unchanged |
+| `sortOrder` | int | no | 0–10000 → MSG15. `null`/absent = unchanged |
 
 Response `200`: the updated `WatchlistItem`.
 
 | Status | `code` | MSG | When |
 |---|---|---|---|
-| 400 | `VALIDATION_FAILED` | MSG01 | Field rules |
+| 400 | `VALIDATION_FAILED` | MSG01, MSG15 | Field rules |
 | 404 | `RESOURCE_NOT_FOUND` | MSG41 | Not the caller's row |
 
 FE notes: `sortOrder` sets **only this row**; the server does not renumber the others. After a drag,
 PATCH every row whose position changed (e.g. renumber 0…n−1) and refetch the list. Equal values are
 allowed; ties fall back to `addedAt`.
-Source: `watchlist/controller/WatchlistController.java#L77`; `watchlist/dto/request/UpdateWatchlistItemRequest.java#L16`; `watchlist/entity/Watchlist.java#L77`. Spec: SRS 3.4.1, D-75.
+Source: `watchlist/controller/WatchlistController.java#L77`; `watchlist/dto/request/UpdateWatchlistItemRequest.java#L18`; `watchlist/entity/Watchlist.java#L77`. Spec: SRS 3.4.1, D-75.
 
 ---
 
 ### DELETE /watchlist/{id}
-Status: IMPLEMENTED (develop) — `expectedAlertCount` is PENDING PR (`feat/t-054-alert-rules`)
+Status: IMPLEMENTED (develop)
 Auth: trader
 Purpose: Remove a row and all its alerts (BR-16).
 
 | Query | Type | Required | Rule |
 |---|---|---|---|
 | `confirm` | boolean | no | default `false`; must be `true` when the row has alerts |
-| `expectedAlertCount` | int | no | **branch only.** The `{n}` the user confirmed in MSG26 |
+| `expectedAlertCount` | int | no | The `{n}` the user confirmed in MSG26 |
 
 Response `204`.
 
 | Status | `code` | MSG | When | Show |
 |---|---|---|---|---|
-| 400 | `WATCHLIST_REMOVAL_CONFIRMATION_REQUIRED` | MSG26 | Row has alerts and `confirm` is not true; (branch) or `expectedAlertCount` ≠ current count. `messageArgs` = `[symbol, n]` | MSG26 dialog with the new `n` |
+| 400 | `WATCHLIST_REMOVAL_CONFIRMATION_REQUIRED` | MSG26 | Row has alerts and `confirm` is not true, or `expectedAlertCount` ≠ current count. `messageArgs` = `[symbol, n]` | MSG26 dialog with the new `n` |
 | 404 | `RESOURCE_NOT_FOUND` | MSG41 | Not the caller's row | Remove from cache |
 
 FE notes (T-059 gotcha):
@@ -150,14 +152,13 @@ FE notes (T-059 gotcha):
    removes nothing — show the dialog again.
 3. `activeAlerts` counts ACTIVE alerts only; MSG26's `n` counts **all** alerts of the row (paused,
    triggered, expired too). Use the server's `n`.
-4. On `develop` (before T-054 merges) `expectedAlertCount` is ignored; sending it is harmless.
-Source: `watchlist/controller/WatchlistController.java#L92` (develop), `#L94` (branch); `watchlist/service/impl/WatchlistServiceImpl.java#L120`. Spec: SRS 3.4.1, BR-16, D-76.
+Source: `watchlist/controller/WatchlistController.java#L94`; `watchlist/service/impl/WatchlistServiceImpl.java#L125`. Spec: SRS 3.4.1, BR-16, D-76.
 
 ---
 
-## Alerts — PENDING PR (`feat/t-054-alert-rules`)
+## Alerts
 
-Shared types (branch):
+Shared types:
 
 ```ts
 type AlertType = 'PRICE' | 'INDICATOR';
@@ -223,12 +224,12 @@ the market (404 MSG41) → limits under the per-user lock (409 MSG27).
 Plan features: `INDICATOR` → `INDICATOR_ALERT`; `FUTURES` market → `FUTURES_ANALYSIS`;
 `notifyEmail`/`notifyPush` true → `EXTERNAL_ALERT_CHANNELS`. All three are PRO+.
 
-Source (branch): `watchlist/service/impl/AlertRuleValidator.java#L44`; `watchlist/dto/request/CreateAlertRequest.java#L23`; `watchlist/dto/request/UpdateAlertRequest.java#L22`; `watchlist/dto/response/AlertResponse.java#L39`. Spec: SRS 3.4.2, BR-17…BR-20, A-40, D-76.
+Source: `watchlist/service/impl/AlertRuleValidator.java#L44`; `watchlist/dto/request/CreateAlertRequest.java#L23`; `watchlist/dto/request/UpdateAlertRequest.java#L22`; `watchlist/dto/response/AlertResponse.java#L39`. Spec: SRS 3.4.2, BR-17…BR-20, A-40, D-76.
 
 ---
 
 ### GET /alerts
-Status: PENDING PR (feat/t-054-alert-rules)
+Status: IMPLEMENTED (develop)
 Auth: trader
 Purpose: The caller's alerts, newest first (SCR-13, UC-14).
 
@@ -248,12 +249,12 @@ Response `200`: `PageResponse<AlertResponse>`.
 FE notes: no `GET /alerts/{id}`; the list row carries every field. Filter by pair on the client.
 Trigger history (SRS 3.4.3) comes with notifications (T-056/T-059). Q-31: no "paused by plan change"
 marker yet.
-Source (branch): `watchlist/controller/AlertController.java#L55`. Spec: SRS 3.4.3, CR-04, D-76.
+Source: `watchlist/controller/AlertController.java#L55`. Spec: SRS 3.4.3, CR-04, D-76.
 
 ---
 
 ### POST /alerts
-Status: PENDING PR (feat/t-054-alert-rules)
+Status: IMPLEMENTED (develop)
 Auth: trader (+ plan features above)
 Purpose: Create an ACTIVE alert; adds the pair to the watchlist if needed (BR-16).
 
@@ -285,12 +286,12 @@ Response `201`: `AlertResponse` with `status: "ACTIVE"`.
 FE notes: show MSG14 on success. Invalidate `GET /watchlist` too (a row may be new, `activeAlerts`
 changed). On FREE show INDICATOR, Futures and channel switches with a lock (CR-08) instead of hiding
 them. FUNDING_RATE threshold unit is undecided (Q-30) — do not ship that input before it is answered.
-Source (branch): `watchlist/controller/AlertController.java#L77`. Spec: SRS 3.4.2, UC-13, BR-16, BR-17, BR-62.
+Source: `watchlist/controller/AlertController.java#L77`. Spec: SRS 3.4.2, UC-13, BR-16, BR-17, BR-62.
 
 ---
 
 ### PUT /alerts/{id}
-Status: PENDING PR (feat/t-054-alert-rules)
+Status: IMPLEMENTED (develop)
 Auth: trader (+ plan features)
 Purpose: Edit an alert; the pair cannot change. A TRIGGERED or EXPIRED alert becomes ACTIVE.
 
@@ -306,12 +307,12 @@ Response `200`: `AlertResponse`.
 | 409 | `PLAN_LIMIT_REACHED` | MSG27 | Re-activation would pass `ACTIVE_ALERT_MAX` |
 
 FE notes: show MSG14. Editing a PAUSED alert keeps it PAUSED.
-Source (branch): `watchlist/controller/AlertController.java#L92`. Spec: SRS 3.4.2, 3.4.3, D-76.
+Source: `watchlist/controller/AlertController.java#L92`. Spec: SRS 3.4.2, 3.4.3, D-76.
 
 ---
 
 ### DELETE /alerts/{id}
-Status: PENDING PR (feat/t-054-alert-rules)
+Status: IMPLEMENTED (develop)
 Auth: trader
 Purpose: Delete an alert (after a client-side confirmation).
 
@@ -321,12 +322,12 @@ Response `204`.
 |---|---|---|---|
 | 404 | `RESOURCE_NOT_FOUND` | MSG41 | Not the caller's |
 
-Source (branch): `watchlist/controller/AlertController.java#L104`. Spec: SRS 3.4.3.
+Source: `watchlist/controller/AlertController.java#L104`. Spec: SRS 3.4.3.
 
 ---
 
 ### POST /alerts/{id}/pause
-Status: PENDING PR (feat/t-054-alert-rules)
+Status: IMPLEMENTED (develop)
 Auth: trader
 Purpose: ACTIVE → PAUSED.
 
@@ -337,12 +338,12 @@ Response `200`: `AlertResponse` with `status: "PAUSED"`.
 | 404 | `RESOURCE_NOT_FOUND` | MSG41 | Not the caller's |
 | 409 | `ALERT_STATUS_TRANSITION_INVALID` | MSG43 | Not ACTIVE |
 
-Source (branch): `watchlist/controller/AlertController.java#L115`. Spec: SRS 3.4.3.
+Source: `watchlist/controller/AlertController.java#L115`. Spec: SRS 3.4.3.
 
 ---
 
 ### POST /alerts/{id}/resume
-Status: PENDING PR (feat/t-054-alert-rules)
+Status: IMPLEMENTED (develop)
 Auth: trader (+ plan features of the alert)
 Purpose: PAUSED → ACTIVE, subject to the current plan's limits.
 
@@ -356,4 +357,4 @@ Response `200`: `AlertResponse` with `status: "ACTIVE"`.
 | 409 | `PLAN_LIMIT_REACHED` | MSG27 | `ACTIVE_ALERT_MAX` | Inline |
 | 409 | `ALERT_STATUS_TRANSITION_INVALID` | MSG43 | Not PAUSED | Reload |
 
-Source (branch): `watchlist/controller/AlertController.java#L129`. Spec: SRS 3.4.3, BR-17, BR-64.
+Source: `watchlist/controller/AlertController.java#L129`. Spec: SRS 3.4.3, BR-17, BR-64.
