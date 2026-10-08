@@ -597,7 +597,7 @@ Newest first. One block per working session, format in `CLAUDE.md` section 8.
 - BR/UC/NSF covered: UC-06, UC-07, UC-08, BR-02 (client check), BR-66, BR-67 (display), MSG14, MSG15, MSG48
 - Decisions: none new
 - Open questions: Q-41 (MSG15 for default capital); Q-38 still blocks production sign-in
-- Next: push and open the T-030 / T-016 pull requests when the owner asks; then T-031
+- Next: finish T-016 before T-031. (1) Fix the SCR-07 review findings: `PUT /me/password` belongs to the auth service, not profile; no cross-feature imports (TD 4.4); enum labels and 2-decimal percents (CR-02); vertical tabs of the agreed SCR-07 layout; skeleton loading; private doc paths in code comments (FE and auth branches) replaced by ids. (2) Narrow Q-41 to what M-11 leaves open. (3) Manual test with dev fixtures, then against the local backend with the seeded accounts. (4) Owner decides: keep fixes as new commits or rewrite the local branches; push and PRs for T-030, T-016. Then T-031
 - Commits: `feature/T-016-auth-http` `9a4c76a`…`df29b10` (4); `feature/T-016-profile` `ee48bc6`…`dc7c2ae` (8), based on `feature/T-016-auth-http`; not pushed
 
 ### 2026-10-08 – fe-guide re-sync and FE documents (no task id)
