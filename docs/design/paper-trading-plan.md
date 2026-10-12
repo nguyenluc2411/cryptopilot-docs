@@ -82,6 +82,8 @@ Hiện tại khớp theo nến 1m, nên trễ tới 1 phút và fill được gh
 
 **Đề xuất:** mặc định khớp khi có trade **xuyên qua** giá (mua: trade < giá đặt; bán: trade > giá đặt), vì như vậy thực tế hơn với lệnh đứng cuối hàng đợi. Nếu trade chỉ chạm đúng bằng giá đặt thì khớp theo tỉ lệ khối lượng (P2). Thêm cấu hình `LIMIT_FILL_MODE = TOUCH | CROSS`. Lưu ý: hiện code đang dùng TOUCH (BR-33), cần sửa BR-33.
 
+**Cập nhật 2026-10-12 (D-91):** mặc định đổi thành `QUEUE`, theo price-time priority của Binance: lệnh đứng sau khối lượng depth20 đang có ở giá đặt lúc vào sổ, các trade đúng giá đặt trừ dần khối lượng đó, trade của phía bên kia ở đúng giá đặt thì khớp ngay, trade xuyên qua giá thì luôn khớp. `CROSS` và `TOUCH` vẫn là cấu hình.
+
 #### Q-T9 Ghi journal khi đóng vị thế `Đã chốt`
 
 Journal không thuộc phần trading. Bảng hiện tại còn bắt SIMULATED phải có `plan_id`.
