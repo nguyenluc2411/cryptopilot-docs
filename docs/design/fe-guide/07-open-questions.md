@@ -58,7 +58,7 @@ Not yet in `CURRENT_STATE.md` section 8; the team lead may promote them to Q-xx.
 | M-12 | Futures plans | SRS 3.5.1: Futures plans with leverage 1 to the bracket maximum | Every Futures calculation fails: no leverage brackets are stored anywhere until T-085 (`backend/src/main/java/com/cryptopilot/trading/service/impl/PlanCalculationAssembler.java#L70`; D-70) | Disable Futures in SCR-17 for now or show the 400 |
 | M-13 | Indicator overlays | SRS 3.3.2: overlays and panels over the chart | Latest values only (FEQ-04) | Client-side computation or wait |
 | M-14 | Endpoint catalogue | TD 8 `user` row lists profile, notification preferences and devices only | Code also serves `GET/PUT /me/risk-profile` and `GET/POST /me/risk-questionnaire` (T-103) (`backend/src/main/java/com/cryptopilot/user/controller/RiskProfileController.java#L45`, `#L54`, `#L62`, `#L73`) | None needed; this guide documents them (`modules/user.md`) |
-| M-15 | MSG50 | SRS v1.0 as submitted (Report 3, 3.7.4 and 5.3): MSG50 = "You have already reported this post." (BR-46). The `docs/srs/` copy (1.0 Draft) has no MSG50 | `RATE_LIMITED` answers MSG50 (`backend/src/main/java/com/cryptopilot/common/exception/ErrorCode.java#L223`; A-42) | Branch on `code`, not on `messageCode`, for 429 until Q-37 is answered |
+| M-15 | MSG50 | SRS v1.0 as submitted (Report 3, 3.7.4 and 5.3): MSG50 = "You have already reported this post." (BR-46). The `docs/srs/` copy (1.0 Draft) has no MSG50 | `RATE_LIMITED` answers MSG50 (`backend/src/main/java/com/cryptopilot/common/exception/ErrorCode.java#L223`; A-42) | Branch on `code`, not on `messageCode`, for 429 until Q-43 is answered |
 
 ## D. Checks done for this sync
 
