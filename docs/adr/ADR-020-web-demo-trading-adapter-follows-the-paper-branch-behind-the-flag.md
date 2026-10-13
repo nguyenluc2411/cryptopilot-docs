@@ -1,6 +1,6 @@
 # ADR-020 — Web demo trading adapter follows the backend paper branch behind the flag
 
-**Status:** Proposed
+**Status:** Accepted (FE owner, 2026-10-13)
 **Date:** 2026-10-13
 **Deciders:** BE1, BE2, FE, DO
 **Related:** D-86, D-94 (ADR-018); TR-03, TR-04, TR-06, TR-07; TR-F2, TR-F3; ADR-015; CURRENT_STATE D-97
@@ -25,8 +25,10 @@ paper module", and the flag stays `false` in production until it is merged.
 ## Consequences
 A developer can run the backend paper branch and test the screens with real orders; the merge of the
 module needs no FE code change, only the flag. While the branch is unmerged its contract can still
-change: the FE re-reads it before the merge (the decoders reject an unexpected shape, so a change shows
-as a decode error, not wrong data). A build with the flag on against a backend without the module gets
+change: the FE re-checks it when the module is merged, before the flag is turned on anywhere: a diff of
+the paper and market contract from `f4e66b2`, the adapter smoke test against the merged backend (it
+passed 30/30 against `f4e66b2`), the web checks, then the fe-guide task map. The decoders reject an
+unexpected shape, so a change missed there shows as a decode error, not wrong data. A build with the flag on against a backend without the module gets
 404s; that is a configuration error.
 
 ## Alternatives considered
