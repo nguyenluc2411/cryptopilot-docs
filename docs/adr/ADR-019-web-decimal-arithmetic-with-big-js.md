@@ -23,7 +23,7 @@ divide with a fixed number of fraction digits, compare, and round to a tick or s
 mode (down for quantities and Buy prices, up for Sell prices, half-up for display). It creates its own
 `Big` constructor (`Big()`), so the global settings are never changed: 18 fraction digits for division
 and round-down by default. Components and hooks use that module, never `Big` directly; values stay
-strings in the domain model and in requests. Indicators keep using `number` (D-92).
+strings in the domain model and in requests. Indicators keep using `number` (D-96).
 
 ## Consequences
 Exact results for the operations a trading form needs, matching `BigDecimal` for the same inputs and
