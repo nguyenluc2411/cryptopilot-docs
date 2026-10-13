@@ -12,11 +12,13 @@ reload or a new tab signed the Trader out. The safer alternative, an `HttpOnly` 
 backend, needs backend work (cookie, CSRF, `allowCredentials`) that is not planned.
 
 ## Decision
-The access token stays in memory only. The refresh token and its expiry are kept in the tab's
-`sessionStorage`, never `localStorage`: written on sign-in and on every rotation, removed on sign-out,
+The access token stays in memory only. The refresh token, its expiry and the signed-in email (an
+Admin has no profile endpoint to read it back) are kept in the tab's `sessionStorage`, never
+`localStorage`: written on sign-in and on every rotation, removed on sign-out,
 on a refused refresh (the session ended) and on a password reset. When the app starts with no session
-in memory and a stored refresh token that has not expired, it calls `POST /auth/refresh` once (the
-same single-flight refresh as before) and then reads the identity as after a sign-in. A failed
+in memory and a stored refresh token that has not expired, it calls `POST /auth/refresh` once and
+then reads the identity as after a sign-in. The resume is single-flight: React's strict mode starts
+it twice in development, and presenting the same refresh token twice reads as reuse to the server. A failed
 network call keeps the stored token for the next start; a refused one removes it.
 
 ## Consequences
