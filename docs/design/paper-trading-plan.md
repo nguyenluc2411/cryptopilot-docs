@@ -78,6 +78,8 @@ Hiện tại khớp theo nến 1m, nên trễ tới 1 phút và fill được gh
 
 **Đề xuất:** khớp dần qua 20 mức giá của order book thật (`@depth20`) để ra giá trung bình VWAP. Nếu không có depth thì khớp ở best bid/ask. Lệnh demo không làm thay đổi sổ lệnh thật; giới hạn này sẽ ghi rõ ở mục 19.
 
+**Cập nhật 2026-10-13 (D-92):** đã làm. Mỗi mức giá lấy được là một fill riêng như Binance. Lệnh Limit khớp được ngay thì khóa đủ số dư trước, lấy các mức không vượt giá limit, phần còn lại chờ (`PARTIALLY_FILLED`, GTC), hết hạn (IOC) hoặc không khớp gì (FOK). Hết depth thì gắn `DEPTH_EXHAUSTED` vào `status_reason`. Cặp không có trading stream thì khớp ở last price.
+
 #### Q-T8 Lệnh Limit khớp khi "chạm" hay khi "xuyên qua" giá `Đã chốt`
 
 **Đề xuất:** mặc định khớp khi có trade **xuyên qua** giá (mua: trade < giá đặt; bán: trade > giá đặt), vì như vậy thực tế hơn với lệnh đứng cuối hàng đợi. Nếu trade chỉ chạm đúng bằng giá đặt thì khớp theo tỉ lệ khối lượng (P2). Thêm cấu hình `LIMIT_FILL_MODE = TOUCH | CROSS`. Lưu ý: hiện code đang dùng TOUCH (BR-33), cần sửa BR-33.
