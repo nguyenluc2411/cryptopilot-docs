@@ -615,7 +615,8 @@ Newest first. One block per working session, format in `CLAUDE.md` section 8.
 - Decisions: none new (SRS content unchanged; deviations from Figma listed in the local ui-spec)
 - Open questions: FEQ-01 (urgent, see above); the nav difference between the two SRS copies (to raise as a Q-xx)
 - Next: (1) Team lead / BE: FEQ-01 now blocks alerts, demo orders, plans and the watchlist for every real account, the demo accounts included; a stopgap is seeding watchlist rows for the demo accounts. (2) Owner: review and merge `feature/T-031-home-hero` with the five branches of 2026-10-13/14; push when asked. (3) FE: the nav clipping at 1440 px when the owner wants it
-- Commits: `feature/T-031-home-hero` `8969eca`, `cb3f5c7` (local)
+- Then, from the owner's Figma screenshot: a live ticker tape in the market pulse (every Spot pair's price and 24h change, pause button, reduced motion) and the hero radar drawn from live data (the day's biggest moves as nodes, rising right and falling left, farther for bigger moves; hub "CryptoPilot · Spot · 24h"), with the live market card and a market breadth card (rising / falling pairs, Spot volume, share rising) over its corners in place of the prototype's "AI Market Insight" trade setup and "Risk Engine" card; on narrow screens the cards stack under the radar and its points spread over each half. 361/361 tests; browser check at 1440 and 360: no label overlap, no overflow, no console error
+- Commits: `feature/T-031-home-hero` `8969eca`, `cb3f5c7`, `cc8dfa7`, `71c9530`, `faa89fe`, `2d5d2c0` (local)
 
 ### 2026-10-14 – Realtime review against current Binance and TradingView docs; six fixes (cryptopilot-frontend)
 - Result: six fixes on `fix/realtime-hardening` (local, not pushed, not merged)
