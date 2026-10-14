@@ -96,7 +96,7 @@ Response `201`: the new `WatchlistItem` (`activeAlerts: 0`).
 | 409 | `PLAN_LIMIT_REACHED` | MSG27 | `WATCHLIST_MAX`; args `[max, "watchlist items", tier]` | Inline + upgrade |
 
 FE notes: on 201 show MSG25 with `symbol`. Optimistic insert is fine; roll back on error.
-**Pair id:** take `pairId` from `GET /market/pairs` (FEQ-01, M-01; backend `fix/feq-01-pair-id` `5ef54e1`, not yet on `develop`).
+**Blocker:** the client has no way to get a `pairId` from a symbol (FEQ-01, M-01).
 Source: `watchlist/controller/WatchlistController.java#L65`; `watchlist/dto/request/AddWatchlistItemRequest.java#L16`. Spec: SRS 3.4.1, BR-15, BR-62, D-63, D-75.
 
 ---

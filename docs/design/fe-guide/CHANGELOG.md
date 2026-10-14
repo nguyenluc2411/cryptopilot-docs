@@ -2,16 +2,6 @@
 
 Newest first. Each entry names the `develop` SHA the guide was synced to.
 
-## 2026-10-14 — FEQ-01 pair id, `develop` @ `233fcc8`
-
-- Backend `fix/feq-01-pair-id` (`5ef54e1`, pushed, PR to open): each row of `GET /market/pairs`
-  carries `pairId`, the id the watchlist, alert, plan and demo order requests take. Additive.
-- FE `fix/FEQ-01-pair-id` (`799753d`, pushed, PR to open): `MarketPair.pairId` decoded (optional,
-  so an older backend still decodes); the demo Spot screen and the Orders pair filter take it, with
-  the watchlist row as fallback.
-- Still open under FEQ-01 on FE: Add to watchlist, Create plan and Create alert from SCR-10/11,
-  the pair name in plan rows (resolve from the pair list).
-
 ## 2026-10-03 — first version, `develop` @ `6137e24`
 
 - Added the guide: README, setup, auth, conventions, enums, realtime, module files (auth, user,
