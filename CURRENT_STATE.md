@@ -591,6 +591,13 @@ Rule: an AI agent never answers an open question by guessing. It implements what
 
 Newest first. One block per working session, format in `CLAUDE.md` section 8.
 
+### Session 2026-10-14: repo sync
+- Docs: local 2026-10-11 notes committed (`5bed593`) and merged with origin/main (`544c8a3`); conflicts in the header, the Q-xx table and the session log resolved by union (Q-36 and Q-44 CLOSED, Q-39..Q-44 kept, Q-35/Q-38 and TR-03/TR-05/TR-06/D-91/D-92 as on remote; Q-38 was already CLOSED by D-92 on remote, so it stays closed); the four 2026-10-11 blocks that had been appended at the end of the file moved into this log
+- Code: develop @ `233fcc8` (fast-forward); fix/t-055-atomic-rule-location fully merged (PR #53), kept, not deleted; feat/tr-02-paper-trading-schema 15 ahead / 0 behind develop, no PR, untouched
+- #52: not closed: GitHub answers 410 "This issue was deleted"; PR #53 is its fix, nothing left to close
+- Audit P1: PR #55 (`test/audit-p1-fixes` rebased on `233fcc8`, no conflicts, commits `9836f62`, `eb3f298`), verify pass 2511/2511, line 98.92% / branch 95.01%; PIT unit: TradingPlanServiceImpl 95.2%, PositionSizeCalculator 87.2%, RiskQuestionnaire 94.7%, MatchingWorker 74.5%; PIT with the touched integration tests: PriceAlert 3/3 (F-01 mutant killed), ReplayLockServiceImpl 14/16
+- Next: pending the user's choice (T-056 outbox, T-110 non-funding alert types, TR-08, PR for the paper trading branch)
+
 ### 2026-10-13 – TR-06 MARKET at the depth20 VWAP, partial fills on arrival, cancel all
 - Result: DONE (TR-06); 1 commit on `feat/tr-02-paper-trading-schema`, pushed (tip `f4e66b2`); `develop` had nothing new, no merge
 - Decision (user, 2026-10-13): "miễn là nó thực tế và giống của binance thì làm đi", recorded as D-92; closes Q-38.
