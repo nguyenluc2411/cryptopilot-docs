@@ -34,6 +34,7 @@ Response `200` — `PageResponse<PairResponse>`:
 {
   "items": [
     {
+      "pairId": "0199a0f0-1111-7aaa-8bbb-000000000001",
       "symbol": "BTCUSDT",
       "market": "SPOT",
       "baseAsset": "BTC",
@@ -54,6 +55,7 @@ Response `200` — `PageResponse<PairResponse>`:
 
 ```ts
 interface PairResponse {
+  pairId: string;              // UUID; on `fix/feq-01-pair-id` (5ef54e1), not yet on develop
   symbol: string;
   market: 'SPOT' | 'FUTURES';
   baseAsset: string | null;
@@ -72,9 +74,11 @@ interface PairResponse {
 | 400 | `VALIDATION_FAILED` | MSG01 | Bad `market`, `page`, `pageSize` |
 
 FE notes:
-- **No pair `id` in the response.** `POST /watchlist`, `POST /plans` and `POST /alerts` need a
-  `pairId` (UUID); no implemented endpoint returns a pair's id for a symbol. Blocks "Add to
-  Watchlist" / "Create Trading Plan" from market screens (FEQ-01, M-01).
+- **`pairId` (FEQ-01, M-01), 2026-10-14:** each row carries the id that `POST /watchlist`,
+  `POST /plans`, `POST /alerts` and `POST /paper/orders` take. Added on backend
+  `fix/feq-01-pair-id` (`5ef54e1`), PR to open; until it is on `develop` the field is absent, so
+  decode it as optional (FE `799753d` does). Use it for "Add to Watchlist" / "Create Trading Plan"
+  from market screens and to name a plan's pair.
 - No prices here: combine with `/topic/overview.{MARKET}` (or `…/stats` per pair while Delayed).
 - No search or sort parameters: 13–50 pairs, fetch `pageSize=100` once and sort/search on the client
   (SRS 3.3.1).

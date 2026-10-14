@@ -11,7 +11,7 @@ Read first:
   `errors.leverage` MSG15 (D-70). FREE users get 403 MSG29 first.
 - No fills yet (matching engine T-042+): an ACTIVE plan, MARKET included, stays ACTIVE. `EXECUTED`,
   `EXPIRED`, the live position block and close-position do not exist yet.
-- Plan responses carry `pairId` but **no symbol** (FEQ-01).
+- Plan responses carry `pairId` but **no symbol**: resolve it from `GET /market/pairs`, whose rows carry `pairId` (FEQ-01, backend `5ef54e1`, not yet on `develop`).
 
 ## Shared types
 
@@ -238,7 +238,7 @@ Response `200`: `PageResponse<TradingPlanSummary>`.
 |---|---|---|---|
 | 400 | `VALIDATION_FAILED` | MSG01/MSG15 | Bad enum, UUID, instant, paging |
 
-FE notes: no symbol in rows — resolve `pairId` from data you already hold (FEQ-01). Position status
+FE notes: no symbol in rows — resolve `pairId` from the pair list (`GET /market/pairs` rows carry `pairId`, FEQ-01). Position status
 and P/L of executed plans (SRS 3.5.2) are not in the row yet (T-042+). Keep the tab in the URL.
 Source: `trading/controller/TradingPlanController.java#L90`; `trading/dto/response/TradingPlanSummaryResponse.java#L32`. Spec: SRS 3.5.2, UC-20, CR-04, D-73.
 
