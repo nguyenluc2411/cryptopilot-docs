@@ -112,7 +112,7 @@ Nối thẳng từ trình duyệt tới WebSocket công khai của Binance thì 
 | Tổng quan tài sản | Tổng giá trị ước tính theo USDT và BTC, PnL hôm nay (so với snapshot 00:00 UTC), tỉ trọng Spot và Futures. | `P1` | `Mới` |
 | Chuyển tiền Spot ↔ Futures | Chuyển USDT (và BNB, nếu cho dùng làm margin; mặc định chỉ USDT). Số chuyển ra khỏi Futures không vượt max withdrawable. Ghi ledger ở cả hai ví trong cùng một transaction. | `P0` | `Mới` |
 | Lịch sử chuyển tiền | Danh sách: thời gian, chiều chuyển, tài sản, số lượng. | `P1` | `Mới` |
-| Sổ cái (ledger) | Mọi biến động số dư là một dòng bất biến: TRADE, FEE, REALIZED_PNL, FUNDING_FEE, TRANSFER, LIQUIDATION, LIQUIDATION_FEE. Mỗi dòng có `balance_after`. Số dư phải luôn bằng tổng ledger. | `P0` | `Mới` |
+| Sổ cái (ledger) | Mọi biến động số dư là một dòng bất biến: TRADE, FEE, REALIZED_PNL, FUNDING_FEE, TRANSFER, LIQUIDATION, LIQUIDATION_FEE. Mỗi dòng có `balance_after`. Số dư phải luôn bằng tổng ledger. Futures tách PnL như journal (D-97): REALIZED_PNL là kết quả giá gộp, FEE và LIQUIDATION_FEE là phí, FUNDING_FEE có dấu (+ nhận, − trả). | `P0` | `Mới` |
 | Biểu đồ giá trị tài sản | Snapshot equity hằng ngày lúc 00:00 UTC, biểu đồ 7, 30, 90 ngày. | `P1` | `Mới` |
 | Convert số dư nhỏ | Đổi các coin dưới 1 USDT sang USDT theo giá last (giống "Convert small balance"). | `P2` | `Mới` |
 

@@ -833,20 +833,34 @@ Built in T-043 (PR #47 rules, PR #48 feed and replay):
 - **Cancel and expiry during a replay (D-79).** A Trader's cancel committed while the pair replays wins: the replay's fill of an older candle finds the plan CANCELLED and changes nothing. NSF-09 (T-046) must not expire a plan of a pair whose replay is in progress (`MinuteKlineFeed`).
 - **Not covered.** Mark price klines for liquidation replay are T-044.
 
-### 7.8 Fees, funding and realized P/L (BR-36..38)
+### 7.8 Fees, funding and realized P/L (BR-35..38, D-97)
 
+Three stored amounts on `trading_journal` and one derived amount (D-97, A-02):
 ```
-fee(fill) = fillPrice × qty × rate(role)      role: maker for LIMIT entry and TP, taker otherwise
-funding   = Σ_{t ∈ settlements, entry_time < t ≤ exit_time}  −d × qty × mark_t × rate_t
-P/L LONG  = (exit − entry) × qty − Σfees + funding
-P/L SHORT = (entry − exit) × qty − Σfees + funding
-Liquidation: price P/L = −initialMargin; then fees and funding apply as above (A-02 clarifies BR-35)
+realized_pnl  (gross, BR-35)
+  LONG  = (exit − entry) × qty          SHORT = (entry − exit) × qty
+  LIQUIDATION: max(price result, −initialMargin),  initialMargin = entry × qty / leverage   (Q-54)
+  no fee, no funding
+fee_amount  (≥ 0, BR-36) = fee(entry fill) + fee(exit fill)
+  fee(fill) = fillPrice × qty × rate      notional at the fill; leverage does not reduce it
+  rate: maker for LIMIT entry and TAKE_PROFIT exit; taker for MARKET entry, STOP_LOSS, MANUAL, LIQUIDATION
+        FUTURES_MAKER_FEE / FUTURES_TAKER_FEE for Futures, SPOT_MAKER_FEE / SPOT_TAKER_FEE for Spot (system_setting)
+funding_fee_amount  (Futures only, signed: + received, − paid; null for Spot, BR-37)
+  = Σ_{t ∈ settlements, entry_time < t ≤ exit_time}  −d × qty × mark_t × rate_t     d = +1 LONG, −1 SHORT
+net_pnl  (derived, never stored, BR-38)
+  = realized_pnl − fee_amount + coalesce(funding_fee_amount, 0)
 ```
+
+`net_pnl` is computed in exactly one place per layer: a domain method on the journal trade model (`net_pnl()` of the journal record) and, for statistics, the SQL expression `realized_pnl - fee_amount + coalesce(funding_fee_amount, 0)` (one shared expression or view used by 7.10, not repeated per query). No `net_pnl` column, no new setting. Journal list and detail, performance statistics and AI trade summaries read `net_pnl`; the trade detail shows `realized_pnl`, `fee_amount`, `funding_fee_amount` and `net_pnl` separately. Paper trading Futures, when built, books the same split as ledger rows `REALIZED_PNL`, `FEE`, `FUNDING_FEE`, `LIQUIDATION_FEE`.
+
+Known limitation: a liquidation is charged the taker fee only; the exchange's separate liquidation clearance (insurance fund) fee is not simulated.
+
+References: Binance FAQ, "Binance Futures Fee Structure & Fee Calculations" (fee = notional × rate; leverage does not change it). Binance FAQ, "Introduction to Binance Futures Funding Rates" (funding = mark price × position size × funding rate; a positive rate means longs pay shorts).
 
 Funding is computed from `funding_rate_history` rows (7.1 step 8) when the position closes and on read for open positions; no per-event write is needed and the calculation is idempotent (alignment item A-05). Those rows carry the settled rate and the mark price at settlement, and no retention policy can reach them (A-12), so the figure stays reproducible for as long as the journal keeps the trade.
 
 Test vector: LONG futures qty 2, entry 100 (LIMIT, maker 0.02%), exit TP 115 (maker), one funding at mark 101 rate 0.0001:
-fees = 0.04 + 0.046 = 0.086; funding = −0.0202; P/L = 30 − 0.086 − 0.0202 = 29.8938.
+realized_pnl = 30; fee_amount = 0.04 + 0.046 = 0.086; funding_fee_amount = −0.0202; net_pnl = 30 − 0.086 − 0.0202 = 29.8938.
 
 ### 7.9 Alert engine (NSF-06, BR-18..20)
 
@@ -862,8 +876,8 @@ Complexity: O(log n + k) per price update.
 
 ### 7.10 Performance statistics (BR-42)
 
-Computed by SQL over closed journal records of the user with the selected filters:
-- wins, losses, breakeven via `COUNT(*) FILTER (WHERE …)`; win rate = wins / (wins + losses).
+Computed by SQL over closed journal records of the user with the selected filters. `pnl` below is `net_pnl` = `realized_pnl - fee_amount + coalesce(funding_fee_amount, 0)` (7.8, D-97), never `realized_pnl` alone:
+- wins (`net_pnl > 0`), losses (`< 0`), breakeven (`= 0`) via `COUNT(*) FILTER (WHERE …)`; win rate = wins / (wins + losses).
 - profit factor = `SUM(pnl) FILTER (pnl > 0) / ABS(SUM(pnl) FILTER (pnl < 0))`.
 - realized R = pnl / risk_amount (from the plan for SIMULATED, from stop loss for MANUAL; excluded if no stop loss).
 - equity curve: `SUM(pnl) OVER (ORDER BY exit_time)`.
@@ -1101,7 +1115,7 @@ Since T-025: `tools/golden/generate_indicator_fixture.py` writes `btcusdt-1h-tal
 | ID | Item | Proposal | Affects |
 |---|---|---|---|
 | A-01 | BR-27 ignores maintenance amount | Use exact formula with `cum` (7.6) | BR-27 |
-| A-02 | BR-35 "loss equals initial margin" vs fees in BR-36 | Price loss = initial margin; fees and funding added separately | BR-35 |
+| A-02 | BR-35 "loss equals initial margin" vs fees in BR-36 | **Decided 2026-10-18 (D-97):** `realized_pnl` gross, floored at −initial margin on liquidation; fees and funding stored apart; `net_pnl` derived (7.8) | BR-35, BR-36, BR-38, BR-42 |
 | A-03 | BR-53 requires PENDING; late gateway success after expiry | Accept late success, activate, audit | BR-53, BR-54 |
 | A-04 | NSF-07 recovery uses 15m candles | Replay 1m klines fetched by REST | SRS 3.5.4 |
 | A-05 | NSF-08 applies funding at each funding time | Compute from `funding_rate_history` rows at close/read; same result | NSF-08 |
