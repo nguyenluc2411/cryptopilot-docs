@@ -162,7 +162,7 @@ Nối thẳng từ trình duyệt tới WebSocket công khai của Binance thì 
 | Order history | Trạng thái NEW, PARTIALLY_FILLED, FILLED, CANCELED, EXPIRED, REJECTED. Có giá trung bình. Lọc theo 1 ngày / 1 tuần / 1 tháng / 3 tháng / tùy chọn, theo cặp, chiều, trạng thái. | `P0` | `Mới` |
 | Trade history | Từng fill: giá, số lượng, phí và tài sản phí, vai trò Maker/Taker, tổng. | `P0` | `Mới` |
 | Hết hạn và hủy tự động | Lệnh của cặp bị tắt (`pair_status = INACTIVE`) thì bị hủy và trả lại số dư. | `P0` | `Mới` |
-| Giá vốn và PnL theo coin | Giá vốn trung bình, PnL chưa thực hiện, PnL hôm nay cho từng coin (giống "Spot PnL" của Binance). | `P1` | `Mới` |
+| Giá vốn và PnL theo coin | Giá vốn trung bình, PnL chưa thực hiện, PnL hôm nay cho từng coin (giống "Spot PnL" của Binance). Giá vốn luôn tính bằng USDT, cả với cặp không phải USDT như ETHBTC (D-96, PT-F1a): mỗi lần số lượng một coin tăng, phần tăng được định giá USDT theo giá thị trường lúc khớp (`QUOTEUSDT` live, nếu cũ thì close nến 1m đã đóng gần nhất ≤ 15 phút, không có thì giá vốn coin đó thành không biết); coin bị trả ra giữ nguyên giá vốn trung bình; USDT không mang giá vốn. Mỗi fill lưu tỉ giá và nguồn (`paper_fill.quote_usdt_price`, `quote_usdt_price_source`, V25). Phân tích lệnh theo cặp (giá vốn bằng coin quote) chưa làm. | `P1` | `Mới` |
 | Export CSV | Xuất order, trade và ledger theo khoảng thời gian. | `P2` | `Mới` |
 
 ## 7. Futures USDⓈ-M (Perpetual)
@@ -559,6 +559,7 @@ Tổng backend khoảng **~92 ngày công**. Nếu chỉ có một người làm
 | Giới hạn stream Binance (số stream mỗi kết nối, số kết nối) | Không subscribe hết depth và aggTrade cho mọi cặp | Subscribe theo nhu cầu, dùng shard có sẵn, giới hạn danh sách cặp demo |
 | Mất stream hoặc server restart | Bỏ lỡ trigger hoặc fill | Replay nến 1m từ watermark (đã có). Fill từ replay gắn `source = REPLAY`. |
 | Phạm vi lớn so với nhân lực | Trễ mốc | Làm P0 trước. Cross margin và Hedge có thể dời nếu thiếu thời gian (đã tách giai đoạn). |
+| Cặp Spot không phải USDT (ETHBTC…) | Coin không có cặp USDT thì không định giá được equity và giá vốn | Chỉ nhận cặp mà base và quote đều là USDT hoặc có cặp `XXXUSDT` Spot ACTIVE; còn lại từ chối `PAPER_PAIR_NOT_VALUED` (D-96). Fill thiếu tỉ giá vẫn khớp, giá vốn coin nhận về thành không biết |
 | Hiểu nhầm là sàn thật | Rủi ro pháp lý và uy tín | Banner "Demo" trên mọi màn, không có nạp/rút, điều khoản rõ ràng |
 
 Plan dựa trên code ở nhánh
