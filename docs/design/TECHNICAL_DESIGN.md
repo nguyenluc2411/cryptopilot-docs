@@ -833,6 +833,8 @@ Built in T-043 (PR #47 rules, PR #48 feed and replay):
 - **Cancel and expiry during a replay (D-79).** A Trader's cancel committed while the pair replays wins: the replay's fill of an older candle finds the plan CANCELLED and changes nothing. NSF-09 (T-046) must not expire a plan of a pair whose replay is in progress (`MinuteKlineFeed`).
 - **Not covered.** Mark price klines for liquidation replay are T-044.
 
+Built in T-044 (rules only, not wired; Q-59): `trading.matching.ExitRule` decides an exit of an `OpenPosition` (`Exit`: reason, price, time). `byRange` checks the stop loss before the take profit, both bounds inclusive, exit at the level, time = the candle's open time (as D-78). `byMark` liquidates at the liquidation price when the mark price is at or beyond it; a position with no liquidation price (Spot, or a LONG that cannot be liquidated) never is. `CloseReason` holds the four `close_reason` values. The exit books, the mark price feed, the mark kline replay and storing the exit wait on Q-59.
+
 ### 7.8 Fees, funding and realized P/L (BR-35..38, D-97)
 
 Three stored amounts on `trading_journal` and one derived amount (D-97, A-02):
@@ -867,6 +869,8 @@ Worked example (T-044 case (c), the 7.6 vector): Futures LONG, qty 2, LIMIT entr
 Known limitations: one clearance fee rate for every pair (the exchange uses 1.25 % for most USDⓈ-M perpetuals and up to 2 % for a few).
 
 References: Binance FAQ, "Binance Futures Fee Structure & Fee Calculations" (fee = notional × rate; leverage does not change it). Binance FAQ, "Introduction to Binance Futures Funding Rates" (funding = mark price × position size × funding rate; a positive rate means longs pay shorts). Binance FAQ, "Binance Futures Liquidation Protocols" (clearance fee = notional × liquidation fee rate, taken from the assets that maintain the position, none on a bankrupt position). Binance, "Trading Rules of Futures Contracts" (liquidation clearance fee rate 1.25 % for BTCUSDT and ETHUSDT). Binance FAQ, "How to Calculate Profit and Loss for Futures Contracts" (realized PnL excludes commission, funding and the clearance fee).
+
+Implemented by `trading.calculator.TradeResultCalculator` (T-044): `TradeClose` in, `TradeResult` out (`realizedPnl`, `entryFee`, `exitFee` at scale 8; `feeAmount()`, `netPnl()` without funding until T-045). `clearanceFee` picks the bracket of `N_liq` through `LiquidationCalculator.bracketFor` and `LeverageBracket.maintenanceMargin`, the same code the liquidation price uses. Rates come from `trading.service.impl.FeeRates` (`SPOT_*`, `FUTURES_*`, `LIQUIDATION_CLEARANCE_FEE`, V26). A SHORT whose `N_liq` lies above the largest bracket is rejected (Q-58).
 
 Funding is computed from `funding_rate_history` rows (7.1 step 8) when the position closes and on read for open positions; no per-event write is needed and the calculation is idempotent (alignment item A-05). Those rows carry the settled rate and the mark price at settlement, and no retention policy can reach them (A-12), so the figure stays reproducible for as long as the journal keeps the trade.
 
