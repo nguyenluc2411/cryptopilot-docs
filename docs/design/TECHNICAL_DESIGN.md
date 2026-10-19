@@ -839,11 +839,14 @@ Three stored amounts on `trading_journal` and one derived amount (D-97, A-02):
 ```
 realized_pnl  (gross, BR-35)
   LONG  = (exit − entry) × qty          SHORT = (entry − exit) × qty
-  LIQUIDATION: max(price result, −initialMargin),  initialMargin = entry × qty / leverage   (Q-54)
+  LIQUIDATION: exit = liq (7.6), so LONG (liq − entry) × qty, SHORT (entry − liq) × qty; no floor (Q-54)
   no fee, no funding
 fee_amount  (≥ 0, BR-36) = fee(entry fill) + fee(exit fill)
   fee(fill) = fillPrice × qty × rate      notional at the fill; leverage does not reduce it
-  rate: maker for LIMIT entry and TAKE_PROFIT exit; taker for MARKET entry, STOP_LOSS, MANUAL, LIQUIDATION
+  rate: maker for LIMIT entry and TAKE_PROFIT exit; taker for MARKET entry, STOP_LOSS, MANUAL
+  LIQUIDATION exit: no taker fee; fee(exit) = clearance fee
+    clearance = min(N_liq × LIQUIDATION_CLEARANCE_FEE, MM)     N_liq = liq × qty
+    MM = N_liq × MMR − cum   bracket of N_liq, same bracket logic as LiquidationCalculator (7.6, BR-27)
         FUTURES_MAKER_FEE / FUTURES_TAKER_FEE for Futures, SPOT_MAKER_FEE / SPOT_TAKER_FEE for Spot (system_setting)
 funding_fee_amount  (Futures only, signed: + received, − paid; null for Spot, BR-37)
   = Σ_{t ∈ settlements, entry_time < t ≤ exit_time}  −d × qty × mark_t × rate_t     d = +1 LONG, −1 SHORT
@@ -851,11 +854,19 @@ net_pnl  (derived, never stored, BR-38)
   = realized_pnl − fee_amount + coalesce(funding_fee_amount, 0)
 ```
 
-`net_pnl` is computed in exactly one place per layer: a domain method on the journal trade model (`net_pnl()` of the journal record) and, for statistics, the SQL expression `realized_pnl - fee_amount + coalesce(funding_fee_amount, 0)` (one shared expression or view used by 7.10, not repeated per query). No `net_pnl` column, no new setting. Journal list and detail, performance statistics and AI trade summaries read `net_pnl`; the trade detail shows `realized_pnl`, `fee_amount`, `funding_fee_amount` and `net_pnl` separately. Paper trading Futures, when built, books the same split as ledger rows `REALIZED_PNL`, `FEE`, `FUNDING_FEE`, `LIQUIDATION_FEE`.
+`net_pnl` is computed in exactly one place per layer: a domain method on the journal trade model (`net_pnl()` of the journal record) and, for statistics, the SQL expression `realized_pnl - fee_amount + coalesce(funding_fee_amount, 0)` (one shared expression or view used by 7.10, not repeated per query). No `net_pnl` column; the only new setting is `LIQUIDATION_CLEARANCE_FEE` (below). Journal list and detail, performance statistics and AI trade summaries read `net_pnl`; the trade detail shows `realized_pnl`, `fee_amount`, `funding_fee_amount` and `net_pnl` separately. Paper trading Futures, when built, books the same split as ledger rows `REALIZED_PNL`, `FEE`, `FUNDING_FEE`, `LIQUIDATION_FEE`.
 
-Known limitation: a liquidation is charged the taker fee only; the exchange's separate liquidation clearance (insurance fund) fee is not simulated.
+Liquidation (D-97 rules 1–2 as amended by Q-54, 2026-10-18). The position leaves at the liquidation price, so `realized_pnl` is the plain price result there. What is left of an isolated position at that price is its maintenance margin `MM`; the clearance fee takes `N_liq × rate`, never more than `MM`. With the usual brackets (MMR below the 1.25 % rate) the fee takes all of `MM`, so the trader loses the whole initial margin plus the entry fee; with MMR above the rate the rest of `MM` stays with the trader. The liquidation price is rounded towards the position (7.6), so a few cents of margin can remain (example below). `LIQUIDATION_CLEARANCE_FEE` (`system_setting`, DECIMAL, default `0.01250000`, BR-36) is seeded by T-044.
 
-References: Binance FAQ, "Binance Futures Fee Structure & Fee Calculations" (fee = notional × rate; leverage does not change it). Binance FAQ, "Introduction to Binance Futures Funding Rates" (funding = mark price × position size × funding rate; a positive rate means longs pay shorts).
+Worked example (T-044 case (c), the 7.6 vector): Futures LONG, qty 2, LIMIT entry 100, 10x, initial margin 20, MMR 0.004, cum 0, LP 90.37:
+- `realized_pnl` = (90.37 − 100) × 2 = −19.26
+- N_liq = 180.74; MM = 180.74 × 0.004 = 0.72296; clearance = min(180.74 × 0.0125 = 2.25925, 0.72296) = 0.72296
+- entry fee (maker 0.02 % × 200) = 0.04; `fee_amount` = 0.04 + 0.72296 = 0.76296
+- `net_pnl` = −19.26 − 0.76296 = −20.02296 (margin left 20 − 19.26 − 0.72296 = 0.01704 from the rounded LP)
+
+Known limitations: one clearance fee rate for every pair (the exchange uses 1.25 % for most USDⓈ-M perpetuals and up to 2 % for a few).
+
+References: Binance FAQ, "Binance Futures Fee Structure & Fee Calculations" (fee = notional × rate; leverage does not change it). Binance FAQ, "Introduction to Binance Futures Funding Rates" (funding = mark price × position size × funding rate; a positive rate means longs pay shorts). Binance FAQ, "Binance Futures Liquidation Protocols" (clearance fee = notional × liquidation fee rate, taken from the assets that maintain the position, none on a bankrupt position). Binance, "Trading Rules of Futures Contracts" (liquidation clearance fee rate 1.25 % for BTCUSDT and ETHUSDT). Binance FAQ, "How to Calculate Profit and Loss for Futures Contracts" (realized PnL excludes commission, funding and the clearance fee).
 
 Funding is computed from `funding_rate_history` rows (7.1 step 8) when the position closes and on read for open positions; no per-event write is needed and the calculation is idempotent (alignment item A-05). Those rows carry the settled rate and the mark price at settlement, and no retention policy can reach them (A-12), so the figure stays reproducible for as long as the journal keeps the trade.
 
@@ -1115,7 +1126,7 @@ Since T-025: `tools/golden/generate_indicator_fixture.py` writes `btcusdt-1h-tal
 | ID | Item | Proposal | Affects |
 |---|---|---|---|
 | A-01 | BR-27 ignores maintenance amount | Use exact formula with `cum` (7.6) | BR-27 |
-| A-02 | BR-35 "loss equals initial margin" vs fees in BR-36 | **Decided 2026-10-18 (D-97):** `realized_pnl` gross, floored at −initial margin on liquidation; fees and funding stored apart; `net_pnl` derived (7.8) | BR-35, BR-36, BR-38, BR-42 |
+| A-02 | BR-35 "loss equals initial margin" vs fees in BR-36 | **Decided 2026-10-18 (D-97, amended by Q-54):** `realized_pnl` gross, on liquidation the price result at the liquidation price; liquidation exit charged the clearance fee (7.8), not the taker fee; fees and funding stored apart; `net_pnl` derived (7.8) | BR-35, BR-36, BR-38, BR-42 |
 | A-03 | BR-53 requires PENDING; late gateway success after expiry | Accept late success, activate, audit | BR-53, BR-54 |
 | A-04 | NSF-07 recovery uses 15m candles | Replay 1m klines fetched by REST | SRS 3.5.4 |
 | A-05 | NSF-08 applies funding at each funding time | Compute from `funding_rate_history` rows at close/read; same result | NSF-08 |

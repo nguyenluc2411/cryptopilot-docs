@@ -257,9 +257,9 @@ erDiagram
     timestamp entry_time
     timestamp exit_time
     varchar close_reason "TAKE_PROFIT, STOP_LOSS, MANUAL, LIQUIDATION"
-    decimal fee_amount "entry fee + exit fee, >= 0 (BR-36)"
+    decimal fee_amount "entry fee + exit fee, >= 0; a liquidation exit fee is the clearance fee (BR-36)"
     decimal funding_fee_amount "Futures only, signed: + received, - paid; null for Spot (BR-37)"
-    decimal realized_pnl "gross price result, no fees or funding; floor -initial margin on liquidation (BR-35)"
+    decimal realized_pnl "gross price result, no fees or funding; on liquidation the price result at the liquidation price (BR-35)"
     decimal net_pnl "derived, not stored: realized_pnl - fee_amount + coalesce(funding_fee_amount, 0) (BR-38, D-97)"
     varchar trade_status "OPEN, CLOSED"
     text setup_description
