@@ -10,7 +10,7 @@ Code paths are relative to the `cryptopilot_project` root at `0d92def` unless a 
 | Id | Question (short) | Affects | Status |
 |---|---|---|---|
 | Q-21 | Analysis push: destination, payload, CONNECT authentication | T-032…T-034 live analysis | OPEN — until answered, re-read `GET /analysis` on each closed kline |
-| Q-30 | Unit of a FUNDING_RATE alert threshold (fraction vs percent) | T-059 alert dialog (SCR-14) | OPEN — do not ship the FUNDING_RATE input yet |
+| Q-30 | Unit of a FUNDING_RATE alert threshold (fraction vs percent) | T-059 alert dialog (SCR-14) | **CLOSED** (percent, \|x\| ≤ 5); the web sends percent since `61faec5` (web `develop` `fa962da`, 2026-10-21) |
 | Q-31 | Marker for alerts paused by a plan change (BR-64), and whether resume clears it | T-059 alert list (SCR-13) | OPEN |
 | Q-06 | Flutter chart library (ADR-012) | T-090 | OPEN |
 | Q-07 | Staging host and domain; single backend instance | Base URLs, CORS origins, WS origins (01-setup) | OPEN |
@@ -49,7 +49,7 @@ Not yet in `CURRENT_STATE.md` section 8; the team lead may promote them to Q-xx.
 | M-03 | Rate limits | TD 5.3: login 10/min/IP, API 120/min/user, AI 10/min/user | **Resolved 2026-10-04 (ADR-014, D-82):** `common.web.RateLimitFilter`, 429 `RATE_LIMITED` / MSG50 | Wait `Retry-After` seconds (03-conventions) |
 | M-04 | Null fields in realtime payloads | TD 9 / D-51: "absent fields omitted" | No omit-null setting (`backend/src/main/java/com/cryptopilot/common/config/JacksonConfig.java#L39`); REST bodies carry `null` keys (`AnalysisControllerTest`), and the STOMP converter uses the same mapper (decimals arrive as strings in `MarketHubTest`), so ticker frames most likely carry `null` for the other market's fields. Not checked on a live frame | Treat missing and `null` alike |
 | M-05 | Plan gates on market data and analysis | SRS 3.1.3, D-60: Futures analysis, Futures metrics, OI / long-short / settlement blocks and score components are PRO+ (MSG29) | Public / any Trader; no entitlement check (`backend/src/main/java/com/cryptopilot/market/controller/MarketController.java#L101`, `#L113`; `backend/src/main/java/com/cryptopilot/market/controller/AnalysisController.java#L50`). T-107 is READY, not built | Build the locks; expect 403 MSG29 after T-107 |
-| M-06 | STOMP authentication and user queues | TD 9: bearer on CONNECT; `/user/queue/notifications`, `/positions`, `/ai` | Only the three public topic families; every other SUBSCRIBE refused (`backend/src/main/java/com/cryptopilot/common/config/WebSocketConfig.java#L55`) | None; planned |
+| M-06 | STOMP authentication and user queues | TD 9: bearer on CONNECT; `/user/queue/notifications`, `/positions`, `/ai` | Only the three public topic families; every other SUBSCRIBE refused (`backend/src/main/java/com/cryptopilot/common/config/WebSocketConfig.java#L55`) | None; planned. **Partly resolved 2026-10-14 (TR-08, in `develop` at `132c480`):** bearer checked on CONNECT and `/user/queue/orders`, `/fills`, `/balances` served (`WebSocketConfig.java#L74`, `#L130`); the web uses them since `c2d3ed1`. `/notifications`, `/positions`, `/ai` still missing (section E) |
 | M-07 | Verification resend limit | SRS 3.2.2, D-57: once per 60 s, 5 per rolling 24 h, MSG46 | Always 202 (`backend/src/main/java/com/cryptopilot/auth/controller/AuthController.java#L105`); T-105 TODO | Client-side 60 s cooldown |
 | M-08 | Watchlist row content | SRS 3.4.1: symbol, last price, 24h change, 1h setup score, active alerts | Row has symbol and active alerts, no price, change or score (`backend/src/main/java/com/cryptopilot/watchlist/dto/response/WatchlistItemResponse.java#L23`); D-75 records this choice | Prices from the overview topic; score per row from `GET /analysis` |
 | M-09 | Futures last price and 24h statistics | SRS 3.3.1: Futures tab lists last price, 24h change, high, low, quote volume, plus mark price and funding; D-60 calls the Futures 24h ticker public | Futures stats and ticker topic carry only mark, index, funding rate, next funding time (`backend/src/main/java/com/cryptopilot/market/dto/response/FuturesStatsResponse.java#L22`, `backend/src/main/java/com/cryptopilot/market/dto/response/TickerUpdateResponse.java#L29`) | Show mark price in place of last price; leave 24h columns empty on Futures |
@@ -66,3 +66,33 @@ Not yet in `CURRENT_STATE.md` section 8; the team lead may promote them to Q-xx.
   references; 12 had moved and were updated). First version: `6137e24`, alerts read on `0803903`.
 - Every enum value and error code named here exists in code at those commits.
 - Mermaid blocks were parsed with the Mermaid parser.
+
+## E. What the web needs from the backend (2026-10-21)
+
+Web `develop` `40dcf1a` uses every endpoint in backend `develop` `132c480` that its tasks need: no
+web task can move further until one of the items below lands. Ordered by how much web work each
+one unlocks. Owners and status from `CURRENT_STATE.md` section 6 on 2026-10-21.
+
+| # | Needed from the backend | Backend task (owner) · status | Unlocks on the web |
+|---|---|---|---|
+| E-1 | Push the community branches and open their PRs (`feat/t-060-community-posts` → … → `feat/cf-04-search-trending`; done locally 2026-10-20, not pushed) | T-060…T-064, T-084, CF-01…CF-04 (BE2) · DONE locally | T-065 community feed, post detail, editor, report dialog (SCR-24…27) |
+| E-2 | Leverage brackets stored and administered: `leverage_bracket` is empty at `132c480`, so every Futures calculation fails (M-12) | T-085 (BE2) · TODO | T-040 Futures plan create and edit; Futures in the T-041 detail |
+| E-3 | Manual close, plan expiry and the live position: close endpoint, position status and P/L on plan rows (M-10), `/user/queue/positions` (M-06) | T-046 (BE2) · TODO; fees and realized P/L T-045 (BE1) · TODO | T-047 close position dialog (SCR-19); T-041 position status and P/L |
+| E-4 | In-app notification read API: list, unread count, mark read / mark all, and `/user/queue/notifications` (M-06). T-056 writes the rows, but no task row names the read endpoints: **team lead to assign** | T-056 (BE2) · dispatch only | T-059 SCR-15 notification centre, unread badge, deep links |
+| E-5 | Paper Futures: leverage and margin mode, Futures orders, positions, close and margin | TR-14…TR-17 · TODO, owner TBD | TR-F4 Futures form, positions, modals |
+| E-6 | Modify a LIMIT order and the calculator (TR-25); PnL analysis API (TR-28: daily and cumulative PnL by period). The web PnL page now draws the daily worth from TR-13 | TR-25, TR-28 · TODO, owner TBD | TR-F5 drag to modify, calculator, daily PnL chart |
+| E-7 | Running candle from aggTrade for every timeframe, 16 timeframes of history | TR-35 · TODO, owner TBD | TR-F2 16 timeframes |
+| E-8 | Journal and performance: journal rows from the engine, review edits, manual trades, statistics | T-048…T-051 (BE2) · TODO | T-052 journal and performance (SCR-20…23) |
+| E-9 | Orders and subscriptions, VNPay, MoMo, IPN, expiry; the caller's tier and limits before a request (FEQ-02) | T-066…T-070 (BE1) · TODO | T-071 packages, checkout, payment result; lock icons (CR-08) |
+| E-10 | AI service, pipeline, context snapshot, conversations and quota; `/user/queue/ai` (M-06) | T-072 (DO), T-073…T-075 (BE1) · TODO | T-076 AI assistant |
+| E-11 | News sources, crawl, summary and sentiment | T-077…T-079 (BE2) · TODO | T-080 news feed (SCR-28) |
+| E-12 | System settings, user management, reports and CSV | T-082, T-083, T-086 (BE2) · TODO (T-085 as E-2) | T-087 admin console |
+
+Questions the web waits on: **Q-70** (order lists take no client id, so a retried OCO / OTO / OTOCO
+after a timeout places a second group: add a `clientListOrderId`, or document the client rule),
+Q-21 (analysis push), Q-31 (marker of alerts paused by a plan change), FEQ-02 (above), FEQ-04
+(indicator series), Q-07 (staging host, for the web and mobile builds). The other section C rows not
+marked resolved were not re-checked for this list.
+
+Mobile T-088 (app skeleton, auth) and T-089 (market, watchlist, alerts) need nothing new: they use
+the endpoints the web uses.

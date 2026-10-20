@@ -653,7 +653,7 @@ Newest first. One block per working session, format in `CLAUDE.md` section 8.
 - BR/UC/NSF covered: SCR-17 (create), BR-16, Q-30; TR-08, TR-13 (web side), D-86 screens
 - Decisions: none new (D-86, D-104, D-106 applied)
 - Open questions: Q-70 (order list idempotency) and Q-62 (traceability of the web repository) still open
-- Next: (1) Web: Futures plan create/edit after T-085 (leverage brackets); T-047 and the live position of T-041 after T-046; TR-F4 after TR-14…TR-17; mobile T-088/T-089 when the owner says. (2) BE2: push the community branches (CF-01…CF-04, T-060…T-084) so T-065 can start; BE: Q-70. (3) Team lead: confirm T-112 and the renumbered FE ids. (4) CI (paused by the owner): `npm audit` gate, the route test that reads `.env.local`, E2E, traceability.
+- Next: (1) Web: Futures plan create/edit after T-085 (leverage brackets); T-047 and the live position of T-041 after T-046; TR-F4 after TR-14…TR-17; mobile T-088/T-089 when the owner says. (2) Backend, full list in fe-guide `07-open-questions.md` section E (E-1…E-12): BE2 push the community branches (CF-01…CF-04, T-060…T-084) so T-065 can start; BE2 T-085 brackets and T-046 close; team lead assign the notification read API; BE: Q-70. (3) Team lead: confirm T-112 and the renumbered FE ids. (4) CI (paused by the owner): `npm audit` gate, the route test that reads `.env.local`, E2E, traceability.
 - Commits: web `880002d`, `61faec5`, `bfff312`, `dc48680`, `3d939d1`, `6653f2a`, `6ee950c`, `c7a7c11`, `d4e355b`; merges `cbc1bd9`, `fa962da`, `8e71d7d`, `c2d3ed1`, `40dcf1a`
 
 ### 2026-10-20…21 – D-104 re-check, TR-F3 review fixes, FEQ-01 web side, four UI fixes (cryptopilot-frontend)
