@@ -112,7 +112,7 @@ Nối thẳng từ trình duyệt tới WebSocket công khai của Binance thì 
 | Tổng quan tài sản | Tổng giá trị ước tính theo USDT và BTC, PnL hôm nay (so với snapshot 00:00 UTC), tỉ trọng Spot và Futures. | `P1` | `Mới` |
 | Chuyển tiền Spot ↔ Futures | Chuyển USDT (và BNB, nếu cho dùng làm margin; mặc định chỉ USDT). Số chuyển ra khỏi Futures không vượt max withdrawable. Ghi ledger ở cả hai ví trong cùng một transaction. | `P0` | `Mới` |
 | Lịch sử chuyển tiền | Danh sách: thời gian, chiều chuyển, tài sản, số lượng. | `P1` | `Mới` |
-| Sổ cái (ledger) | Mọi biến động số dư là một dòng bất biến: TRADE, FEE, REALIZED_PNL, FUNDING_FEE, TRANSFER, LIQUIDATION, LIQUIDATION_FEE. Mỗi dòng có `balance_after`. Số dư phải luôn bằng tổng ledger. | `P0` | `Mới` |
+| Sổ cái (ledger) | Mọi biến động số dư là một dòng bất biến: TRADE, FEE, REALIZED_PNL, FUNDING_FEE, TRANSFER, LIQUIDATION, LIQUIDATION_FEE. Mỗi dòng có `balance_after`. Số dư phải luôn bằng tổng ledger. Futures tách PnL như journal (D-97): REALIZED_PNL là kết quả giá gộp, FEE và LIQUIDATION_FEE là phí, FUNDING_FEE có dấu (+ nhận, − trả). | `P0` | `Mới` |
 | Biểu đồ giá trị tài sản | Snapshot equity hằng ngày lúc 00:00 UTC, biểu đồ 7, 30, 90 ngày. | `P1` | `Mới` |
 | Convert số dư nhỏ | Đổi các coin dưới 1 USDT sang USDT theo giá last (giống "Convert small balance"). | `P2` | `Mới` |
 
@@ -162,7 +162,7 @@ Nối thẳng từ trình duyệt tới WebSocket công khai của Binance thì 
 | Order history | Trạng thái NEW, PARTIALLY_FILLED, FILLED, CANCELED, EXPIRED, REJECTED. Có giá trung bình. Lọc theo 1 ngày / 1 tuần / 1 tháng / 3 tháng / tùy chọn, theo cặp, chiều, trạng thái. | `P0` | `Mới` |
 | Trade history | Từng fill: giá, số lượng, phí và tài sản phí, vai trò Maker/Taker, tổng. | `P0` | `Mới` |
 | Hết hạn và hủy tự động | Lệnh của cặp bị tắt (`pair_status = INACTIVE`) thì bị hủy và trả lại số dư. | `P0` | `Mới` |
-| Giá vốn và PnL theo coin | Giá vốn trung bình, PnL chưa thực hiện, PnL hôm nay cho từng coin (giống "Spot PnL" của Binance). | `P1` | `Mới` |
+| Giá vốn và PnL theo coin | Giá vốn trung bình, PnL chưa thực hiện, PnL hôm nay cho từng coin (giống "Spot PnL" của Binance). Giá vốn luôn tính bằng USDT, cả với cặp không phải USDT như ETHBTC (D-96, PT-F1a): mỗi lần số lượng một coin tăng, phần tăng được định giá USDT theo giá thị trường lúc khớp (`QUOTEUSDT` live, nếu cũ thì close nến 1m đã đóng gần nhất ≤ 15 phút, không có thì giá vốn coin đó thành không biết); coin bị trả ra giữ nguyên giá vốn trung bình; USDT không mang giá vốn. Mỗi fill lưu tỉ giá và nguồn (`paper_fill.quote_usdt_price`, `quote_usdt_price_source`, V25). Phân tích lệnh theo cặp (giá vốn bằng coin quote) chưa làm. | `P1` | `Mới` |
 | Export CSV | Xuất order, trade và ledger theo khoảng thời gian. | `P2` | `Mới` |
 
 ## 7. Futures USDⓈ-M (Perpetual)
@@ -217,7 +217,7 @@ Nối thẳng từ trình duyệt tới WebSocket công khai của Binance thì 
 | Liq price Isolated | Đã có công thức cho one-way. Cần thêm Hedge và tính lại khi thêm/bớt margin hoặc cộng dồn vị thế. | `P0` | `Mở rộng` |
 | Liq price Cross | Theo công thức Binance: wallet balance trừ maintenance margin và cộng uPnL của **các vị thế cross khác**. Tính lại khi có mark price mới của bất kỳ cặp nào đang có vị thế. | `P0` | `Mới` |
 | Margin ratio và margin call | Margin ratio = maintenance margin / margin balance. Từ 80% trở lên thì gửi thông báo margin call. Tới 100% thì thanh lý. | `P0` | `Mới` |
-| Liquidation engine | Kiểm tra theo từng tick mark price, có "sổ" liq price theo cặp giống `PriceLevelBook`. Khi thanh lý: hủy lệnh mở của cặp (isolated) hoặc toàn bộ lệnh (cross), đóng vị thế ở giá mark, trừ liquidation clearance fee (tỉ lệ cấu hình), ghi ledger và journal với `close_reason = LIQUIDATION`. | `P0` | `Mới` |
+| Liquidation engine | Kiểm tra theo từng tick mark price, có "sổ" liq price theo cặp giống `PriceLevelBook`. Khi thanh lý: hủy lệnh mở của cặp (isolated) hoặc toàn bộ lệnh (cross), đóng vị thế ở giá mark, trừ liquidation clearance fee = min(notional tại giá thanh lý × `LIQUIDATION_CLEARANCE_FEE`, MM) (D-97 sửa theo Q-54; không thu taker fee), ghi ledger và journal với `close_reason = LIQUIDATION`. | `P0` | `Mới` |
 | Funding fee | Tại mỗi `nextFundingTime` (8h/4h/1h tùy cặp, lấy từ stream): phí = size × mark × funding rate. Rate dương thì LONG trả, SHORT nhận. Idempotent theo (vị thế, thời điểm funding). Dữ liệu `FundingSettlement` đã có. | `P0` | `Mở rộng` |
 | Phí giao dịch | Maker 0.02%, taker 0.05% trên notional (mức thường của Binance, cấu hình được). Trừ vào wallet balance. | `P0` | `Mới` |
 | Break-even price | Entry đã điều chỉnh theo phí mở và phí đóng ước tính (taker). | `P1` | `Mới` |
@@ -559,6 +559,7 @@ Tổng backend khoảng **~92 ngày công**. Nếu chỉ có một người làm
 | Giới hạn stream Binance (số stream mỗi kết nối, số kết nối) | Không subscribe hết depth và aggTrade cho mọi cặp | Subscribe theo nhu cầu, dùng shard có sẵn, giới hạn danh sách cặp demo |
 | Mất stream hoặc server restart | Bỏ lỡ trigger hoặc fill | Replay nến 1m từ watermark (đã có). Fill từ replay gắn `source = REPLAY`. |
 | Phạm vi lớn so với nhân lực | Trễ mốc | Làm P0 trước. Cross margin và Hedge có thể dời nếu thiếu thời gian (đã tách giai đoạn). |
+| Cặp Spot không phải USDT (ETHBTC…) | Coin không có cặp USDT thì không định giá được equity và giá vốn | Chỉ nhận cặp mà base và quote đều là USDT hoặc có cặp `XXXUSDT` Spot ACTIVE; còn lại từ chối `PAPER_PAIR_NOT_VALUED` (D-96). Fill thiếu tỉ giá vẫn khớp, giá vốn coin nhận về thành không biết |
 | Hiểu nhầm là sàn thật | Rủi ro pháp lý và uy tín | Banner "Demo" trên mọi màn, không có nạp/rút, điều khoản rõ ràng |
 
 Plan dựa trên code ở nhánh

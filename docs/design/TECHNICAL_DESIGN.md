@@ -80,7 +80,8 @@ Only the backend owns the database (single writer). The AI Service has no databa
 | Database | PostgreSQL 16 + TimescaleDB 2.x | Hypertables for time series |
 | Cache | Redis 7, image `redis:7.4.11-alpine` pinned (Spring Data Redis, Lettuce) | Latest prices only; cache only, so losing it never loses business data (Q-09) |
 | Scheduling | Spring `@Scheduled` | Single instance; ShedLock only if a second instance is ever added |
-| Async side effects | Spring Modulith event publication registry (JDBC) + `@ApplicationModuleListener` | Transactional outbox (ADR-010) |
+| Async side effects | Spring Modulith event publication registry (JDBC) + `@ApplicationModuleListener` | Transactional outbox (ADR-010). Since T-056 (D-95): `spring-modulith-starter-jdbc`, schema from Flyway V1 (initializer off), `registry-trigger-annotation` = `ApplicationModuleListener` (the in-memory `@TransactionalEventListener` hand-offs are not recorded), completion mode `delete`; `common.job.OutboxProcessorJob` resubmits FAILED rows at least 1, 2, 4 min after the last attempt (about 2, 2, 4 min on the 1-min run), max 3 retries, one WARN on give-up, fails rows unfinished > 5 min, deletes rows > 24 h |
+| Mail | `spring-boot-starter-mail` (Jakarta Mail, Spring Boot BOM) | T-057 (D-95): port `notification.client.EmailSender`; SMTP adapter when `SMTP_HOST` is set, log adapter otherwise; the prod profile refuses to start without `SMTP_HOST` or with an invalid `SMTP_FROM`. STARTTLS required (`SMTP_STARTTLS_REQUIRED`, default true) with server-name check. No template engine: text + minimal HTML built in code |
 | HTTP clients | Spring `RestClient` over the JDK `HttpClient` (connect and read timeouts); JDK `java.net.http.WebSocket` for Binance streams | T-017: `market.client.BinanceRestClient` (7.1.2) |
 | Resilience | Timeouts on every client; Spring Framework 7 `RetryTemplate` / `@Retryable` / `@ConcurrencyLimit`; the Binance client's circuit breaker is written in the client (D-37, accepted 2026-09-24, 7.1.2) because Resilience4j's Boot 4 support was not confirmed; its IP ban is persisted in `binance_ban` | |
 | Validation | Jakarta Bean Validation (`spring-boot-starter-validation`) | Request DTOs |
@@ -862,20 +863,49 @@ Built in T-043 (PR #47 rules, PR #48 feed and replay):
 - **Cancel and expiry during a replay (D-79).** A Trader's cancel committed while the pair replays wins: the replay's fill of an older candle finds the plan CANCELLED and changes nothing. NSF-09 (T-046) must not expire a plan of a pair whose replay is in progress (`MinuteKlineFeed`).
 - **Not covered.** Mark price klines for liquidation replay are T-044.
 
-### 7.8 Fees, funding and realized P/L (BR-36..38)
+Built in T-044 (rules only, not wired; Q-59): `trading.matching.ExitRule` decides an exit of an `OpenPosition` (`Exit`: reason, price, time). `byRange` checks the stop loss before the take profit, both bounds inclusive, exit at the level, or at the candle's open when the candle opened beyond the level (gap rule, same as the paper engine: Q-51, Q-53), time = the candle's open time (as D-78). `byMark` liquidates at the liquidation price when the mark price is at or beyond it, also through a gap; a position with no liquidation price (Spot, or a LONG that cannot be liquidated) never is. `CloseReason` holds the four `close_reason` values. T-044 is the calculation layer only (Q-59): the exit and mark books, the mark price feed and mark kline replay, storing the exit, MSG23/MSG24, `PositionClosed` and the rule for an exit in the entry candle are T-048.
 
+### 7.8 Fees, funding and realized P/L (BR-35..38, D-97)
+
+Three stored amounts on `trading_journal` and one derived amount (D-97, A-02):
 ```
-fee(fill) = fillPrice × qty × rate(role)      role: maker for LIMIT entry and TP, taker otherwise
-funding   = Σ_{t ∈ settlements, entry_time < t ≤ exit_time}  −d × qty × mark_t × rate_t
-P/L LONG  = (exit − entry) × qty − Σfees + funding
-P/L SHORT = (entry − exit) × qty − Σfees + funding
-Liquidation: price P/L = −initialMargin; then fees and funding apply as above (A-02 clarifies BR-35)
+realized_pnl  (gross, BR-35)
+  LONG  = (exit − entry) × qty          SHORT = (entry − exit) × qty
+  LIQUIDATION: exit = liq (7.6), so LONG (liq − entry) × qty, SHORT (entry − liq) × qty; no floor (Q-54)
+  no fee, no funding
+fee_amount  (≥ 0, BR-36) = fee(entry fill) + fee(exit fill)
+  fee(fill) = fillPrice × qty × rate      notional at the fill; leverage does not reduce it
+  rate: maker for LIMIT entry and TAKE_PROFIT exit; taker for MARKET entry, STOP_LOSS, MANUAL
+  LIQUIDATION exit: no taker fee; fee(exit) = clearance fee
+    clearance = min(N_liq × LIQUIDATION_CLEARANCE_FEE, MM)     N_liq = liq × qty
+    MM = N_liq × MMR − cum   bracket used to derive the liquidation price (entry notional), at N_liq (Q-58)
+        FUTURES_MAKER_FEE / FUTURES_TAKER_FEE for Futures, SPOT_MAKER_FEE / SPOT_TAKER_FEE for Spot (system_setting)
+funding_fee_amount  (Futures only, signed: + received, − paid; null for Spot, BR-37)
+  = Σ_{t ∈ settlements, entry_time < t ≤ exit_time}  −d × qty × mark_t × rate_t     d = +1 LONG, −1 SHORT
+net_pnl  (derived, never stored, BR-38)
+  = realized_pnl − fee_amount + coalesce(funding_fee_amount, 0)
 ```
+
+`net_pnl` is computed in exactly one place per layer: a domain method on the journal trade model (`net_pnl()` of the journal record) and, for statistics, the SQL expression `realized_pnl - fee_amount + coalesce(funding_fee_amount, 0)` (one shared expression or view used by 7.10, not repeated per query). No `net_pnl` column; the only new setting is `LIQUIDATION_CLEARANCE_FEE` (below). Journal list and detail, performance statistics and AI trade summaries read `net_pnl`; the trade detail shows `realized_pnl`, `fee_amount`, `funding_fee_amount` and `net_pnl` separately. Paper trading Futures, when built, books the same split as ledger rows `REALIZED_PNL`, `FEE`, `FUNDING_FEE`, `LIQUIDATION_FEE`.
+
+Liquidation (D-97 rules 1–2 as amended by Q-54, 2026-10-18). The position leaves at the liquidation price, so `realized_pnl` is the plain price result there. What is left of an isolated position at that price is its maintenance margin `MM`; the clearance fee takes `N_liq × rate`, never more than `MM`. MM = maintenance margin with the bracket used to derive the liquidation price, at notional_at_liq (Q-58); with any other bracket the fee could exceed the margin left. With the usual brackets (MMR below the 1.25 % rate) the fee takes all of `MM`, so the trader loses the whole initial margin plus the entry fee; with MMR above the rate the rest of `MM` stays with the trader. The liquidation price is rounded towards the position (7.6), so a few cents of margin can remain (example below). `LIQUIDATION_CLEARANCE_FEE` (`system_setting`, DECIMAL, default `0.01250000`, BR-36) is seeded by T-044.
+
+Worked example (T-044 case (c), the 7.6 vector): Futures LONG, qty 2, LIMIT entry 100, 10x, initial margin 20, MMR 0.004, cum 0, LP 90.37:
+- `realized_pnl` = (90.37 − 100) × 2 = −19.26
+- N_liq = 180.74; MM = 180.74 × 0.004 = 0.72296; clearance = min(180.74 × 0.0125 = 2.25925, 0.72296) = 0.72296
+- entry fee (maker 0.02 % × 200) = 0.04; `fee_amount` = 0.04 + 0.72296 = 0.76296
+- `net_pnl` = −19.26 − 0.76296 = −20.02296 (margin left 20 − 19.26 − 0.72296 = 0.01704 from the rounded LP)
+
+Known limitations: one clearance fee rate for every pair (the exchange uses 1.25 % for most USDⓈ-M perpetuals and up to 2 % for a few).
+
+References: Binance FAQ, "Binance Futures Fee Structure & Fee Calculations" (fee = notional × rate; leverage does not change it). Binance FAQ, "Introduction to Binance Futures Funding Rates" (funding = mark price × position size × funding rate; a positive rate means longs pay shorts). Binance FAQ, "Binance Futures Liquidation Protocols" (clearance fee = notional × liquidation fee rate, taken from the assets that maintain the position, none on a bankrupt position). Binance, "Trading Rules of Futures Contracts" (liquidation clearance fee rate 1.25 % for BTCUSDT and ETHUSDT). Binance FAQ, "How to Calculate Profit and Loss for Futures Contracts" (realized PnL excludes commission, funding and the clearance fee).
+
+Implemented by `trading.calculator.TradeResultCalculator` (T-044): `TradeClose` in, `TradeResult` out (`realizedPnl`, `entryFee`, `exitFee` at scale 8; `feeAmount()`, `netPnl()` without funding until T-045). The bracket comes from `LiquidationCalculator.positionBracket` (entry notional), the same method the liquidation price uses, and `LeverageBracket.maintenanceMargin` evaluates it at `N_liq` (Q-58). Rates come from `trading.service.impl.FeeRates` (`SPOT_*`, `FUTURES_*`, `LIQUIDATION_CLEARANCE_FEE`, V26). An `N_liq` outside the brackets needs no lookup any more (Q-58).
 
 Funding is computed from `funding_rate_history` rows (7.1 step 8) when the position closes and on read for open positions; no per-event write is needed and the calculation is idempotent (alignment item A-05). Those rows carry the settled rate and the mark price at settlement, and no retention policy can reach them (A-12), so the figure stays reproducible for as long as the journal keeps the trade.
 
 Test vector: LONG futures qty 2, entry 100 (LIMIT, maker 0.02%), exit TP 115 (maker), one funding at mark 101 rate 0.0001:
-fees = 0.04 + 0.046 = 0.086; funding = −0.0202; P/L = 30 − 0.086 − 0.0202 = 29.8938.
+realized_pnl = 30; fee_amount = 0.04 + 0.046 = 0.086; funding_fee_amount = −0.0202; net_pnl = 30 − 0.086 − 0.0202 = 29.8938.
 
 ### 7.9 Alert engine (NSF-06, BR-18..20)
 
@@ -891,8 +921,8 @@ Complexity: O(log n + k) per price update.
 
 ### 7.10 Performance statistics (BR-42)
 
-Computed by SQL over closed journal records of the user with the selected filters:
-- wins, losses, breakeven via `COUNT(*) FILTER (WHERE …)`; win rate = wins / (wins + losses).
+Computed by SQL over closed journal records of the user with the selected filters. `pnl` below is `net_pnl` = `realized_pnl - fee_amount + coalesce(funding_fee_amount, 0)` (7.8, D-97), never `realized_pnl` alone:
+- wins (`net_pnl > 0`), losses (`< 0`), breakeven (`= 0`) via `COUNT(*) FILTER (WHERE …)`; win rate = wins / (wins + losses).
 - profit factor = `SUM(pnl) FILTER (pnl > 0) / ABS(SUM(pnl) FILTER (pnl < 0))`.
 - realized R = pnl / risk_amount (from the plan for SIMULATED, from stop loss for MANUAL; excluded if no stop loss).
 - equity curve: `SUM(pnl) OVER (ORDER BY exit_time)`.
@@ -1010,7 +1040,7 @@ Endpoint catalogue (summary):
 | watchlist | GET/POST /watchlist; PATCH/DELETE /watchlist/{id}; GET/POST /alerts; PUT/DELETE /alerts/{id}; POST /alerts/{id}/pause, /resume. Built in T-053 (D-75), Trader only: `GET /watchlist` → `{ items, limit }` (whole list, not paged, `sortOrder` then `addedAt`; `limit` = `WATCHLIST_MAX`, null when unlimited); `POST /watchlist` `{ pairId, label?, note? }` → 201 (404 MSG41 unknown or unlisted pair, 409 MSG45 already watched, 409 MSG27 limit); `PATCH /watchlist/{id}` `{ label?, note?, sortOrder? }` (null = unchanged, empty = cleared); `DELETE /watchlist/{id}?confirm=&expectedAlertCount=` → 204, or 400 MSG26 (symbol, alert count) when the row has alerts and `confirm` is not true, or when `expectedAlertCount` (optional, the {n} the Trader confirmed) differs from the count under the D-63 lock — nothing is removed (D-76). Another Trader's row answers 404. Alerts built in T-054 (D-76): `GET /alerts?status=&type=&page=&pageSize=` (newest first, 20 per page, CR-04); `POST /alerts` `{ pairId, market, type, indicator?, timeframe?, condition, threshold? (null for MACD_CROSS / EMA_CROSS), triggerMode, cooldownMinutes?, notifyEmail?, notifyPush?, expiresAt? }` → 201 ACTIVE, a pair not yet watched is added to the watchlist in the same transaction (BR-16); `PUT /alerts/{id}` (same body without `pairId`; a TRIGGERED or EXPIRED alert becomes ACTIVE); `POST /alerts/{id}/pause`, `/resume`; `DELETE /alerts/{id}` → 204. 400 MSG01/MSG15 per field, 403 MSG29 (INDICATOR_ALERT, FUTURES_ANALYSIS, EXTERNAL_ALERT_CHANNELS), 404 MSG41 (not the caller's, or the pair not enabled on the market), 409 MSG27 (ACTIVE_ALERT_MAX or WATCHLIST_MAX, under the D-63 lock), 409 MSG43 `ALERT_STATUS_TRANSITION_INVALID` |
 | trading | POST /plans/calculate (no persistence); GET/POST /plans; GET/PUT /plans/{id}; POST /plans/{id}/activate, /cancel, /close-position |
 | journal | GET /journal; GET/PUT /journal/{id}; POST /journal/manual; DELETE /journal/{id} (MANUAL only); GET /performance |
-| community | GET/POST /posts; GET/PUT/DELETE /posts/{id}; POST/DELETE /posts/{id}/like, /save; GET/POST /posts/{id}/comments; PUT/DELETE /comments/{id}; POST/DELETE /comments/{id}/like; POST /posts/{id}/reports; POST /media/upload-signature |
+| community | Built in T-060 (D-98), Trader only: `GET /posts?tab=LATEST, MOST_LIKED, SAVED or MINE &coin=&market=&page=&pageSize=` → page of cards `{id, author{userId, displayName, avatarUrl}, title, excerpt (300), postType, marketType, official, status, coins[], likeCount, commentCount, likedByMe, savedByMe, createdAt, updatedAt}` (official posts not in LATEST/MOST_LIKED; MOST_LIKED = last 7 days by likes; an unknown coin → empty page); `GET /posts/pinned` (published announcements); `GET /posts/{id}` (+`content`, `mine`; 404 MSG41 when not visible under BR-47); `POST /posts` `{title 5–150, content 1–10 000, marketType?, coins[0–5 symbols of listed pairs]}` → 201 (400 MSG01 per field); `PUT /posts/{id}`, `DELETE /posts/{id}` → 204 (own, not deleted, else 404). Admin: `GET/POST /admin/announcements`, `PUT/DELETE /admin/announcements/{id}`. Media (T-061, T-062, D-98): `POST /media/upload-signature` (Trader) and `POST /admin/media/upload-signature` (Admin) `{mediaType IMAGE or VIDEO}` → `{uploadUrl, apiKey, timestamp, signature, publicId, allowedFormats, mediaType, maxBytes, maxDurationSeconds}` (403 MSG29 for VIDEO without `VIDEO_POST`, 503 MSG43 storage unavailable); the post body takes `media: [{publicId, mediaType}]` (4 images or 1 video, checked on the stored file, 400 MSG32 with the limit as message argument) and answers `media[]` (detail) / `cover` (card). Comments and reactions (T-063): `GET/POST /posts/{postId}/comments` (threads oldest first with `replies[]`; `{content 1–2 000, parentCommentId?}`; a reply to a reply joins the first comment's thread), `PUT/DELETE /comments/{id}` (own, not deleted), `POST/DELETE /posts/{id}/like`, `/posts/{id}/save`, `/comments/{id}/like` → `{active, count}`. Reports (T-064): `POST /posts/{id}/reports` `{reason SPAM, SCAM, ABUSE, MISLEADING or OTHER, description? ≤ 500, required for OTHER}` → 201 OPEN; 409 MSG34 `POST_ALREADY_REPORTED`, 409 MSG43 `POST_REPORT_OWN_POST`. Moderation (T-084, Admin): `GET /admin/reports-queue` (one row per post with open reports: card, `reportCount`, `reasons`, first/last reported), `GET /admin/reports-queue/{postId}` (post + open reports, marks them REVIEWING), `POST /admin/reports-queue/{postId}/decision` `{action HIDE_POST, DISMISS, WARN_USER or BAN_USER, note? ≤ 500}` → `{postId, action, postStatus, resolvedReports, authorBanned}` (404 without open reports, 409 MSG39 banning an administrator), `GET /admin/posts/{id}` (any status), `POST /admin/posts/{id}/restore` (409 `POST_NOT_HIDDEN`). D-99 additions: Guest GET on `/posts`, `/posts/pinned`, `/posts/{id}`, `/posts/{id}/comments`, `/posts/trending`, `/posts/coins/{symbol}/discussion` or `/sentiment`, `/community/members/{id}` (and `/followers`, `/following`); feed filters `sentiment`, `author`, `hashtag`, `q` and tab FOLLOWING; post fields `sentiment`, `hashtags[]`, `officialCategory`; `POST /posts/coins/{symbol}/sentiment` `{sentiment}`; `POST/DELETE /community/members/{id}/follow` → `{active, count}`; moderation action REMOVE_POST. |
 | news | GET /news?coin=&sentiment=&range=; GET /news/sentiment-summary |
 | ai | GET/POST /ai/conversations; PATCH/DELETE /ai/conversations/{id}; GET/POST /ai/conversations/{id}/messages |
 | billing | GET /billing/packages; POST /billing/orders; GET /billing/orders; GET /billing/orders/{code}; GET /billing/subscription; POST /billing/ipn/vnpay; POST /billing/ipn/momo; GET /billing/return/{gateway} |
@@ -1130,7 +1160,7 @@ Since T-025: `tools/golden/generate_indicator_fixture.py` writes `btcusdt-1h-tal
 | ID | Item | Proposal | Affects |
 |---|---|---|---|
 | A-01 | BR-27 ignores maintenance amount | Use exact formula with `cum` (7.6) | BR-27 |
-| A-02 | BR-35 "loss equals initial margin" vs fees in BR-36 | Price loss = initial margin; fees and funding added separately | BR-35 |
+| A-02 | BR-35 "loss equals initial margin" vs fees in BR-36 | **Decided 2026-10-18 (D-97, amended by Q-54):** `realized_pnl` gross, on liquidation the price result at the liquidation price; liquidation exit charged the clearance fee (7.8), not the taker fee; fees and funding stored apart; `net_pnl` derived (7.8) | BR-35, BR-36, BR-38, BR-42 |
 | A-03 | BR-53 requires PENDING; late gateway success after expiry | Accept late success, activate, audit | BR-53, BR-54 |
 | A-04 | NSF-07 recovery uses 15m candles | Replay 1m klines fetched by REST | SRS 3.5.4 |
 | A-05 | NSF-08 applies funding at each funding time | Compute from `funding_rate_history` rows at close/read; same result | NSF-08 |

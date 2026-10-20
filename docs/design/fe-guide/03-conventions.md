@@ -205,8 +205,8 @@ order, or by the client where noted.
 | MSG20 | Confirm dialog | Cancel this trading plan? This action cannot be undone. |
 | MSG21 | Confirm dialog | Close this position at about {price}? Estimated P/L: {pnl}. *(planned)* |
 | MSG22 | Notification | {pair} {direction} entry filled at {price}. *(planned)* |
-| MSG23 | Notification | {pair} position closed by {reason} at {price}. P/L: {pnl}. *(planned)* |
-| MSG24 | Notification | {pair} position was liquidated at {price}. Loss: {pnl}. *(planned)* |
+| MSG23 | Notification | {pair} position closed by {reason} at {price}. P/L: {pnl}. *(planned; `{pnl}` = `net_pnl`, same as the journal row, Q-56)* |
+| MSG24 | Notification | {pair} position was liquidated at {price}. Loss: {pnl}. *(planned; `{pnl}` = `net_pnl`, same as the journal row, Q-56)* |
 | MSG25 | Toast | {pair} added to watchlist. *(client fills from the response `symbol`)* |
 | MSG26 | Confirm dialog | Removing {pair} will also delete {n} alerts. Continue? |
 | MSG27 | Inline | You have reached the limit of {max} {items} of the {plan} plan. Upgrade to increase the limit? |
