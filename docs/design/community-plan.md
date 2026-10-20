@@ -229,3 +229,76 @@ So với hiểu biết chung về CMC Community, có thể chưa khớp hoàn to
 - **Giới hạn số request mỗi giờ của Cloudinary Admin API:** mỗi file mới tốn 1 request để kiểm tra. Đủ cho demo; nếu dùng thật thì cân nhắc nâng gói, hoặc thêm giới hạn số chữ ký upload cho mỗi user.
 - **FE:** T-065 (feed, chi tiết bài, form đăng bài có upload Cloudinary, dialog report) và SCR-36 của T-087 (hàng đợi kiểm duyệt). Plan FE viết trong repo FE.
 
+## 10. Quyết định 20/10/2026: theo file đăng ký đề tài, phần còn lại làm giống CoinMarketCap (D-99)
+
+Người dùng chốt: forum **làm theo file đăng ký đề tài** (`CryptoPilot_Capstone_Project_Full_Formatted.docx`) ở những chỗ nó khác SRS v1.0. Những gì file đăng ký không nhắc tới thì **làm giống CoinMarketCap Community**. SRS và logical model phải được cập nhật theo (A-44); các mục E-x ở mục 9 vì vậy không còn chỉ là ý tưởng.
+
+### 10.1 Giai đoạn 1: khớp file đăng ký (nhánh `feat/cf-01-registration-alignment`)
+
+| # | File đăng ký | Thay đổi | SRS v1.0 trước đó |
+|---|---|---|---|
+| CF-01a | Guest: "View public forum posts and coin-related discussions" | Guest **đọc** được feed LATEST/MOST_LIKED, bài ghim, chi tiết bài, comment; tab SAVED/MINE và mọi thao tác ghi vẫn cần Trader | Forum chỉ cho Trader |
+| CF-01b | "coin-related discussions" trên Coin Detail | `GET /posts/coins/{symbol}/summary` (số bài 24h/7 ngày, bài mới nhất), dùng chung với `?coin=`; công khai | Không có |
+| CF-01c | Admin: "hide **or remove** inappropriate content" | Quyết định mới `REMOVE_POST` (bài thành DELETED, audit `POST_REMOVED`); migration mở rộng CHECK `resolution_action` | Chỉ HIDE_POST, DISMISS, WARN_USER, BAN_USER |
+| CF-01d | Video cho "Traders with an active package" | Migration: `can_post_video = true` cho gói PRO (giá trị cấu hình theo tier, D-58) | Chỉ PREMIUM |
+| CF-01e | Admin: "official posts, announcements, and educational content (e.g. platform updates, market education)" | Bài official có `official_category`: ANNOUNCEMENT, PLATFORM_UPDATE, EDUCATION; lọc bài ghim theo loại | Một loại bài official |
+
+Ngoài forum, file đăng ký còn yêu cầu thống kê "forum activity" (T-086), quản lý trạng thái tài khoản (T-083) và web cho Guest (T-065). Các mục này làm trong task của chúng.
+
+### 10.2 Giai đoạn 2: giống CoinMarketCap Community
+
+Thứ tự đề xuất (chi tiết backend ở mục 9.2): E-2 Bullish/Bearish → E-4 trang profile công khai → E-5 tìm kiếm → E-6 follow và tab Following → E-7 hashtag và trending → E-8 repost và poll. E-3 (giá coin trên thẻ bài) là việc của FE. E-1 (thông báo in-app) có sẵn trong SRS, làm cùng task notification.
+
+Mỗi mục làm trên một nhánh riêng `feat/cf-0x-...`, nối tiếp nhánh trước. Migration của forum bắt đầu từ V27; kiểm tra lại số trước khi merge, vì V26 đang ở `feat/t-044-exit-rules`.
+
+### 10.3 Tiến độ (20/10/2026)
+
+| Nhánh | Nội dung | Commit |
+|---|---|---|
+| `feat/cf-01-registration-alignment` | Giai đoạn 1: Guest đọc forum, thảo luận theo coin, REMOVE_POST, video cho PRO, loại bài official | `d2f8a25`, `1f7f836` |
+| `feat/cf-02-sentiment` | E-2 Bullish/Bearish trên bài, bình chọn hằng ngày theo coin | `7bd736f` |
+| `feat/cf-03-profiles-follow` | E-4 trang profile công khai, E-6 follow và tab Following | `632eceb` |
+| `feat/cf-04-search-trending` | E-5 tìm kiếm, E-7 hashtag và trending | `3ebf9ed` |
+
+Còn lại: E-8 repost và poll; E-1 thông báo in-app (làm cùng task notification); E-3 giá coin trên thẻ bài (FE).
+
+## 11. Dừng ở đây (20/10/2026), mai làm tiếp
+
+### 11.1 Trạng thái các nhánh backend (repo `cryptopilot_project`, chỉ commit local, CHƯA push)
+
+Các nhánh nối tiếp nhau, nhánh sau tách từ nhánh trước. Khi mở PR thì merge theo đúng thứ tự này và retarget PR sau khi PR trước merge.
+
+| # | Nhánh | Task | Commit | Test toàn bộ |
+|---|---|---|---|---|
+| 1 | `feat/t-060-community-posts` | T-060 bài viết, feed, bài ghim | `c6c88e7`, `ea64cc8` | 2986/2986 ✅ |
+| 2 | `feat/t-061-cloudinary-media` | T-061 Cloudinary, T-062 video | `412d890`, `6843e19`, `5c02181` | 3022/3022 ✅ |
+| 3 | `feat/t-063-comments-engagement` | T-063 comment, like, save | `5983183` | (gộp vào #4) |
+| 4 | `feat/t-064-post-reports` | T-064 report | `b68ed20` | 3058/3058 ✅ |
+| 5 | `feat/t-084-moderation` | T-084 kiểm duyệt, ban | `a4e6fe2`, `65e12cb` | 3071/3071 ✅ |
+| 6 | `feat/cf-01-registration-alignment` | D-99 giai đoạn 1 (file đăng ký) | `d2f8a25`, `1f7f836` | 3083/3083 ✅ |
+| 7 | `feat/cf-02-sentiment` | E-2 Bullish/Bearish | `7bd736f` | (gộp vào #8) |
+| 8 | `feat/cf-03-profiles-follow` | E-4 profile, E-6 follow | `632eceb` | 3100/3100 ✅ |
+| 9 | `feat/cf-04-search-trending` | E-5 tìm kiếm, E-7 hashtag/trending | `3ebf9ed`, `79e12bc` | 3107/3108: 1 fail (enum contract) đã sửa ở commit sau; chưa chạy lại toàn bộ |
+
+Repo đang đứng ở nhánh `feat/cf-04-search-trending`. Migration của forum: V27 → V31 (V26 thuộc `feat/t-044-exit-rules`, chưa merge; kiểm tra lại số trước khi merge). Test flaky có từ trước, không liên quan forum: `AlertEngineTest.NSF06_aCommittedEdit_replacesTheRuleInTheBook`.
+
+### 11.2 Những gì đã sửa ngoài module `community`
+
+- `user`: `UserApi.authors`, `UserApi.banForModeration` (+ event `AccountSuspended`), `UserApi.publicProfile`; `AuthorCard`, `PublicProfile`.
+- `auth`: `SuspendedAccountSessions` thu hồi mọi session khi bị ban; `SecurityConfig` thêm `PUBLIC_COMMUNITY` (Guest đọc) và `/api/v1/community/**` vào vùng Trader.
+- `market`: `MarketApi.listedCoinsBySymbol`.
+- `admin`: `SystemSettingApi.integer`; `AuditAction` thêm `USER_WARNED`, `POST_REMOVED`.
+- `billing`: V28 cho gói PRO quyền `VIDEO_POST` (D-99); đã sửa test Table 3.1 theo.
+- `common`: `ErrorCode` thêm `MEDIA_INVALID`, `MEDIA_STORAGE_UNAVAILABLE`, `POST_ALREADY_REPORTED`, `POST_REPORT_OWN_POST`, `POST_NOT_HIDDEN`, `FOLLOW_SELF`.
+- Cấu hình: `cryptopilot.media.cloudinary.*` trong `application.yml`, nhóm Media storage trong `deploy/.env.example`.
+- Test hạ tầng đã cập nhật: `OpenApiDocsTest` (danh sách path), `AuthorizationMatrixTest`, `BaselineSchemaTest` (53 bảng), `SchemaCatalogueTest`, `expected-columns.csv`, `expected-enums.csv`, `EnumCheckConstraintTest` (mẫu cho kiểu `date`).
+
+### 11.3 Việc tiếp theo (chọn khi làm tiếp)
+
+1. **E-1 thông báo in-app:** listener cho `PostCommented`, `PostModerated`, `UserFollowed` ghi vào `notification` (cần migration thêm type cho comment và follow), và API đọc/đánh dấu đã đọc. Đây cũng là phần còn thiếu của SRS 3.7.3 và 3.11.3.
+2. **E-8 repost và poll** (lớn, ưu tiên thấp).
+3. **FE T-065:** feed, chi tiết bài, form đăng bài có upload Cloudinary (form ký trước, rồi upload thẳng), dialog report, khối thảo luận và sentiment trên trang coin, profile, trending; giá coin trên thẻ bài (E-3). Làm trong repo FE: pull `develop`, tạo nhánh riêng, viết plan FE trong repo FE.
+4. **Trước khi deploy:** job dọn file Cloudinary mồ côi; cân nhắc giới hạn chữ ký upload theo user (giới hạn Admin API của Cloudinary); rate limit cho các GET công khai của Guest (hiện chỉ giới hạn theo account).
+5. **Docs:** sửa SRS theo A-44 (Guest đọc forum, REMOVE_POST, video cho PRO, loại bài official) và các tính năng D-99 giai đoạn 2; cập nhật fe-guide `modules/community.md` khi bắt đầu FE.
+6. **Push và mở PR** cho các nhánh ở 11.1 khi team sẵn sàng review.
+
