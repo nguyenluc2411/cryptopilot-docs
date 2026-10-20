@@ -3,13 +3,13 @@
 **Status:** Accepted (FE owner, 2026-10-13)
 **Date:** 2026-10-13
 **Deciders:** BE1, BE2, FE, DO
-**Related:** D-86, D-94 (ADR-018); TR-03, TR-04, TR-06, TR-07; TR-F2, TR-F3; ADR-015; CURRENT_STATE D-97
+**Related:** D-86, D-101 (ADR-018); TR-03, TR-04, TR-06, TR-07; TR-F2, TR-F3; ADR-015; CURRENT_STATE D-104
 
 ## Context
 The web client calls an endpoint only once it is merged; until then its adapter answers NOT_CONFIGURED
 (ADR-015). The backend demo trading module (`/api/v1/paper/**`, depth and market trades of TR-03, and
 their topics) is DONE on `feat/tr-02-paper-trading-schema` (`f4e66b2`) and not merged into `develop`.
-Its screens (TR-F1…F3) already sit behind the build flag `VITE_ENABLE_PAPER_TRADING` (D-94), which stays
+Its screens (TR-F1…F3) already sit behind the build flag `VITE_ENABLE_PAPER_TRADING` (D-101), which stays
 `false` in production until the module is merged. With NOT_CONFIGURED adapters, the screens can only be
 tried on the development demo exchange, so the module cannot be tested end to end before its merge, and
 the merge would be followed by a second FE change to connect it.

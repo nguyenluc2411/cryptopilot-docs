@@ -3,11 +3,11 @@
 **Status:** Accepted (FE owner, 2026-10-13)
 **Date:** 2026-10-13
 **Deciders:** BE1, BE2, FE, DO
-**Related:** Q-44; TECHNICAL_DESIGN 7.15 (rotation and reuse detection); ADR-015; CURRENT_STATE D-102; T-016, T-030
+**Related:** Q-67; TECHNICAL_DESIGN 7.15 (rotation and reuse detection); ADR-015; CURRENT_STATE D-109; T-016, T-030
 
 ## Context
 `/auth/login` and `/auth/refresh` return both tokens in the JSON body, so the browser must keep the
-refresh token where script can read it. Until now the web kept both in memory only (Q-44 open), so a
+refresh token where script can read it. Until now the web kept both in memory only (Q-67 open), so a
 reload or a new tab signed the Trader out. The safer alternative, an `HttpOnly` cookie set by the
 backend, needs backend work (cookie, CSRF, `allowCredentials`) that is not planned.
 

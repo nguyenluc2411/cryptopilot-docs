@@ -3,7 +3,7 @@
 **Status:** Proposed
 **Date:** 2026-10-08
 **Deciders:** BE1, BE2, FE, DO
-**Related:** SRS 3.1.3, 4.1.1; TECHNICAL_DESIGN 1.3, 4, 4.4, 11.1; CURRENT_STATE D-90, D-58, Q-44, Q-39
+**Related:** SRS 3.1.3, 4.1.1; TECHNICAL_DESIGN 1.3, 4, 4.4, 11.1; CURRENT_STATE D-90, D-58, Q-67, Q-62
 
 ## Context
 TECHNICAL_DESIGN 4 places the web app in `web/` of `cryptopilot_project`, with
@@ -36,7 +36,7 @@ backend pipeline.
 
 Negative: two repositories to clone and keep in step; a contract change needs a fe-guide re-sync and
 then an adapter change. The traceability tool and the folder tree of TECHNICAL_DESIGN 4 do not cover the
-web code until Q-39 is answered. Plan-tier gating in the client is display only (D-58); the backend
+web code until Q-62 is answered. Plan-tier gating in the client is display only (D-58); the backend
 remains the authority on every request.
 
 This holds while the fe-guide is re-synced after each backend PR that touches a controller, a DTO,

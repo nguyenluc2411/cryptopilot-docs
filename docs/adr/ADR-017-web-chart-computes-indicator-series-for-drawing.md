@@ -3,7 +3,7 @@
 **Status:** Proposed
 **Date:** 2026-10-09
 **Deciders:** BE1, BE2, FE, DO
-**Related:** SRS 3.3.2, BR-12; TECHNICAL_DESIGN 7.2; D-52, D-55; FEQ-04, M-13; CURRENT_STATE D-96; T-032
+**Related:** SRS 3.3.2, BR-12; TECHNICAL_DESIGN 7.2; D-52, D-55; FEQ-04, M-13; CURRENT_STATE D-103; T-032
 
 ## Context
 SRS 3.3.2 draws SMA20, EMA20, EMA50, EMA200 and Bollinger Bands over the latest 500 closed candles and

@@ -3,7 +3,7 @@
 **Status:** Accepted (FE owner, 2026-10-13)
 **Date:** 2026-10-13
 **Deciders:** BE1, BE2, FE, DO
-**Related:** D-86; paper trading plan sections 5, 16, 17 (TR-F1…F5); ADR-015; CURRENT_STATE D-94; TR-F1
+**Related:** D-86; paper trading plan sections 5, 16, 17 (TR-F1…F5); ADR-015; CURRENT_STATE D-101; TR-F1
 
 ## Context
 Every web route traces to an SRS screen id (SCR-01…44), and a test checks that inventory. Demo trading

@@ -93,7 +93,7 @@ Only the backend owns the database (single writer). The AI Service has no databa
 | Formatting | Spotless with Palantir Java Format | `./mvnw spotless:apply` |
 | Coverage | JaCoCo | Gates in section 11 |
 | AI Service | Node.js LTS, TypeScript, Fastify, zod, @anthropic-ai/sdk, bottleneck | Unchanged |
-| Web | React 19 + TypeScript + Vite, Tailwind CSS 4, React Router, React Hook Form + zod; TanStack Query, @stomp/stompjs and TradingView Lightweight Charts added by the first task that needs them | Separate repository `cryptopilot-frontend` (D-90, ADR-015); React 19 and the added packages in ADR-016 (D-93) |
+| Web | React 19 + TypeScript + Vite, Tailwind CSS 4, React Router, React Hook Form + zod; TanStack Query, @stomp/stompjs and TradingView Lightweight Charts added by the first task that needs them | Separate repository `cryptopilot-frontend` (D-90, ADR-015); React 19 and the added packages in ADR-016 (D-100) |
 | Mobile | Flutter (stable), Riverpod, dio, go_router, stomp_dart_client | Chart library in ADR-012 |
 | Tests | JUnit Jupiter, AssertJ, Mockito — Boot 4 has no single `spring-boot-starter-test`; pull the per-slice starters (`spring-boot-starter-webmvc-test`, `-actuator-test`, `-validation-test`, later `-data-jpa-test`). Plus Testcontainers, WireMock (not yet added — the Binance client is tested against a JDK `com.sun.net.httpserver` stand-in, D-36, accepted 2026-09-24), ArchUnit, Spring Modulith Test, jqwik; Vitest, Playwright, k6 | |
 
@@ -454,7 +454,7 @@ cryptopilot_project/
 ### 4.4 Web client (separate repository, D-90)
 
 The web client is the repository `cryptopilot-frontend` (ADR-015), not `web/` of this repository.
-Stack: TECHNICAL_DESIGN 1.3 with the additions of ADR-016 (D-93). Folders under `src/` (as of T-030 and T-016):
+Stack: TECHNICAL_DESIGN 1.3 with the additions of ADR-016 (D-100). Folders under `src/` (as of T-030 and T-016):
 
 | Folder | Holds | Must not |
 |---|---|---|
@@ -463,7 +463,7 @@ Stack: TECHNICAL_DESIGN 1.3 with the additions of ADR-016 (D-93). Folders under 
 | `features/<module>/` | `components/`, `hooks/`, `schemas.ts` of one area (auth, market, trading-plan, …) | Import another feature's internals |
 | `components/{ui,layout,feedback,charts,brand}/` | Domain-neutral controls from the design system | Know business data |
 | `services/{api,auth,websocket}/` | Service interfaces, HTTP client (problem detail, MSG ids), session store, realtime client | Be imported by pages or components (ESLint) |
-| `i18n/` | Every interface string, MSG texts of SRS 5.3 (A-43) | — |
+| `i18n/` | Every interface string, MSG texts of SRS 5.3 (A-45) | — |
 | `types/domain.ts` | Client domain model; decimals stay strings (5.4) | Mirror wire DTOs; adapters map them |
 | `dev/` | Development data and the labelled development sign-in | Reach a production build (the build fails) |
 

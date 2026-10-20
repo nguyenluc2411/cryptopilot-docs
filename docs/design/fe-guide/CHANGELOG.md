@@ -12,7 +12,7 @@ Newest first. Each entry names the `develop` SHA the guide was synced to.
 - `PATCH /watchlist/{id}`: `sortOrder` 0–10000, MSG15 outside.
 - 12 moved line references updated (`SecurityConfig`, `WebSocketConfig`, `application.yml`,
   `UpdateWatchlistItemRequest`, `WatchlistController`, `WatchlistServiceImpl`).
-- Added M-15 (MSG50 means two things; Q-43). Task map points to `CURRENT_STATE.md` for FE status (D-90).
+- Added M-15 (MSG50 means two things; Q-66). Task map points to `CURRENT_STATE.md` for FE status (D-90).
 
 ## 2026-10-03 — first version, `develop` @ `6137e24`
 

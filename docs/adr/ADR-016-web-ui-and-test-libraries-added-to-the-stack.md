@@ -3,7 +3,7 @@
 **Status:** Proposed
 **Date:** 2026-10-08
 **Deciders:** BE1, BE2, FE, DO
-**Related:** TECHNICAL_DESIGN 1.3, 11.1; ADR-015; CURRENT_STATE D-93
+**Related:** TECHNICAL_DESIGN 1.3, 11.1; ADR-015; CURRENT_STATE D-100
 
 ## Context
 TECHNICAL_DESIGN 1.3 lists the web stack as React 18 + TypeScript + Vite, TanStack Query, React Router,
@@ -30,7 +30,7 @@ without a request to an external host, and form and dialog behaviour is tested a
 
 Negative: nine more packages to keep updated in the web repository; Tailwind classes put styling in
 the markup, so reviews must check that only the shared colour tokens are used, never literal colours.
-The React 19 deviation from TECHNICAL_DESIGN 1.3 must be reflected there (D-93).
+The React 19 deviation from TECHNICAL_DESIGN 1.3 must be reflected there (D-100).
 
 ## Alternatives considered
 Stay on React 18: rejected; nothing in the client depends on 18, and downgrading a running project

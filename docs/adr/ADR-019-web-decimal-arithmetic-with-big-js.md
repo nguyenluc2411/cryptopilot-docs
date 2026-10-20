@@ -3,7 +3,7 @@
 **Status:** Accepted (FE owner, 2026-10-13)
 **Date:** 2026-10-13
 **Deciders:** BE1, BE2, FE, DO
-**Related:** TECHNICAL_DESIGN 1.3, 5.4 (ADR-008); ADR-016; D-86, paper trading plan sections 6, 7, 13, 16; fe-guide conventions (decimals as strings); CURRENT_STATE D-95; TR-F3, TR-F4, TR-F5
+**Related:** TECHNICAL_DESIGN 1.3, 5.4 (ADR-008); ADR-016; D-86, paper trading plan sections 6, 7, 13, 16; fe-guide conventions (decimals as strings); CURRENT_STATE D-102; TR-F3, TR-F4, TR-F5
 
 ## Context
 Every price, quantity and amount reaches the web client as a decimal string (TECHNICAL_DESIGN 5.4) and
@@ -23,7 +23,7 @@ divide with a fixed number of fraction digits, compare, and round to a tick or s
 mode (down for quantities and Buy prices, up for Sell prices, half-up for display). It creates its own
 `Big` constructor (`Big()`), so the global settings are never changed: 18 fraction digits for division
 and round-down by default. Components and hooks use that module, never `Big` directly; values stay
-strings in the domain model and in requests. Indicators keep using `number` (D-96).
+strings in the domain model and in requests. Indicators keep using `number` (D-103).
 
 ## Consequences
 Exact results for the operations a trading form needs, matching `BigDecimal` for the same inputs and
