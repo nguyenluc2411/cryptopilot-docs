@@ -247,6 +247,8 @@ Ngoài forum, file đăng ký còn yêu cầu thống kê "forum activity" (T-08
 
 ### 10.2 Giai đoạn 2: giống CoinMarketCap Community
 
+> **Đã thu hẹp ngày 21/10/2026 (mục 12):** chỉ giữ E-4 (profile công khai) và E-5 (tìm kiếm). E-2, E-3, E-6, E-7, E-8 ngoài phạm vi.
+
 Thứ tự đề xuất (chi tiết backend ở mục 9.2): E-2 Bullish/Bearish → E-4 trang profile công khai → E-5 tìm kiếm → E-6 follow và tab Following → E-7 hashtag và trending → E-8 repost và poll. E-3 (giá coin trên thẻ bài) là việc của FE. E-1 (thông báo in-app) có sẵn trong SRS, làm cùng task notification.
 
 Mỗi mục làm trên một nhánh riêng `feat/cf-0x-...`, nối tiếp nhánh trước. Migration của forum bắt đầu từ V27; kiểm tra lại số trước khi merge, vì V26 đang ở `feat/t-044-exit-rules`.
@@ -299,8 +301,26 @@ Repo đang đứng ở nhánh `feat/cf-05-notifications`. Migration của forum:
 
 1. ~~**E-1 thông báo in-app:**~~ **Xong 21/10 (nhánh #10, migration V32).** Chưa làm: thông báo ALERT từ `AlertTriggered` và gửi email/push (thuộc T-056/T-058, báo người phụ trách). Nội dung tự viết bằng tiếng Anh, chưa có mã MSG trong SRS. listener cho `PostCommented`, `PostModerated`, `UserFollowed` ghi vào `notification` (cần migration thêm type cho comment và follow), và API đọc/đánh dấu đã đọc. Đây cũng là phần còn thiếu của SRS 3.7.3 và 3.11.3.
 2. **E-8 repost và poll** (lớn, ưu tiên thấp).
-3. **FE T-065:** feed, chi tiết bài, form đăng bài có upload Cloudinary (form ký trước, rồi upload thẳng), dialog report, khối thảo luận và sentiment trên trang coin, profile, trending; giá coin trên thẻ bài (E-3). Làm trong repo FE: pull `develop`, tạo nhánh riêng, viết plan FE trong repo FE.
+3. **FE T-065:** feed (có ô tìm kiếm), chi tiết bài, form đăng bài có upload Cloudinary (form ký trước, rồi upload thẳng), dialog report, khối thảo luận trên trang coin, trang profile công khai, trung tâm thông báo. Làm trong repo FE: pull `develop`, tạo nhánh riêng, viết plan FE trong repo FE.
 4. **Trước khi deploy:** ~~job dọn file Cloudinary mồ côi~~ và ~~rate limit cho Guest~~ xong ở `cf-06` (21/10). Còn: thử upload thật với key Cloudinary (chưa từng chạy với tài khoản thật); tuỳ chọn giới hạn chữ ký upload theo user.
-5. **Docs:** sửa SRS theo A-44 (Guest đọc forum, REMOVE_POST, video cho PRO, loại bài official) và các tính năng D-99 giai đoạn 2; cập nhật fe-guide `modules/community.md` khi bắt đầu FE.
+5. **Docs:** sửa SRS theo A-44 (Guest đọc forum, REMOVE_POST, video cho PRO, loại bài official) và E-4, E-5 của D-99 giai đoạn 2; cập nhật fe-guide `modules/community.md` khi bắt đầu FE.
 6. **Push và mở PR** cho các nhánh ở 11.1 khi team sẵn sàng review.
+
+## 12. Chốt phạm vi trước khi merge (21/10/2026)
+
+Người dùng chốt: merge vào `develop` là xong, không sửa thêm. Forum chỉ gồm SRS v1.0, file đăng ký (giai đoạn 1, mục 10.1), E-1 thông báo in-app (có trong SRS), **E-4 trang profile công khai** và **E-5 tìm kiếm**.
+
+| Mục | Quyết định |
+|---|---|
+| E-2 Bullish/Bearish, vote coin theo ngày | Bỏ |
+| E-3 giá coin trên thẻ bài | Bỏ |
+| E-6 follow, tab Following, thông báo FOLLOW | Bỏ |
+| E-7 hashtag, trending | Bỏ |
+| E-8 repost, poll | Bỏ (chưa từng làm) |
+
+Gỡ trên nhánh `feat/cf-07-scope-trim` (tách từ `cf-06` đã merge `origin/develop` @ `132c480`, không conflict, 3171/3171 test đạt trước khi gỡ):
+
+- Xoá migration V29 (sentiment), V30 (follow), V31 (hashtag); V32 thông báo đổi số thành **V29** và bỏ type FOLLOW. Vì nhánh chưa merge nên sửa thẳng migration; DB dev đã chạy V27–V32 thì phải xoá và dựng lại (`docker compose down -v`) hoặc `flyway clean`.
+- Xoá API `/posts/trending`, `/posts/coins/{symbol}/sentiment`, `/community/members/{id}/follow`, `/followers`, `/following`; bỏ filter `sentiment`, `hashtag`, tab FOLLOWING, trường `sentiment`, `hashtags[]` của bài; bỏ `followers`, `following`, `followedByMe` của profile; bỏ `ErrorCode.FOLLOW_SELF`, `NotificationType.FOLLOW`, `NotificationReference.MEMBER`.
+- Giữ `GET /community/members/{id}` và filter `author`, `q` của feed. Test tìm kiếm chuyển sang `SearchApiTest`.
 
