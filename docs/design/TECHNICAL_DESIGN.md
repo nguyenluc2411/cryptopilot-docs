@@ -581,7 +581,7 @@ Key indexes (in addition to PKs and FKs):
 | trading_journal | (user_id, trade_status, exit_time DESC) | journal, performance |
 | trading_journal | (pair_id, trade_status) WHERE trade_status = 'OPEN' | engine rebuild |
 | alert | (watchlist_id), (alert_status) WHERE alert_status = 'ACTIVE' | engine rebuild |
-| notification | (user_id, is_read, created_at DESC) | bell badge |
+| notification | (user_id, is_read, created_at DESC); (user_id, created_at DESC); (created_at); UNIQUE source_key (V32) | bell badge, SCR-15 list, NSF-17 sweep, one row per delivered event |
 | news_article | UNIQUE url_hash; (title_hash, published_at); (published_at DESC) | dedup, feed |
 | subscription_order | UNIQUE order_code; (order_status, created_at) | IPN, reconciliation |
 | user_subscription | UNIQUE order_id; (subscription_status, end_at) | entitlement, expiry |
@@ -1044,7 +1044,7 @@ Endpoint catalogue (summary):
 | news | GET /news?coin=&sentiment=&range=; GET /news/sentiment-summary |
 | ai | GET/POST /ai/conversations; PATCH/DELETE /ai/conversations/{id}; GET/POST /ai/conversations/{id}/messages |
 | billing | GET /billing/packages; POST /billing/orders; GET /billing/orders; GET /billing/orders/{code}; GET /billing/subscription; POST /billing/ipn/vnpay; POST /billing/ipn/momo; GET /billing/return/{gateway} |
-| notification | GET /notifications; POST /notifications/{id}/read; POST /notifications/read-all |
+| notification | Built in E-1 (V32), Trader only: `GET /notifications?unreadOnly=&page=&pageSize=` → page of `{id, type, title, content, referenceType (ALERT, PLAN, POST, SUBSCRIPTION or MEMBER), referenceId, read, readAt, createdAt}`, newest first, 20 per page; `GET /notifications/unread-count` → `{unread}`; `POST /notifications/{id}/read` → the notification (404 MSG41 when not the caller's; a second call keeps the first `readAt`); `POST /notifications/read-all` → `{unread: 0}`. Each new notification is also pushed on `/user/queue/notifications` (same body) after its transaction commits. Written by `@ApplicationModuleListener`s of the community events: `PostCommented` → COMMENT to the post's author (not their own comment), `PostModerated` → MODERATION to the author (not for DISMISS) and each reporter, `UserFollowed` → FOLLOW to the member followed (skipped while an unread one from the same follower exists); `source_key` makes a redelivery write nothing. Types added in V32: COMMENT, FOLLOW. NSF-17: `NotificationSweepJob` deletes rows older than `cryptopilot.notification.sweep.retention` (90d), daily 00:30 UTC in dev/prod. Not yet: ALERT rows from `AlertTriggered` and email/push dispatch (T-056, T-058) |
 | admin (+ community for /admin/reports-queue and /admin/announcements; user for /admin/users; market for /admin/pairs and /admin/leverage-brackets; billing for /admin/packages and /admin/orders; news for /admin/news-sources; ai for /admin/ai-configurations) | /admin/dashboard, /admin/reports, /admin/users, /admin/reports-queue, /admin/pairs, /admin/leverage-brackets, /admin/packages, /admin/orders, /admin/news-sources, /admin/ai-configurations, /admin/settings, /admin/audit-log, /admin/announcements |
 
 ---

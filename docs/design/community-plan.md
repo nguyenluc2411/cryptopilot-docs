@@ -278,9 +278,10 @@ Các nhánh nối tiếp nhau, nhánh sau tách từ nhánh trước. Khi mở P
 | 6 | `feat/cf-01-registration-alignment` | D-99 giai đoạn 1 (file đăng ký) | `d2f8a25`, `1f7f836` | 3083/3083 ✅ |
 | 7 | `feat/cf-02-sentiment` | E-2 Bullish/Bearish | `7bd736f` | (gộp vào #8) |
 | 8 | `feat/cf-03-profiles-follow` | E-4 profile, E-6 follow | `632eceb` | 3100/3100 ✅ |
-| 9 | `feat/cf-04-search-trending` | E-5 tìm kiếm, E-7 hashtag/trending | `3ebf9ed`, `79e12bc` | 3107/3108: 1 fail (enum contract) đã sửa ở commit sau; chưa chạy lại toàn bộ |
+| 9 | `feat/cf-04-search-trending` | E-5 tìm kiếm, E-7 hashtag/trending | `3ebf9ed`, `79e12bc` | (xem #10) |
+| 10 | `feat/cf-05-notifications` | E-1 thông báo in-app (21/10) | `163ad18` | 3115/3116, lỗi còn lại (DTO phụ thuộc entity) đã sửa trong commit; test kiến trúc + `NotificationApiTest` chạy lại đạt |
 
-Repo đang đứng ở nhánh `feat/cf-04-search-trending`. Migration của forum: V27 → V31 (V26 thuộc `feat/t-044-exit-rules`, chưa merge; kiểm tra lại số trước khi merge). Test flaky có từ trước, không liên quan forum: `AlertEngineTest.NSF06_aCommittedEdit_replacesTheRuleInTheBook`.
+Repo đang đứng ở nhánh `feat/cf-05-notifications`. Migration của forum: V27 → V32 (V26 thuộc `feat/t-044-exit-rules`, đã merge vào `develop` ngày 21/10). Test flaky có từ trước, không liên quan forum: `AlertEngineTest.NSF06_aCommittedEdit_replacesTheRuleInTheBook`.
 
 ### 11.2 Những gì đã sửa ngoài module `community`
 
@@ -295,7 +296,7 @@ Repo đang đứng ở nhánh `feat/cf-04-search-trending`. Migration của foru
 
 ### 11.3 Việc tiếp theo (chọn khi làm tiếp)
 
-1. **E-1 thông báo in-app:** listener cho `PostCommented`, `PostModerated`, `UserFollowed` ghi vào `notification` (cần migration thêm type cho comment và follow), và API đọc/đánh dấu đã đọc. Đây cũng là phần còn thiếu của SRS 3.7.3 và 3.11.3.
+1. ~~**E-1 thông báo in-app:**~~ **Xong 21/10 (nhánh #10, migration V32).** Chưa làm: thông báo ALERT từ `AlertTriggered` và gửi email/push (thuộc T-056/T-058, báo người phụ trách). Nội dung tự viết bằng tiếng Anh, chưa có mã MSG trong SRS. listener cho `PostCommented`, `PostModerated`, `UserFollowed` ghi vào `notification` (cần migration thêm type cho comment và follow), và API đọc/đánh dấu đã đọc. Đây cũng là phần còn thiếu của SRS 3.7.3 và 3.11.3.
 2. **E-8 repost và poll** (lớn, ưu tiên thấp).
 3. **FE T-065:** feed, chi tiết bài, form đăng bài có upload Cloudinary (form ký trước, rồi upload thẳng), dialog report, khối thảo luận và sentiment trên trang coin, profile, trending; giá coin trên thẻ bài (E-3). Làm trong repo FE: pull `develop`, tạo nhánh riêng, viết plan FE trong repo FE.
 4. **Trước khi deploy:** job dọn file Cloudinary mồ côi; cân nhắc giới hạn chữ ký upload theo user (giới hạn Admin API của Cloudinary); rate limit cho các GET công khai của Guest (hiện chỉ giới hạn theo account).
