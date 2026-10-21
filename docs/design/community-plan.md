@@ -225,7 +225,7 @@ So với hiểu biết chung về CMC Community, có thể chưa khớp hoàn to
 
 ### 9.3 Việc kỹ thuật còn treo (trong phạm vi hiện tại)
 
-- **Dọn file Cloudinary mồ côi** (đã upload nhưng không gắn vào bài): job hằng ngày xoá file trong `cryptopilot/posts/` cũ hơn 24h mà không có trong `post_media`. Nên làm trước khi deploy thật.
+- ~~**Dọn file Cloudinary mồ côi**~~ **Xong 21/10 (`cf-06`, `5255425`):** `MediaSweepJob` chạy 00:45 UTC hằng ngày (bật ở dev/prod), liệt kê `cryptopilot/posts/` cũ nhất trước, xoá file cũ hơn 24h mà không bài nào (trừ bài DELETED) còn mang; tối đa 20 trang × 500 file mỗi loại mỗi lần chạy (`cryptopilot.media.sweep.*`).
 - **Giới hạn số request mỗi giờ của Cloudinary Admin API:** mỗi file mới tốn 1 request để kiểm tra. Đủ cho demo; nếu dùng thật thì cân nhắc nâng gói, hoặc thêm giới hạn số chữ ký upload cho mỗi user.
 - **FE:** T-065 (feed, chi tiết bài, form đăng bài có upload Cloudinary, dialog report) và SCR-36 của T-087 (hàng đợi kiểm duyệt). Plan FE viết trong repo FE.
 
@@ -280,6 +280,7 @@ Các nhánh nối tiếp nhau, nhánh sau tách từ nhánh trước. Khi mở P
 | 8 | `feat/cf-03-profiles-follow` | E-4 profile, E-6 follow | `632eceb` | 3100/3100 ✅ |
 | 9 | `feat/cf-04-search-trending` | E-5 tìm kiếm, E-7 hashtag/trending | `3ebf9ed`, `79e12bc` | (xem #10) |
 | 10 | `feat/cf-05-notifications` | E-1 thông báo in-app (21/10) | `163ad18` | 3115/3116, lỗi còn lại (DTO phụ thuộc entity) đã sửa trong commit; test kiến trúc + `NotificationApiTest` chạy lại đạt |
+| 11 | `feat/cf-06-predeploy-hardening` | Dọn file Cloudinary mồ côi; giới hạn tần suất cho Guest (rule `guest` 300/phút/IP, ADR-014 amendment) | `5255425`, `09c9ac8` | xem B2 |
 
 Repo đang đứng ở nhánh `feat/cf-05-notifications`. Migration của forum: V27 → V32 (V26 thuộc `feat/t-044-exit-rules`, đã merge vào `develop` ngày 21/10). Test flaky có từ trước, không liên quan forum: `AlertEngineTest.NSF06_aCommittedEdit_replacesTheRuleInTheBook`.
 
@@ -299,7 +300,7 @@ Repo đang đứng ở nhánh `feat/cf-05-notifications`. Migration của forum:
 1. ~~**E-1 thông báo in-app:**~~ **Xong 21/10 (nhánh #10, migration V32).** Chưa làm: thông báo ALERT từ `AlertTriggered` và gửi email/push (thuộc T-056/T-058, báo người phụ trách). Nội dung tự viết bằng tiếng Anh, chưa có mã MSG trong SRS. listener cho `PostCommented`, `PostModerated`, `UserFollowed` ghi vào `notification` (cần migration thêm type cho comment và follow), và API đọc/đánh dấu đã đọc. Đây cũng là phần còn thiếu của SRS 3.7.3 và 3.11.3.
 2. **E-8 repost và poll** (lớn, ưu tiên thấp).
 3. **FE T-065:** feed, chi tiết bài, form đăng bài có upload Cloudinary (form ký trước, rồi upload thẳng), dialog report, khối thảo luận và sentiment trên trang coin, profile, trending; giá coin trên thẻ bài (E-3). Làm trong repo FE: pull `develop`, tạo nhánh riêng, viết plan FE trong repo FE.
-4. **Trước khi deploy:** job dọn file Cloudinary mồ côi; cân nhắc giới hạn chữ ký upload theo user (giới hạn Admin API của Cloudinary); rate limit cho các GET công khai của Guest (hiện chỉ giới hạn theo account).
+4. **Trước khi deploy:** ~~job dọn file Cloudinary mồ côi~~ và ~~rate limit cho Guest~~ xong ở `cf-06` (21/10). Còn: thử upload thật với key Cloudinary (chưa từng chạy với tài khoản thật); tuỳ chọn giới hạn chữ ký upload theo user.
 5. **Docs:** sửa SRS theo A-44 (Guest đọc forum, REMOVE_POST, video cho PRO, loại bài official) và các tính năng D-99 giai đoạn 2; cập nhật fe-guide `modules/community.md` khi bắt đầu FE.
 6. **Push và mở PR** cho các nhánh ở 11.1 khi team sẵn sàng review.
 

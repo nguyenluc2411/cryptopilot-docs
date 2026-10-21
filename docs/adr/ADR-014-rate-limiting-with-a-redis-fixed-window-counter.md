@@ -44,3 +44,12 @@ Requires: the trusted-proxy list (R-11) is set wherever a proxy sits in front, o
 Bucket4j with its Redis (Lettuce) backend: rejected. It needs two new dependencies (`bucket4j-core`, `bucket4j-redis`) for token-bucket smoothing these limits do not need. The in-memory variant TD 1.3 planned would lose all counters on every restart and would not be shared across instances.
 Nginx `limit_req`: rejected as the only mechanism. It can key only by address, not by account; its configuration is not in this repository (only `deploy/docker-compose.dev.yml` exists), so it cannot be tested by the backend suite; and it produces Nginx's own error page instead of the API's problem format and message code. It remains a reasonable outer layer for connection floods once `deploy/nginx/` exists.
 Counting in a database table: rejected. One write per request on the transactional store, for state that can be lost without harm.
+
+## Amendment 2026-10-21 (D-99, `feat/cf-06-predeploy-hardening`)
+Since D-99 a Guest reads the forum (feed, posts, comments, member pages, trending) as well as the public market data, and the "not covered" reasoning above no longer holds: forum reads hit the database, not a cache. A fourth rule is added, without changing the filter's contract:
+
+| Rule | Key | Limit per minute | Source |
+|---|---|---|---|
+| `guest` | client address | 300 (`RATE_LIMIT_GUEST`; dev 3000) | every request under `/api/v1/` without an account |
+
+The limit is higher than `api` because the Guests behind one address (a school or office NAT) share its count. `/actuator/health` and the STOMP endpoint stay uncovered; a request the security chain refuses is still never counted.
