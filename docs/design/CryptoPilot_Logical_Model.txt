@@ -204,8 +204,11 @@ erDiagram
     uuid pair_id FK
     varchar market_type "SPOT, FUTURES"
     varchar direction "LONG, SHORT - SPOT only LONG"
-    varchar entry_type "LIMIT, MARKET"
-    decimal entry_price
+    varchar entry_type "LIMIT, MARKET, STOP (D-111)"
+    decimal entry_price "LIMIT price or STOP trigger; required for LIMIT and STOP"
+    decimal planned_entry_price "entered price, or MARKET reference price at the last draft save (BR-69)"
+    decimal invalidation_price "optional, LIMIT and STOP only (BR-68)"
+    decimal max_entry_deviation_r "optional, stricter than ENTRY_DEVIATION_BLOCK_R (BR-69)"
     decimal stop_loss_price
     decimal take_profit_price
     decimal capital_amount
@@ -220,7 +223,8 @@ erDiagram
     decimal reward_amount "snapshot"
     decimal risk_reward_ratio "snapshot"
     decimal estimated_liquidation_price "snapshot, FUTURES only"
-    varchar plan_status "DRAFT, ACTIVE, EXECUTED, CANCELLED, EXPIRED"
+    varchar plan_status "DRAFT, ACTIVE, EXECUTED, CANCELLED, EXPIRED, INVALIDATED"
+    decimal setup_score_at_plan "BR-70, Q-71"
     text plan_note
     timestamp activated_at
     timestamp expires_at
@@ -228,6 +232,9 @@ erDiagram
     decimal fill_price "set with EXECUTED: entry price, or last price when filled at activation"
     timestamp cancelled_at "set with CANCELLED"
     timestamp expired_at "set with EXPIRED"
+    timestamp invalidated_at "set with INVALIDATED"
+    varchar invalidation_reason "TAKE_PROFIT_REACHED, STOP_LOSS_REACHED, INVALIDATION_PRICE; set with INVALIDATED"
+    varchar fill_liquidity "MAKER, TAKER; set with EXECUTED (BR-36)"
     timestamp created_at
     timestamp updated_at
   }
@@ -260,6 +267,16 @@ erDiagram
     decimal fee_amount "entry fee + exit fee, >= 0; a liquidation exit fee is the clearance fee (BR-36)"
     decimal funding_fee_amount "Futures only, signed: + received, - paid; null for Spot (BR-37)"
     decimal realized_pnl "gross price result, no fees or funding; on liquidation the price result at the liquidation price (BR-35)"
+    decimal risk_amount "planned risk, SIMULATED; base of R (BR-42, BR-70)"
+    decimal planned_entry_price "BR-69"
+    decimal entry_deviation_r "signed, + worse (BR-69)"
+    varchar entry_liquidity "MAKER, TAKER; null if MANUAL (BR-36)"
+    decimal setup_score_at_plan "BR-70"
+    decimal setup_score_at_fill "BR-70"
+    boolean setup_score_drop_warned "BR-70"
+    json fill_indicators "RSI14, EMA20/50/200, MACD at fill (BR-70)"
+    decimal max_adverse_price "while open; MAE derived (BR-70)"
+    decimal max_favorable_price "while open; MFE derived (BR-70)"
     decimal net_pnl "derived, not stored: realized_pnl - fee_amount + coalesce(funding_fee_amount, 0) (BR-38, D-97)"
     varchar trade_status "OPEN, CLOSED"
     text setup_description

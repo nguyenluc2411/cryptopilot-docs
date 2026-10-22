@@ -823,7 +823,7 @@ Worked example (test vector): E = 100, S = 95, C = 1,000, p = 1, step 0.001, tic
 - L = 20: LP = 95/0.996 = 95.3815… → 95.39; S = 95 ≤ 95.39 → BLOCKING SL_BEYOND_LIQUIDATION.
 - SHORT E = 100, S = 105, L = 10: LP = 110/1.004 = 109.5617… → floor → 109.56; S < LP → OK.
 
-### 7.7 Simulated matching engine (NSF-07, BR-33..39, ADR-011)
+### 7.7 Simulated matching engine (NSF-07, BR-33..39, BR-68, ADR-011, D-111)
 
 Price sources: entry, TP and SL use the traded price range of the forming 1m candle (`kline_1m` updates carry cumulative high/low); futures liquidation uses `markPrice@1s`. Using the high/low range detects touches that happen between ticker updates.
 
@@ -865,7 +865,71 @@ Built in T-043 (PR #47 rules, PR #48 feed and replay):
 
 Built in T-044 (rules only, not wired; Q-59): `trading.matching.ExitRule` decides an exit of an `OpenPosition` (`Exit`: reason, price, time). `byRange` checks the stop loss before the take profit, both bounds inclusive, exit at the level, or at the candle's open when the candle opened beyond the level (gap rule, same as the paper engine: Q-51, Q-53), time = the candle's open time (as D-78). `byMark` liquidates at the liquidation price when the mark price is at or beyond it, also through a gap; a position with no liquidation price (Spot, or a LONG that cannot be liquidated) never is. `CloseReason` holds the four `close_reason` values. T-044 is the calculation layer only (Q-59): the exit and mark books, the mark price feed and mark kline replay, storing the exit, MSG23/MSG24, `PositionClosed` and the rule for an exit in the entry candle are T-048.
 
-### 7.8 Fees, funding and realized P/L (BR-35..38, D-97)
+**GY-03 additions (D-111; built by TP-0, TP-B, TP-C and T-048).**
+
+*Last price per market.* Spot: the ticker's last price. Futures: the close of the latest futures `kline_1m` update. That close is the last trade, because Binance publishes mark price klines as a separate stream. Before TP-0 it only reached the matching feed and the alert engine, never the price cache, so `currentLastPrice(FUTURES)` was always empty. TP-0 writes it into the cache's `last` field with the update's event time and the usual TTL. The last price drives MARKET fills, the marketable-LIMIT check at activation and STOP triggers. The mark price drives liquidation and unrealized PnL only (D-84 and A-41, amended).
+
+*STOP entries (stop-market, BR-33).* The stop price is stored in `entry_price`.
+- A LONG STOP sits in the `AboveBook` and fires when `hi ≥ stop`. A SHORT STOP sits in the `BelowBook` and fires when `lo ≤ stop`.
+- Fill price: the stop price, or the candle open `o` when the candle opened past it (LONG `o ≥ stop`, SHORT `o ≤ stop`). This is the gap rule `ExitRule.byRange` already uses.
+- A STOP always pays taker, with slippage (7.8).
+- There is no stop-limit.
+- STOP waits like LIMIT (books, D-77, D-78, replay) and takes the LIMIT expiry default.
+- An activation whose stop the last price has already passed waits on Q-72.
+
+*Invalidation (BR-68).* A waiting plan (LIMIT or STOP) has up to two invalidation levels. Each sits on the side of the book opposite its entry:
+
+| Plan | Entry book | Invalidation levels (book) |
+|---|---|---|
+| LIMIT LONG | Below (`lo ≤ entry`) | TP and `invalidation_price` (Above, `hi ≥ level`) |
+| LIMIT SHORT | Above (`hi ≥ entry`) | TP and `invalidation_price` (Below, `lo ≤ level`) |
+| STOP LONG | Above (`hi ≥ stop`) | SL and `invalidation_price` (Below, `lo ≤ level`) |
+| STOP SHORT | Below (`lo ≤ stop`) | SL and `invalidation_price` (Above, `hi ≥ level`) |
+
+`invalidation_price` must lie on the far side of the current price from the entry, so the price can reach it before the entry. It is checked at save and at activation (MSG15 on the field). A MARKET plan has none.
+
+Per range `[lo, hi]` with open `o` (o may be unknown) and a plan whose candle passed the D-77 check:
+```
+E = entry reached?   I = some invalidation level reached?      "past L" = o ≥ L for an Above level, o ≤ L for a Below level
+if E and I:
+    if o known and o past an invalidation level  → INVALIDATED   (that level's reason)
+    elif o known and o past the entry           → FILLED          (LIMIT at entry; STOP at o, a gap)
+    else                                        → INVALIDATED     (pessimistic, E6; like SL first, BR-35)
+elif I:  → INVALIDATED
+elif E:  → FILLED
+```
+The open cannot be past both, because the entry and the invalidation levels lie on opposite sides of the price at activation.
+- INVALIDATED is a compare-and-set `ACTIVE → INVALIDATED` with `invalidated_at` = the candle's open time (as D-78) and `invalidation_reason` (`TAKE_PROFIT_REACHED`, `STOP_LOSS_REACHED` or `INVALIDATION_PRICE`). All the plan's levels leave the books, and `TradingPlanInvalidated` is published after commit (T-046 sends MSG54).
+- A candle that opened before `activated_at` neither fills nor invalidates (D-77).
+- Restart replay and the hole replay run the same rule on closed candles, so replay equals live.
+- `ACTIVE_PLAN_MAX` counts ACTIVE plans only (TP-A, BR-62). An INVALIDATED or EXPIRED plan frees its slot with no extra step.
+- A LIMIT whose TP, or a STOP whose SL, the last price has already reached at activation waits on Q-72.
+
+*Activation.*
+- MARKET: the entry deviation check of 7.8 runs (TP-C).
+- A LIMIT the last price already reaches fills at once at the last price, as taker with slippage, and its deviation is ≤ 0.
+- A Futures LIMIT now gets that check too, because the Futures last price exists. Before TP-0 it always waited (E3).
+
+*Excursions (T-048).* For each open position the engine keeps the most adverse and the most favourable price.
+- They start at the fill price and are updated from every range the exit book reads.
+- The entry candle contributes only its adverse extreme, because the order inside the minute is unknown (E6). When the fill was at the candle's open (a gap or STOP fill at `o`), the whole candle comes after the fill and counts.
+- The exit candle is clamped at the exit price.
+- The engine passes the extremes to `journal.JournalApi`, which writes them when they move on a closed candle and at close. The restart replay covers downtime.
+
+**Simulation assumptions** (stated, so every result can be explained; D-111 E6):
+1. Prices are 1-minute candles: open, high, low, and close as the last price. The order of prices inside a minute is unknown, so every rule about two levels in one candle is a pessimistic choice:
+   - SL before TP for an open position (BR-35; an open beyond the TP is Q-61);
+   - invalidation before entry for a waiting plan, unless the open decides (above).
+2. A resting LIMIT fills at its own price, also through a gap (E7; Harris 2003, ch. 4). STOP entries, SL and TP fill at the candle open when the candle opened past them.
+3. A candle that opened before the activation does not act on the plan (D-77). A fill or invalidation from a candle is stamped with its open time (D-78).
+4. The whole snapshot quantity fills at one price. There is no queue position, partial fill or market impact; a plan does not walk the book. Paper trading does walk it (D-92), and plans do not.
+5. Slippage is `SLIPPAGE_BPS`, default 0, on taker fills only (7.8). With 0 the simulated taker fill is the observed last price.
+6. The mark price is used for liquidation and unrealized PnL only. The last price is used for everything else (E2).
+7. Fees go by liquidity role (7.8). Funding is settled at the recorded funding times (A-05).
+
+References: Harris, L. (2003), ch. 4 (limit and stop orders) and ch. 6 (liquidity suppliers and demanders). Binance FAQ, "Types of Order on Binance Futures" (stop-market triggers on the last or mark price; the plan engine uses the last price). Binance FAQ, "What Is the Difference Between a Futures Contract's Last Price and Mark Price?". Binance API documentation, USDⓈ-M Futures "Kline/Candlestick Streams" and "Mark Price Kline/Candlestick Streams".
+
+### 7.8 Fees, funding and realized P/L (BR-35..38, BR-69, BR-70, D-97, D-111)
 
 Three stored amounts on `trading_journal` and one derived amount (D-97, A-02):
 ```
@@ -875,7 +939,9 @@ realized_pnl  (gross, BR-35)
   no fee, no funding
 fee_amount  (≥ 0, BR-36) = fee(entry fill) + fee(exit fill)
   fee(fill) = fillPrice × qty × rate      notional at the fill; leverage does not reduce it
-  rate: maker for LIMIT entry and TAKE_PROFIT exit; taker for MARKET entry, STOP_LOSS, MANUAL
+  rate by liquidity role (D-111 E1): maker when the order rested and was then reached (LIMIT entry reached by a candle,
+        TAKE_PROFIT exit); taker when it executed against the market (MARKET entry, STOP entry, LIMIT marketable at
+        activation, STOP_LOSS, MANUAL); fillPrice of a taker fill includes the slippage below
   LIQUIDATION exit: no taker fee; fee(exit) = clearance fee
     clearance = min(N_liq × LIQUIDATION_CLEARANCE_FEE, MM)     N_liq = liq × qty
     MM = N_liq × MMR − cum   bracket used to derive the liquidation price (entry notional), at N_liq (Q-58)
@@ -906,6 +972,82 @@ Funding is computed from `funding_rate_history` rows (7.1 step 8) when the posit
 
 Test vector: LONG futures qty 2, entry 100 (LIMIT, maker 0.02%), exit TP 115 (maker), one funding at mark 101 rate 0.0001:
 realized_pnl = 30; fee_amount = 0.04 + 0.046 = 0.086; funding_fee_amount = −0.0202; net_pnl = 30 − 0.086 − 0.0202 = 29.8938.
+
+**Liquidity role and slippage (D-111 E1, E5; TP-0).** The role of a fill is stored with it: `trading_plan.fill_liquidity` and `trading_journal.entry_liquidity`, MAKER or TAKER. `TradeResultCalculator` reads the role, not the entry type. A taker fill is moved against the Trader by `SLIPPAGE_BPS` (`system_setting`, INT, default 0):
+```
+buy  (LONG entry, SHORT exit):  fill = ref × (1 + bps / 10 000), rounded up to the tick
+sell (SHORT entry, LONG exit):  fill = ref × (1 − bps / 10 000), rounded down to the tick
+ref = last price (MARKET, marketable LIMIT, manual close), stop price or open (STOP), SL level or open (STOP_LOSS)
+not applied to: maker fills (resting LIMIT, TAKE_PROFIT) and liquidation (exit at LP, clearance fee)
+```
+Worked examples (Futures, maker 0.02 %, taker 0.05 %, qty 2, tick 0.01):
+- LONG MARKET, last price 100.00, 10 bps: fill = 100.00 × 1.001 = 100.10 (on the tick). Taker fee = 100.10 × 2 × 0.0005 = 0.1001. With 0 bps: fill 100.00, fee 0.1, the entry fee of T-044 case (b), unchanged.
+- SHORT STOP, stop 95.00, no gap, 10 bps: 95.00 × 0.999 = 94.905, rounded down to 94.90. Taker fee = 94.90 × 2 × 0.0005 = 0.0949.
+- LONG LIMIT 100 activated while the last price is 99.50, 0 bps: fills at once at 99.50 as **taker**, fee = 99.50 × 2 × 0.0005 = 0.0995. Before D-111 it paid maker, 99.50 × 2 × 0.0002 = 0.0398.
+- LONG LIMIT 100 reached later by a candle: fills at 100 as maker, fee = 100 × 2 × 0.0002 = 0.04, as T-044 case (a), unchanged.
+
+**Entry deviation (D-111 M2, BR-69; TP-C, T-048).**
+```
+planned_entry_price = entered price (LIMIT, STOP); reference price at the last draft save (MARKET)
+deviation_r = d × (fill − planned) / |planned − SL|        d = +1 LONG, −1 SHORT;  > 0 = worse entry, < 0 = better
+MARKET activation, block = min(ENTRY_DEVIATION_BLOCK_R, max_entry_deviation_r if set):
+  deviation_r < ENTRY_DEVIATION_CONFIRM_R                   → activate
+  ENTRY_DEVIATION_CONFIRM_R ≤ deviation_r ≤ block           → MSG51 {deviation, quantity, riskReward}; activate only with confirmDeviation=true
+  deviation_r > block, or fill at or past TP                → MSG52 (refused)
+quantity is re-sized at the fill so risk_amount stays the planned risk (BR-23, BR-31)
+```
+When the override is below `ENTRY_DEVIATION_CONFIRM_R` there is no confirm band. Every fill stores `entry_deviation_r`:
+- resting LIMIT: 0;
+- marketable LIMIT: ≤ 0;
+- STOP gap: > 0, recorded and never refused.
+
+Worked example LONG (supervisor table, 2026-10-07): BTC entry 100,000, SL 98,000, TP 106,000, risk 100 USDT, step 0.0001; |planned − SL| = 2,000.
+- fill 100,000: deviation = (100,000 − 100,000) / 2,000 = 0 → activate. qty = 100 / 2,000 = 0.05. RR = 6,000 / 2,000 = 3.0.
+- fill 101,000: deviation = 1,000 / 2,000 = 0.5R → MSG51. qty = 100 / 3,000 = 0.0333… → 0.0333. RR = 5,000 / 3,000 = 1.67.
+- fill 102,000: deviation = 2,000 / 2,000 = 1.0R > 0.75 → MSG52. It would be qty = 100 / 4,000 = 0.025, RR = 4,000 / 4,000 = 1.0.
+
+Worked example SHORT: planned 50.00, SL 52.00, TP 44.00; |planned − SL| = 2.00.
+- fill 49.50: deviation = −1 × (49.50 − 50.00) / 2.00 = −1 × (−0.50) / 2.00 = 0.25R (sold 0.50 lower, worse) → MSG51 (equal to the confirm value).
+- fill 50.40: deviation = −1 × (0.40) / 2.00 = −0.20R (better) → activate.
+
+Other fills:
+- marketable LONG LIMIT 100 (SL 95) filled at 99.50: (99.50 − 100) / 5 = −0.10R;
+- LONG STOP 100 (SL 95) on a candle that opened at 101: (101 − 100) / 5 = +0.20R.
+
+**Learning metrics (D-111 M4, BR-70; T-048 stores, T-051 and T-074 derive).** Stored per SIMULATED trade:
+- `planned_entry_price`, `entry_deviation_r`, `entry_liquidity`, the planned `risk_amount`;
+- `setup_score_at_plan`, `setup_score_at_fill`, `fill_indicators` (RSI14, EMA20/50/200, MACD; timeframe and preset Q-71);
+- `max_adverse_price`, `max_favorable_price`.
+
+Derived, never stored, in one domain method and one SQL expression each, like `net_pnl`:
+```
+R            = net_pnl / risk_amount                         (the realized R of BR-42; planned risk, so a STOP gap shows in deviation, not in R's base)
+expectancy_R = Σ R / n                                        (Van Tharp)
+avg_deviation_R = Σ entry_deviation_r / n;   cost_of_late_entry_R = Σ entry_deviation_r
+LONG:  MAE = fill − max_adverse_price     MFE = max_favorable_price − fill
+SHORT: MAE = max_adverse_price − fill     MFE = fill − max_favorable_price
+MAE_R = MAE × qty / risk_amount            MFE_R = MFE × qty / risk_amount
+setup score warning: setup_score_at_plan − setup_score_at_fill ≥ SETUP_SCORE_DROP_WARN (15) → journal warning + MSG55, never blocks
+```
+Worked example LONG, T-044 case (a) with SL 95: qty 2, entry 100, TP 115, `net_pnl` 29.914, risk_amount = |100 − 95| × 2 = 10.
+- R = 29.914 / 10 = 2.9914.
+- Lowest price after the fill 97. Highest 116 in the exit candle, clamped to the exit 115.
+- MAE = 100 − 97 = 3 → 3 × 2 / 10 = 0.6R.
+- MFE = 115 − 100 = 15 → 15 × 2 / 10 = 3.0R.
+
+Worked example SHORT, T-044 case (b): qty 2, entry 100, SL 105, `net_pnl` −10.205, risk_amount = |100 − 105| × 2 = 10.
+- R = −10.205 / 10 = −1.0205. A full stop-loss costs more than 1R because of fees.
+- Highest 106 in the exit candle, clamped to the exit 105. Lowest 98.
+- MAE = 105 − 100 = 5 → 5 × 2 / 10 = 1.0R.
+- MFE = 100 − 98 = 2 → 2 × 2 / 10 = 0.4R.
+
+Over the two trades:
+- expectancy = (2.9914 + (−1.0205)) / 2 = 1.9709 / 2 = 0.98545R;
+- with deviations 0.5, −0.1 and 0.2 on three trades: cost of late entry = 0.6R, average 0.2R.
+
+Setup score drop: 72 → 55 is a drop of 17 ≥ 15, so warn; 72 → 58 is 14, so no warning.
+
+References: Tharp, V. K., *Trade Your Way to Financial Freedom* (2nd ed.): R-multiples and expectancy. Sweeney, J. (1996), *Maximum Adverse Excursion*: MAE/MFE. Harris, L. (2003), ch. 6 (liquidity suppliers pay less than liquidity demanders). Binance FAQ, "Binance Futures Fee Structure & Fee Calculations" (maker and taker by whether the order added or took liquidity).
 
 ### 7.9 Alert engine (NSF-06, BR-18..20)
 
@@ -1177,7 +1319,8 @@ Since T-025: `tools/golden/generate_indicator_fixture.py` writes `btcusdt-1h-tal
 ## 14. References
 
 - Appel, G. (2005). *Technical Analysis: Power Tools for Active Investors*. FT Prentice Hall.
-- Binance (2026). *Binance Spot API* and *USDⓈ-M Futures API* documentation (market data endpoints, streams, liquidation price).
+- Binance (2026). *Binance Spot API* and *USDⓈ-M Futures API* documentation (market data endpoints, streams, liquidation price; Kline/Candlestick and Mark Price Kline streams).
+- Binance (2026). FAQ: *Types of Order on Binance Futures*; *What Is the Difference Between a Futures Contract's Last Price and Mark Price?*; *Binance Futures Fee Structure & Fee Calculations*.
 - Bollinger, J. (2001). *Bollinger on Bollinger Bands*. McGraw-Hill.
 - Cohn, M. (2009). *Succeeding with Agile*. Addison-Wesley (test pyramid).
 - Cormen, T. H., Leiserson, C. E., Rivest, R. L., & Stein, C. (2009). *Introduction to Algorithms* (3rd ed.). MIT Press.
@@ -1188,6 +1331,7 @@ Since T-025: `tools/golden/generate_indicator_fixture.py` writes `btcusdt-1h-tal
 - Evans, E., & Fowler, M. (1997). *Specifications*. martinfowler.com.
 - Fowler, M. (2002). *Patterns of Enterprise Application Architecture*. Addison-Wesley.
 - Gamma, E., Helm, R., Johnson, R., & Vlissides, J. (1994). *Design Patterns*. Addison-Wesley.
+- Harris, L. (2003). *Trading and Exchanges: Market Microstructure for Practitioners*. Oxford University Press (ch. 4 order types, ch. 6 liquidity suppliers and demanders).
 - Hewitt, C., Bishop, P., & Steiger, R. (1973). A universal modular ACTOR formalism for artificial intelligence. *IJCAI 1973*.
 - Hohpe, G., & Woolf, B. (2003). *Enterprise Integration Patterns*. Addison-Wesley.
 - IETF RFC 3986 (URI syntax), RFC 7519 (JWT), RFC 9457 (Problem Details for HTTP APIs).
@@ -1199,6 +1343,7 @@ Since T-025: `tools/golden/generate_indicator_fixture.py` writes `btcusdt-1h-tal
 - Nygard, M. T. (2018). *Release It!* (2nd ed.). Pragmatic Bookshelf.
 - OWASP (2021). *OWASP Top 10*; OWASP ASVS 4.0.
 - Richardson, C. (2018). *Microservices Patterns*. Manning (transactional outbox, idempotent consumer).
+- Sweeney, J. (1996). *Maximum Adverse Excursion: Analyzing Price Fluctuations for Trading Management*. Wiley.
 - Tharp, V. K. (1999). *Trade Your Way to Financial Freedom*. McGraw-Hill.
 - Tharp, V. K. (2007). *Trade Your Way to Financial Freedom* (2nd ed.). McGraw-Hill.
 - VNPay (2024). *VNPAY Payment Gateway Integration, API 2.1.0*. MoMo (2024). *MoMo Payment Platform API v2*.
