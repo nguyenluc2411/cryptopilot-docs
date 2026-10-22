@@ -776,6 +776,8 @@ DAY_TRADING v1 keeps the BR-13 weights. The preset weights, timeframes and versi
 
 **Read path (T-029):** `AnalysisServiceImpl` reads the latest row of the requested timeframe and, for the score, the latest row of the preset's timeframe (the same row when they coincide), weights it with `SetupScoreCalculator`, and on Futures reads `dominant_side` from the stored EMAs and `ohlcv.close_price` of that candle (null when either is missing). The preset comes from `market.SetupStyleSource`, a port the profile's owner implements (T-103); with no caller, no implementation or no selection it is DAY_TRADING. Nothing is recomputed or filled in on read.
 
+**Setup score of a trading plan (D-112; TP-A, T-048).** A plan carries a required `analysis_timeframe`, one of the BR-08 timeframes (15m, 1h, 4h, 1d). Its default is the primary timeframe of the Trader's current style preset, with `trading_style` mapped as above: SCALPING 15m, DAY_TRADING 1h, SWING 4h (POSITION → SWING; no style → DAY_TRADING, 1h); the Trader may change it, and existing plans are backfilled from their owner's preset the same way. The plan's score is taken at activation, not at the last draft save: the read path above weights the components of the latest closed candle of `analysis_timeframe` with the Trader's preset at that moment, and the plan stores `setup_score_at_plan` with `setup_score_preset` (name and version, e.g. `DAY_TRADING v1`). At the fill, `setup_score_at_fill` uses the stored preset and version, not the Trader's current one, and `fill_indicators` (RSI14, EMA20/50/200, MACD) come from the latest closed candle of the same timeframe; a forming candle is never used. The formulas and weights of this section are unchanged. When either score is null (fewer than 200 closed candles, a component missing) there is no comparison: `setup_score_drop_warned` stays false and no MSG55 is sent (7.8).
+
 References: Wilder 1978 (RSI); Murphy 1999.
 
 ### 7.5 Risk calculation and warnings (BR-21..31)
@@ -875,7 +877,7 @@ Built in T-044 (rules only, not wired; Q-59): `trading.matching.ExitRule` decide
 - A STOP always pays taker, with slippage (7.8).
 - There is no stop-limit.
 - STOP waits like LIMIT (books, D-77, D-78, replay) and takes the LIMIT expiry default.
-- An activation whose stop the last price has already passed waits on Q-72.
+- An activation (Activate or Save and Activate) whose stop the last price has already reached (LONG last ≥ stop, SHORT last ≤ stop) is refused with MSG16 on `entryPrice`. It is never converted to MARKET; the Trader may choose MARKET, which runs the deviation check of 7.8 (D-112).
 
 *Invalidation (BR-68).* A waiting plan (LIMIT or STOP) has up to two invalidation levels. Each sits on the side of the book opposite its entry:
 
@@ -886,7 +888,7 @@ Built in T-044 (rules only, not wired; Q-59): `trading.matching.ExitRule` decide
 | STOP LONG | Above (`hi ≥ stop`) | SL and `invalidation_price` (Below, `lo ≤ level`) |
 | STOP SHORT | Below (`lo ≤ stop`) | SL and `invalidation_price` (Above, `hi ≥ level`) |
 
-`invalidation_price` must lie on the far side of the current price from the entry, so the price can reach it before the entry. It is checked at save and at activation (MSG15 on the field). A MARKET plan has none.
+`invalidation_price` must lie on the far side of the current price from the entry, so the price can reach it before the entry. It is checked at save and at activation (MSG16 on the field, D-112). A MARKET plan has none.
 
 Per range `[lo, hi]` with open `o` (o may be unknown) and a plan whose candle passed the D-77 check:
 ```
@@ -894,7 +896,7 @@ E = entry reached?   I = some invalidation level reached?      "past L" = o ≥ 
 if E and I:
     if o known and o past an invalidation level  → INVALIDATED   (that level's reason)
     elif o known and o past the entry           → FILLED          (LIMIT at entry; STOP at o, a gap)
-    else                                        → INVALIDATED     (pessimistic, E6; like SL first, BR-35)
+    else                                        → INVALIDATED     (pessimistic, E6; like SL first, BR-35; o unknown is logged, D-112 R4)
 elif I:  → INVALIDATED
 elif E:  → FILLED
 ```
@@ -903,7 +905,7 @@ The open cannot be past both, because the entry and the invalidation levels lie 
 - A candle that opened before `activated_at` neither fills nor invalidates (D-77).
 - Restart replay and the hole replay run the same rule on closed candles, so replay equals live.
 - `ACTIVE_PLAN_MAX` counts ACTIVE plans only (TP-A, BR-62). An INVALIDATED or EXPIRED plan frees its slot with no extra step.
-- A LIMIT whose TP, or a STOP whose SL, the last price has already reached at activation waits on Q-72.
+- At activation the last price (never the mark price) is checked against the invalidation levels with the same inclusive bounds: a LIMIT whose TP, a STOP whose SL, or a LIMIT or STOP whose `invalidation_price` the last price has already reached is refused with MSG16 on that field, so no plan becomes ACTIVE only to be invalidated at once (D-112).
 
 *Activation.*
 - MARKET: the entry deviation check of 7.8 runs (TP-C).
@@ -912,7 +914,7 @@ The open cannot be past both, because the entry and the invalidation levels lie 
 
 *Excursions (T-048).* For each open position the engine keeps the most adverse and the most favourable price.
 - They start at the fill price and are updated from every range the exit book reads.
-- The entry candle contributes only its adverse extreme, because the order inside the minute is unknown (E6). When the fill was at the candle's open (a gap or STOP fill at `o`), the whole candle comes after the fill and counts.
+- The entry candle contributes only its adverse extreme to the most adverse price and nothing to the most favourable price, because the order inside the minute is unknown (E6). This holds also when the fill was at the candle's open (D-112 R5).
 - The exit candle is clamped at the exit price.
 - The engine passes the extremes to `journal.JournalApi`, which writes them when they move on a closed candle and at close. The restart replay covers downtime.
 
@@ -977,9 +979,10 @@ realized_pnl = 30; fee_amount = 0.04 + 0.046 = 0.086; funding_fee_amount = −0.
 ```
 buy  (LONG entry, SHORT exit):  fill = ref × (1 + bps / 10 000), rounded up to the tick
 sell (SHORT entry, LONG exit):  fill = ref × (1 − bps / 10 000), rounded down to the tick
-ref = last price (MARKET, marketable LIMIT, manual close), stop price or open (STOP), SL level or open (STOP_LOSS)
+ref = last price (MARKET, marketable LIMIT, manual close), stop price (STOP, after its trigger), SL level (STOP_LOSS); the open when the candle opened past the level
 not applied to: maker fills (resting LIMIT, TAKE_PROFIT) and liquidation (exit at LP, clearance fee)
 ```
+At MARKET activation the expected fill already includes the slippage, so the quantity is sized on the price paid (D-112 R6). Paper trading (D-86) is not affected.
 Worked examples (Futures, maker 0.02 %, taker 0.05 %, qty 2, tick 0.01):
 - LONG MARKET, last price 100.00, 10 bps: fill = 100.00 × 1.001 = 100.10 (on the tick). Taker fee = 100.10 × 2 × 0.0005 = 0.1001. With 0 bps: fill 100.00, fee 0.1, the entry fee of T-044 case (b), unchanged.
 - SHORT STOP, stop 95.00, no gap, 10 bps: 95.00 × 0.999 = 94.905, rounded down to 94.90. Taker fee = 94.90 × 2 × 0.0005 = 0.0949.
@@ -996,12 +999,12 @@ MARKET activation, block = min(ENTRY_DEVIATION_BLOCK_R, max_entry_deviation_r if
   deviation_r > block, or fill at or past TP                → MSG52 (refused)
 quantity is re-sized at the fill so risk_amount stays the planned risk (BR-23, BR-31)
 ```
-When the override is below `ENTRY_DEVIATION_CONFIRM_R` there is no confirm band. Every fill stores `entry_deviation_r`:
+When the override is below `ENTRY_DEVIATION_CONFIRM_R` there is no confirm band. An override above `ENTRY_DEVIATION_BLOCK_R` is refused at save (MSG15) (D-112 R7). Every fill stores `entry_deviation_r`:
 - resting LIMIT: 0;
 - marketable LIMIT: ≤ 0;
 - STOP gap: > 0, recorded and never refused.
 
-Worked example LONG (supervisor table, 2026-10-07): BTC entry 100,000, SL 98,000, TP 106,000, risk 100 USDT, step 0.0001; |planned − SL| = 2,000.
+Worked example LONG (BTC example from the team lead's summary of 2026-10-07): BTC entry 100,000, SL 98,000, TP 106,000, risk 100 USDT, step 0.0001; |planned − SL| = 2,000.
 - fill 100,000: deviation = (100,000 − 100,000) / 2,000 = 0 → activate. qty = 100 / 2,000 = 0.05. RR = 6,000 / 2,000 = 3.0.
 - fill 101,000: deviation = 1,000 / 2,000 = 0.5R → MSG51. qty = 100 / 3,000 = 0.0333… → 0.0333. RR = 5,000 / 3,000 = 1.67.
 - fill 102,000: deviation = 2,000 / 2,000 = 1.0R > 0.75 → MSG52. It would be qty = 100 / 4,000 = 0.025, RR = 4,000 / 4,000 = 1.0.
@@ -1016,7 +1019,7 @@ Other fills:
 
 **Learning metrics (D-111 M4, BR-70; T-048 stores, T-051 and T-074 derive).** Stored per SIMULATED trade:
 - `planned_entry_price`, `entry_deviation_r`, `entry_liquidity`, the planned `risk_amount`;
-- `setup_score_at_plan`, `setup_score_at_fill`, `fill_indicators` (RSI14, EMA20/50/200, MACD; timeframe and preset Q-71);
+- `analysis_timeframe`, `setup_score_preset`, `setup_score_at_plan` (at activation), `setup_score_at_fill`, `fill_indicators` (RSI14, EMA20/50/200, MACD), all from the latest closed candle of `analysis_timeframe` (7.4, D-112);
 - `max_adverse_price`, `max_favorable_price`.
 
 Derived, never stored, in one domain method and one SQL expression each, like `net_pnl`:
