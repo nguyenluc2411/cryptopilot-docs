@@ -110,6 +110,7 @@ Base `/api/v1`, phân trang `{items, page, pageSize, total}` 20/trang (CR-04), t
 | Code | HTTP | MSG |
 |---|---|---|
 | `MEDIA_INVALID` | 400 | MSG32 |
+| `MEDIA_KEPT_AS_EVIDENCE` | 400 | MSG56 (sửa bài bỏ media đang là bằng chứng kiểm duyệt, A-47) |
 | `POST_ALREADY_REPORTED` | 409 | MSG34 |
 | `POST_REPORT_OWN_POST` | 409 | MSG43 |
 | `MEDIA_NOT_OWNED` | 400 | MSG32 |
