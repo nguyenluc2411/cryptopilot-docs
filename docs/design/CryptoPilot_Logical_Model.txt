@@ -363,6 +363,7 @@ erDiagram
     text content
     varchar market_type "SPOT, FUTURES, null"
     boolean is_official "Admin only, pinned"
+    varchar official_category "ANNOUNCEMENT, PLATFORM_UPDATE, EDUCATION; set iff is_official"
     varchar post_status "PUBLISHED, HIDDEN, DELETED"
     timestamp created_at
     timestamp updated_at
@@ -412,7 +413,7 @@ erDiagram
     varchar reason "SPAM, SCAM, ABUSE, MISLEADING, OTHER"
     text description
     varchar report_status "OPEN, REVIEWING, RESOLVED"
-    varchar resolution_action "HIDE_POST, DISMISS, WARN_USER, BAN_USER"
+    varchar resolution_action "HIDE_POST, REMOVE_POST, DISMISS, WARN_USER, BAN_USER"
     timestamp resolved_at
     timestamp created_at
   }

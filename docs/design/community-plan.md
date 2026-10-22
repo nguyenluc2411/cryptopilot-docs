@@ -16,7 +16,7 @@ Kế hoạch cho phần forum của Trader (SCR-24…27) và phần kiểm duy�
 |---|---|---|
 | Schema | V1 có đủ `forum_post`, `post_coin`, `forum_comment`, `engagement`, `post_media`, `post_report` với các CHECK, unique like/save (BR-45), unique report (BR-46) | Không cần bảng mới. Có thể thêm index cho tab Most Liked và bài official |
 | Security | `/posts/**`, `/comments/**`, `/media/**` cho TRADER; `/admin/**` cho ADMIN | — |
-| Gói | `Feature.VIDEO_POST` (PREMIUM) trong `EntitlementApi` | — |
+| Gói | `Feature.VIDEO_POST` (PRO và PREMIUM từ CF-01d) trong `EntitlementApi` | — |
 | Setting | `MAX_IMAGES_PER_POST` 4, `MAX_IMAGE_SIZE_MB` 5, `MAX_VIDEO_SIZE_MB` 100, `MAX_VIDEO_DURATION_SECONDS` 300 | `SystemSettingApi` chỉ đọc được `decimal(key)` → thêm `integer(key)` |
 | User | `user_profile.display_name`, `avatar_url` | `UserApi` chưa có hàm lấy tên và avatar tác giả theo lô |
 | Coin | `MarketApi.coinsBySymbol` | Chưa có hàm kiểm tra coin đang được dùng trong cặp đã listed |
@@ -61,7 +61,7 @@ FE                         Backend                              Cloudinary
 - **Chữ ký:** chỉ ký các tham số `folder`, `public_id`, `timestamp`, `allowed_formats`. Chữ ký hết hạn sau 1 giờ (Cloudinary tự kiểm tra `timestamp`).
 - **Định dạng:** ảnh JPG/PNG/WEBP, video MP4/WEBM. Video có thumbnail do Cloudinary sinh (URL `.jpg` của video), lưu ở `thumbnail_url`.
 - **Một bài:** 1–4 ảnh hoặc đúng 1 video, không trộn (BR-44). Có video thì `post_type` = VIDEO.
-- **Xoá bài:** soft delete ngay, publish `PostMediaReleased(publicIds)`. Listener của outbox gọi `destroy` trên Cloudinary, lỗi thì retry. Sửa bài mà bỏ media nào thì cũng xoá theo cách này.
+- **Xoá bài:** soft delete ngay, publish `PostMediaReleased(publicIds)`. Listener của outbox gọi `destroy` trên Cloudinary, lỗi thì retry. Sửa bài mà bỏ media nào thì cũng xoá theo cách này. Ngoại lệ (A-47): bài HIDDEN, hoặc có báo cáo OPEN/REVIEWING hay đã xử lý HIDE_POST/REMOVE_POST/BAN_USER thì xoá bài không xoá media, job dọn file cũng giữ lại; bài HIDDEN không sửa được.
 - **File mồ côi** (đã upload nhưng không gắn vào bài nào): P2. Job hằng ngày liệt kê file trong `cryptopilot/posts/` cũ hơn 24h mà không có trong `post_media`, rồi xoá.
 - **Adapter** `community.client.CloudinaryClient`: interface `MediaStorage` gồm `sign`, `describe`, `destroy`. Bản thật chạy trên `RestClient` có timeout; khi thiếu `CLOUDINARY_*` thì profile dev dùng bản giả, còn prod không khởi động (giống cách làm của mail). Test dùng stand-in `com.sun.net.httpserver` theo D-36.
 - **Config** `cryptopilot.media.cloudinary.*` (`@ConfigurationProperties`): cloud name, key, secret, base URL, timeout, folder gốc.
@@ -86,7 +86,7 @@ Base `/api/v1`, phân trang `{items, page, pageSize, total}` 20/trang (CR-04), t
 | PUT / DELETE | `/comments/{id}` | Sửa / xoá comment của mình. Comment đã xoá mà còn reply thì vẫn trả về với `deleted: true`, không có content | 404 |
 | POST / DELETE | `/comments/{id}/like` | BR-45 | 404 |
 | POST | `/posts/{id}/reports` | `{reason, description?}` → 201 + MSG34 | 400 OTHER thiếu mô tả, 409 MSG34 report trùng, 409 report bài của mình |
-| POST | `/media/upload-signature` | `{mediaType}` → thông số upload ký sẵn | 403 MSG29 với video không phải PREMIUM |
+| POST | `/media/upload-signature` | `{mediaType}` → thông số upload ký sẵn | 403 MSG29 với video khi gói không có `VIDEO_POST` (FREE) |
 
 **Một dòng trong feed** gồm:
 - `id`, `author {userId, displayName, avatarUrl}`, `title`, `excerpt` (300 ký tự)
@@ -171,7 +171,7 @@ Phần FE (T-065, SCR-36 của T-087) có plan riêng trong repo FE, không ghi 
   - stand-in Cloudinary: chữ ký đúng thuật toán (so với ví dụ trong tài liệu Cloudinary);
   - file quá dung lượng, sai định dạng, video quá 5 phút, `public_id` của người khác → MSG32;
   - xoá bài → `destroy` được gọi qua outbox, lỗi thì retry.
-- **Gói:** FREE và PRO xin chữ ký video hoặc tạo bài video → MSG29; PREMIUM hết hạn → video cũ vẫn hiển thị.
+- **Gói:** FREE xin chữ ký video hoặc tạo bài video → MSG29 (PRO được đăng video từ CF-01d); hết gói → video cũ vẫn hiển thị.
 - **Kiểm duyệt:** mọi report của bài được giải quyết cùng lúc; có audit; quyết định lỗi thì không có dòng audit nào.
 - Chạy `./mvnw clean verify` sau mỗi lần checkout. `ModularityTest` và `PackageConventionTest` phải pass. Cập nhật OpenAPI, TECHNICAL_DESIGN 8 và fe-guide `modules/community.md` khi API đã chốt.
 
@@ -197,7 +197,7 @@ So với hiểu biết chung về CMC Community, có thể chưa khớp hoàn to
 |---|---|---|
 | Feed bài viết, tab Latest/Top | Có | ✅ Có (Latest, Most Liked 7 ngày, Saved, My Posts) |
 | Gắn coin vào bài, lọc theo coin | Có (kiểu `$BTC`) | ✅ Có (0–5 coin, lọc theo coin và market) |
-| Ảnh, video | Có | ✅ Có (4 ảnh hoặc 1 video; video chỉ PREMIUM) |
+| Ảnh, video | Có | ✅ Có (4 ảnh hoặc 1 video; video cho PRO và PREMIUM) |
 | Like, comment, reply | Có | ✅ Có |
 | Lưu bài (bookmark) | Có | ✅ Có |
 | Report vi phạm, Admin kiểm duyệt | Có | ✅ Có |
@@ -303,7 +303,7 @@ Repo đang đứng ở nhánh `feat/cf-05-notifications`. Migration của forum:
 2. **E-8 repost và poll** (lớn, ưu tiên thấp).
 3. **FE T-065:** feed (có ô tìm kiếm), chi tiết bài, form đăng bài có upload Cloudinary (form ký trước, rồi upload thẳng), dialog report, khối thảo luận trên trang coin, trang profile công khai, trung tâm thông báo. Làm trong repo FE: pull `develop`, tạo nhánh riêng, viết plan FE trong repo FE.
 4. **Trước khi deploy:** ~~job dọn file Cloudinary mồ côi~~ và ~~rate limit cho Guest~~ xong ở `cf-06` (21/10). ~~Thử upload thật với key Cloudinary~~ **xong 21/10** trên nhánh `cf-07`: ký form, upload ảnh thẳng lên Cloudinary, đăng bài (backend đọc lại file thật), Guest thấy ảnh bìa trên feed, `publicId` không tồn tại bị từ chối 400, xoá bài thì file bị xoá khỏi Cloudinary. Còn (tuỳ chọn): giới hạn chữ ký upload theo user.
-5. **Docs:** sửa SRS theo A-44 (Guest đọc forum, REMOVE_POST, video cho PRO, loại bài official) và E-4, E-5 của D-99 giai đoạn 2; cập nhật fe-guide `modules/community.md` khi bắt đầu FE.
+5. **Docs:** ✅ (22/10/2026, A-44 và A-47) sửa SRS theo A-44 (Guest đọc forum, REMOVE_POST, video cho PRO, loại bài official) và E-4, E-5 của D-99 giai đoạn 2; cập nhật fe-guide `modules/community.md` khi bắt đầu FE.
 6. **Push và mở PR** cho các nhánh ở 11.1 khi team sẵn sàng review.
 
 ## 12. Chốt phạm vi trước khi merge (21/10/2026)
