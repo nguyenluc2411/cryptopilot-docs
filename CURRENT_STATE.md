@@ -505,7 +505,7 @@ Plan and estimates: `docs/design/paper-trading-plan.md`, section 17. Owner to be
 | T-084 | Moderation queue and decisions | BE2 | T-064, T-081 | UC-43, BR-61 | All reports of a post resolved together; author and reporters notified | **DONE** 2026-10-20 on `feat/t-084-moderation` (`a4e6fe2`, `65e12cb`, stacked, local) — `/admin/reports-queue` (grouped by post), open → REVIEWING, decision HIDE_POST / DISMISS / WARN_USER / BAN_USER resolving every open report, audit per change (BR-57, new `USER_WARNED`), `PostModerated` for author and reporters (notification task listens, D-98), `/admin/posts/{id}` and `/restore`; BAN_USER through `UserApi.banForModeration` + `AccountSuspended` → auth revokes every session in the same transaction (BR-06), administrators never banned (BR-58, MSG39) |
 | T-085 | Pair and leverage bracket administration | BE2 | T-019, T-081 | UC-45, UC-46, BR-59 | A pair with open positions cannot be disabled | TODO |
 | T-086 | Management reports and CSV export | BE2 | T-081 | UC-40, UC-41 | Revenue and activity figures match a fixture dataset | TODO |
-| T-087 | Admin console UI (all admin screens) | FE | T-082…T-086 | SCR-33…44 | Every admin screen reachable and permission-checked | TODO |
+| T-087 | Admin console UI (all admin screens) | FE | T-082…T-086 | SCR-33…44 | Every admin screen reachable and permission-checked | PARTIAL 2026-10-22 — SCR-36 report moderation on the local branch `feature/T-087-moderation` of `cryptopilot-frontend` (`de96c82`…`ad15709`, not pushed), against the moderation API of the backend branch `feat/community-forum` @ `d43b90c` (PR #63, not merged): `/admin/reports` lists the posts with OPEN or REVIEWING reports, one row per post (count, reasons, first and last report, post status), a page at a time; Review opens the post whatever its status and its reports (they become REVIEWING) and takes one decision for all of them — DISMISS, WARN_USER, HIDE_POST, REMOVE_POST (D-99), BAN_USER — with an optional audit note ≤ 500 (BR-57); Remove and Ban ask first; a hidden post can be restored; BAN on an administrator's post (409 `ACCOUNT_STATUS_TRANSITION_INVALID`, MSG39, BR-58) and reports decided meanwhile (404) get their own messages. The Figma per-report rows and its Pending / Resolved filter are not kept (the backend groups by post and lists open reports only). HTTP adapter written and tested; the app keeps the pending adapter until the merge. Left: announcements (UC-44), the other admin screens after T-082, T-083, T-085, T-086; restoring a hidden post that has no open report needs a list of hidden posts, which the API does not offer |
 
 ### P14 — Mobile (Sprint 11)
 
@@ -645,6 +645,17 @@ Rule: an AI agent never answers an open question by guessing. It implements what
 ## 9. Session log
 
 Newest first. One block per working session, format in `CLAUDE.md` section 8.
+
+### 2026-10-22 – T-087 Web report moderation (SCR-36) (cryptopilot-frontend)
+- Result: PARTIAL (SCR-36 built on development fixtures; the moderation API is in PR #63, not merged; the other admin screens wait on their backend tasks)
+- Summary: Contract read from backend `feat/community-forum` @ `d43b90c` (`ModerationController`: `GET /admin/reports-queue`, `GET /admin/reports-queue/{postId}`, `POST /admin/reports-queue/{postId}/decision` with `action` and `note`, `GET /admin/posts/{id}`, `POST /admin/posts/{id}/restore`). New moderation port, HTTP adapter and decoders; queue table (one row per post) and review dialog with the five decisions, confirmations for Remove and Ban, restore of a hidden post; the development community keeps reports with reporters so a decision shows in the feed at once. Checked at 1440 and 390 px, light and dark.
+- Files: web `src/types/domain.ts`, `src/services/api/{contracts,services,moderation}.ts`, `src/dev/{dev-community.ts,fixtures/community.ts}`, `src/features/moderation/**`, `src/pages/admin/AdminReportsPage.tsx`, `src/app/router/screen-pages.ts`, `src/i18n/locales/en.ts`, `e2e/moderation.spec.ts`
+- Tests: +10 (adapter 5, development service 2, screens 3) and 1 E2E workflow (desktop and phone); web suite 487/487, whole E2E suite 31/31
+- BR/UC/NSF covered: UC-43, SRS 3.11.3, BR-47 (Admin reads any post), BR-57 (audit note), BR-58 (no ban of an administrator)
+- Decisions: none new
+- Open questions: none new. Gap for the team: an Admin can restore a hidden post only while it is in the queue, since no endpoint lists hidden posts
+- Next: (1) Owner: review, merge and push `feature/T-065-coin-discussion` and `feature/T-087-moderation`; D-111 / ADR-022. (2) Web next: announcements (UC-44, `/admin/announcements`, reusing the post form). (3) After PR #63 merges: switch `community`, `notifications` and `moderation` to HTTP, give the notification adapter the signed-in feed, re-check the upload form (P1-1), test against the backend.
+- Commits: web `de96c82`, `3a883f2`, `965c2ff`, `7932cff`, `36cfbca`, `c5a100f`, `ad15709` (branch `feature/T-087-moderation`, not pushed)
 
 ### 2026-10-22 – T-065 Coin discussion on SCR-10/11 (cryptopilot-frontend)
 - Result: PARTIAL (T-065 stays PARTIAL until the backend merges PR #63)
