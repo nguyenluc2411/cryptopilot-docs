@@ -195,9 +195,9 @@ Thresholds are system settings; the numbers above are the seed values and can ch
 
 Source: `trading/model/enums/WarningType.java#L9`. Spec: BR-28, BR-29, Q-27.
 
-## Alerts — PENDING PR (`feat/t-054-alert-rules`)
+## Alerts
 
-Not on `develop`. Values from the branch at `0803903`.
+On `develop` since PR #44 (T-054); unchanged since the branch read at `0803903`.
 
 ### `AlertType`
 
@@ -246,7 +246,7 @@ For MACD_CROSS / EMA_CROSS, `CROSS_ABOVE` means the first line crosses above the
 
 "Paused because of a plan change" (SRS 3.4.3) has no marker yet (Q-31).
 
-Source (branch): `backend/src/main/java/com/cryptopilot/watchlist/model/enums/AlertType.java#L9`,
+Source: `backend/src/main/java/com/cryptopilot/watchlist/model/enums/AlertType.java#L9`,
 `AlertIndicator.java#L8`, `ConditionOperator.java#L8`, `TriggerMode.java#L8`, `AlertStatus.java#L20`
 (same folder).
 

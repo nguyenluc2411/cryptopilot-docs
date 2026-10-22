@@ -29,6 +29,7 @@ CryptoPilot helps traders analyse the Binance Spot and USDⓈ-M Futures markets,
 | `docs/srs/` | **What** the system must do — SRS Report 3 (business rules BR-xx, use cases UC-xx, screens SCR-xx, non-screen functions NSF-xx, messages MSGxx) | Whenever a task references an SRS id |
 | `docs/design/TECHNICAL_DESIGN.md` | **How** it is built — architecture, folder structure, design patterns, algorithms, APIs, test strategy | Before writing code in a new area |
 | `docs/design/CryptoPilot_Logical_Model.txt` | Data structure (38 entities, Mermaid ER) | Any task that touches data |
+| `docs/design/fe-guide/` | The backend API as the web and mobile clients use it: endpoints with readiness, auth, errors and MSG mapping, enums, realtime, FE task map, spec-vs-code mismatches | Before any FE task, and after each backend PR that changes the API |
 | `docs/design/context-diagram.txt` | System boundary and external entities (Mermaid) | Integration work |
 | `docs/adr/` | One decision per file, with consequences and alternatives | Before changing an architectural choice |
 | `docs/test/` | Test plan, golden data description, traceability matrix | Test work |
@@ -51,7 +52,7 @@ cryptopilot/
 ├── docs/                  srs · design · adr · test
 ├── backend/               Spring Boot (Maven): com.cryptopilot.<module>.<layer>
 ├── ai-service/            Node.js + TypeScript, stateless
-├── web/                   React + TypeScript + Vite
+├── web/                   empty: the web client is the repository cryptopilot-frontend (D-90)
 ├── mobile/                Flutter
 ├── deploy/                docker-compose, environment files
 └── tools/                 golden indicator data, scripts

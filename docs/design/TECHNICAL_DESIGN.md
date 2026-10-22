@@ -94,7 +94,7 @@ Only the backend owns the database (single writer). The AI Service has no databa
 | Formatting | Spotless with Palantir Java Format | `./mvnw spotless:apply` |
 | Coverage | JaCoCo | Gates in section 11 |
 | AI Service | Node.js LTS, TypeScript, Fastify, zod, @anthropic-ai/sdk, bottleneck | Unchanged |
-| Web | React 18 + TypeScript + Vite, TanStack Query, React Router, React Hook Form + zod, @stomp/stompjs, TradingView Lightweight Charts | |
+| Web | React 19 + TypeScript + Vite, Tailwind CSS 4, React Router, React Hook Form + zod; TanStack Query, @stomp/stompjs and TradingView Lightweight Charts added by the first task that needs them | Separate repository `cryptopilot-frontend` (D-90, ADR-015); React 19 and the added packages in ADR-016 (D-100) |
 | Mobile | Flutter (stable), Riverpod, dio, go_router, stomp_dart_client | Chart library in ADR-012 |
 | Tests | JUnit Jupiter, AssertJ, Mockito — Boot 4 has no single `spring-boot-starter-test`; pull the per-slice starters (`spring-boot-starter-webmvc-test`, `-actuator-test`, `-validation-test`, later `-data-jpa-test`). Plus Testcontainers, WireMock (not yet added — the Binance client is tested against a JDK `com.sun.net.httpserver` stand-in, D-36, accepted 2026-09-24), ArchUnit, Spring Modulith Test, jqwik; Vitest, Playwright, k6 | |
 
@@ -431,7 +431,7 @@ Other folders of the repository:
 cryptopilot_project/
 ├── backend/                    # above
 ├── ai-service/src/ { server.ts, config/, routes/, llm/, prompts/, limiter/, schemas/ }, test/
-├── web/src/ { app/, features/<module>/{api,components,hooks,pages}, shared/{api,components,lib,realtime,i18n} }
+├── web/                       # empty: the web client is the repository cryptopilot-frontend (4.4, D-90)
 ├── mobile/lib/ { core/, features/<module>/{data,domain,presentation} }, test/
 ├── tools/golden/               # script that generates reference indicator data
 ├── deploy/ { docker-compose.dev.yml, docker-compose.yml, .env.example, nginx/ }
@@ -451,6 +451,36 @@ cryptopilot_project/
 | `trading/entity/TradingPlan.java`, `TradingPlanWarning.java`; `trading/model/enums/PlanStatus.java` | Aggregate root with `draft()`, `updateDraft()`, `activate()`, `markExecuted()`, `cancel()`, `expire()`; one transition table in `PlanStatus`; each terminal status stores its instant (BR-31, BR-32; D-66…D-69) |
 | `trading/repository/TradingPlanRepository.java` | Spring Data JPA |
 | `src/test/java/com/cryptopilot/trading/calculator/RiskCalculatorTest.java` | `BR23_…`, `BR24_…`, `BR25_…` |
+
+### 4.4 Web client (separate repository, D-90)
+
+The web client is the repository `cryptopilot-frontend` (ADR-015), not `web/` of this repository.
+Stack: TECHNICAL_DESIGN 1.3 with the additions of ADR-016 (D-100). Folders under `src/` (as of T-030 and T-016):
+
+| Folder | Holds | Must not |
+|---|---|---|
+| `app/` | Composition root (`providers/create-services.ts`), router and route guards, shells (`layouts/`), theme, environment | Hold business rules |
+| `pages/{guest,trader,admin}/` | One thin page per screen (SCR-xx), composing feature components | Call services, `fetch` or `WebSocket` (ESLint) |
+| `features/<module>/` | `components/`, `hooks/`, `schemas.ts` of one area (auth, market, trading-plan, …) | Import another feature's internals |
+| `components/{ui,layout,feedback,charts,brand}/` | Domain-neutral controls from the design system | Know business data |
+| `services/{api,auth,websocket}/` | Service interfaces, HTTP client (problem detail, MSG ids), session store, realtime client | Be imported by pages or components (ESLint) |
+| `i18n/` | Every interface string, MSG texts of SRS 5.3 (A-45) | — |
+| `types/domain.ts` | Client domain model; decimals stay strings (5.4) | Mirror wire DTOs; adapters map them |
+| `dev/` | Development data and the labelled development sign-in | Reach a production build (the build fails) |
+
+Rules:
+
+1. Direction: page → feature hook → service interface → adapter → backend. A hook owns the request
+   lifecycle and aborts on unmount.
+2. An adapter decodes every response body at runtime before it becomes a typed value, and keeps only
+   `code`, `messageCode`, `messageArgs`, field `errors` and `traceId` of a problem detail (5.1); the
+   user sees the SRS message, never `detail`.
+3. The contract is `docs/design/fe-guide/`. A service whose endpoint is not merged rejects with
+   `NOT_CONFIGURED`; no endpoint, field or status is invented, and a failed request never falls back to
+   development data.
+4. Role guards follow SRS 3.1.3; plan tiers (D-58) only decide what the client offers, the backend
+   decides every request.
+5. Tests: Vitest, with Testing Library under jsdom for components (11.1).
 
 ---
 
@@ -1010,7 +1040,7 @@ Endpoint catalogue (summary):
 | watchlist | GET/POST /watchlist; PATCH/DELETE /watchlist/{id}; GET/POST /alerts; PUT/DELETE /alerts/{id}; POST /alerts/{id}/pause, /resume. Built in T-053 (D-75), Trader only: `GET /watchlist` → `{ items, limit }` (whole list, not paged, `sortOrder` then `addedAt`; `limit` = `WATCHLIST_MAX`, null when unlimited); `POST /watchlist` `{ pairId, label?, note? }` → 201 (404 MSG41 unknown or unlisted pair, 409 MSG45 already watched, 409 MSG27 limit); `PATCH /watchlist/{id}` `{ label?, note?, sortOrder? }` (null = unchanged, empty = cleared); `DELETE /watchlist/{id}?confirm=&expectedAlertCount=` → 204, or 400 MSG26 (symbol, alert count) when the row has alerts and `confirm` is not true, or when `expectedAlertCount` (optional, the {n} the Trader confirmed) differs from the count under the D-63 lock — nothing is removed (D-76). Another Trader's row answers 404. Alerts built in T-054 (D-76): `GET /alerts?status=&type=&page=&pageSize=` (newest first, 20 per page, CR-04); `POST /alerts` `{ pairId, market, type, indicator?, timeframe?, condition, threshold? (null for MACD_CROSS / EMA_CROSS), triggerMode, cooldownMinutes?, notifyEmail?, notifyPush?, expiresAt? }` → 201 ACTIVE, a pair not yet watched is added to the watchlist in the same transaction (BR-16); `PUT /alerts/{id}` (same body without `pairId`; a TRIGGERED or EXPIRED alert becomes ACTIVE); `POST /alerts/{id}/pause`, `/resume`; `DELETE /alerts/{id}` → 204. 400 MSG01/MSG15 per field, 403 MSG29 (INDICATOR_ALERT, FUTURES_ANALYSIS, EXTERNAL_ALERT_CHANNELS), 404 MSG41 (not the caller's, or the pair not enabled on the market), 409 MSG27 (ACTIVE_ALERT_MAX or WATCHLIST_MAX, under the D-63 lock), 409 MSG43 `ALERT_STATUS_TRANSITION_INVALID` |
 | trading | POST /plans/calculate (no persistence); GET/POST /plans; GET/PUT /plans/{id}; POST /plans/{id}/activate, /cancel, /close-position |
 | journal | GET /journal; GET/PUT /journal/{id}; POST /journal/manual; DELETE /journal/{id} (MANUAL only); GET /performance |
-| community | GET/POST /posts; GET/PUT/DELETE /posts/{id}; POST/DELETE /posts/{id}/like, /save; GET/POST /posts/{id}/comments; PUT/DELETE /comments/{id}; POST/DELETE /comments/{id}/like; POST /posts/{id}/reports; POST /media/upload-signature |
+| community | Built in T-060 (D-98), Trader only: `GET /posts?tab=LATEST, MOST_LIKED, SAVED or MINE &coin=&market=&page=&pageSize=` → page of cards `{id, author{userId, displayName, avatarUrl}, title, excerpt (300), postType, marketType, official, status, coins[], likeCount, commentCount, likedByMe, savedByMe, createdAt, updatedAt}` (official posts not in LATEST/MOST_LIKED; MOST_LIKED = last 7 days by likes; an unknown coin → empty page); `GET /posts/pinned` (published announcements); `GET /posts/{id}` (+`content`, `mine`; 404 MSG41 when not visible under BR-47); `POST /posts` `{title 5–150, content 1–10 000, marketType?, coins[0–5 symbols of listed pairs]}` → 201 (400 MSG01 per field); `PUT /posts/{id}`, `DELETE /posts/{id}` → 204 (own, not deleted, else 404). Admin: `GET/POST /admin/announcements`, `PUT/DELETE /admin/announcements/{id}`. Media (T-061, T-062, D-98): `POST /media/upload-signature` (Trader) and `POST /admin/media/upload-signature` (Admin) `{mediaType IMAGE or VIDEO}` → `{uploadUrl, apiKey, timestamp, signature, publicId, allowedFormats, mediaType, maxBytes, maxDurationSeconds}` (403 MSG29 for VIDEO without `VIDEO_POST`, 503 MSG43 storage unavailable); the post body takes `media: [{publicId, mediaType}]` (4 images or 1 video, checked on the stored file, 400 MSG32 with the limit as message argument) and answers `media[]` (detail) / `cover` (card). Comments and reactions (T-063): `GET/POST /posts/{postId}/comments` (threads oldest first with `replies[]`; `{content 1–2 000, parentCommentId?}`; a reply to a reply joins the first comment's thread), `PUT/DELETE /comments/{id}` (own, not deleted), `POST/DELETE /posts/{id}/like`, `/posts/{id}/save`, `/comments/{id}/like` → `{active, count}`. Reports (T-064): `POST /posts/{id}/reports` `{reason SPAM, SCAM, ABUSE, MISLEADING or OTHER, description? ≤ 500, required for OTHER}` → 201 OPEN; 409 MSG34 `POST_ALREADY_REPORTED`, 409 MSG43 `POST_REPORT_OWN_POST`. Moderation (T-084, Admin): `GET /admin/reports-queue` (one row per post with open reports: card, `reportCount`, `reasons`, first/last reported), `GET /admin/reports-queue/{postId}` (post + open reports, marks them REVIEWING), `POST /admin/reports-queue/{postId}/decision` `{action HIDE_POST, DISMISS, WARN_USER or BAN_USER, note? ≤ 500}` → `{postId, action, postStatus, resolvedReports, authorBanned}` (404 without open reports, 409 MSG39 banning an administrator), `GET /admin/posts/{id}` (any status), `POST /admin/posts/{id}/restore` (409 `POST_NOT_HIDDEN`). D-99 additions: Guest GET on `/posts`, `/posts/pinned`, `/posts/{id}`, `/posts/{id}/comments`, `/posts/trending`, `/posts/coins/{symbol}/discussion` or `/sentiment`, `/community/members/{id}` (and `/followers`, `/following`); feed filters `sentiment`, `author`, `hashtag`, `q` and tab FOLLOWING; post fields `sentiment`, `hashtags[]`, `officialCategory`; `POST /posts/coins/{symbol}/sentiment` `{sentiment}`; `POST/DELETE /community/members/{id}/follow` → `{active, count}`; moderation action REMOVE_POST. |
 | news | GET /news?coin=&sentiment=&range=; GET /news/sentiment-summary |
 | ai | GET/POST /ai/conversations; PATCH/DELETE /ai/conversations/{id}; GET/POST /ai/conversations/{id}/messages |
 | billing | GET /billing/packages; POST /billing/orders; GET /billing/orders; GET /billing/orders/{code}; GET /billing/subscription; POST /billing/ipn/vnpay; POST /billing/ipn/momo; GET /billing/return/{gateway} |
@@ -1078,7 +1108,7 @@ In-process market pipeline: stream shard → `ArrayBlockingQueue<MarketEvent>` p
 | API | Auth, authorization matrix (SRS 3.1.3), validation, ProblemDetail | `@SpringBootTest` + MockMvc / `RestTestClient` | All pass |
 | Module | One module in isolation with its events | Spring Modulith `@ApplicationModuleTest`, `Scenario` | All pass |
 | AI Service | Schema validation, retry, timeout, disclaimer | Vitest, nock | All pass; coverage ≥ 80% |
-| Web | Components and hooks | Vitest, Testing Library | All pass |
+| Web | Components and hooks (separate repository, 4.4) | Vitest, Testing Library, jsdom | All pass |
 | E2E | Register → verify → login; create/activate plan → fill → close → journal; purchase (sandbox) | Playwright | Nightly |
 | Mobile | Widget and provider tests | flutter_test | All pass |
 | Performance | NFR 4.2.3 targets | k6 | Before release |

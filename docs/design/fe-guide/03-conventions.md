@@ -171,10 +171,10 @@ Spec: TD 5.1, D-25, RFC 9457.
 | `MARKET_PRICE_UNAVAILABLE` | 503 | MSG43 | MARKET plan with no current price: last price on Spot, mark price on Futures (A-39, D-84) | "Price unavailable, try again", keep form |
 | `WATCHLIST_PAIR_ALREADY_WATCHED` | 409 | MSG45 | Pair already watched; `messageArgs[0]` = symbol | Inline |
 | `WATCHLIST_REMOVAL_CONFIRMATION_REQUIRED` | 400 | MSG26 | Remove a watched pair that has alerts; `messageArgs` = `[symbol, n]` | MSG26 confirm dialog, resend with `confirm=true` |
-| `ALERT_STATUS_TRANSITION_INVALID` | 409 | MSG43 | **PENDING PR (T-054).** Pause a non-ACTIVE / resume a non-PAUSED alert | Reload alert |
+| `ALERT_STATUS_TRANSITION_INVALID` | 409 | MSG43 | Pause a non-ACTIVE / resume a non-PAUSED alert | Reload alert |
 
 Source: `backend/src/main/java/com/cryptopilot/common/exception/ErrorCode.java#L23`
-(`ALERT_STATUS_TRANSITION_INVALID` at `#L266` on `feat/t-054-alert-rules`).
+(`ALERT_STATUS_TRANSITION_INVALID` at `#L275`, `RATE_LIMITED` at `#L223`).
 
 ## Message texts (SRS 5.3)
 
