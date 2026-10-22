@@ -645,6 +645,12 @@ Rule: an AI agent never answers an open question by guessing. It implements what
 
 Newest first. One block per working session, format in `CLAUDE.md` section 8.
 
+### PR #63 review – 2026-10-22
+- Author: BE3 | Scope: community forum (P9: T-060…T-064, T-084, D-99 phase 1, E-1 notifications, E-4/E-5) + notification, user, auth, common edges
+- Verdict: REQUEST CHANGES | P0: 0, P1: 3, P2: 5 | build `clean verify` @ `d43b90c` 3151/3151, spotless and coverage met
+- Key blockers: P1-1 upload signature lacks `overwrite=false`, so a replayed form within 1 h replaces an already checked file (BR-44 bypass) · P1-2 media sweep destroys files of REMOVE_POST posts that moderation says it keeps · P1-3 PR body has AI attribution line and a private docs path
+- Report: ../reviews/PR-63-review.md
+
 ### 2026-10-21 – T-059 funding unit, T-040 create form, TR-08 pushes and TR-F5 PnL on the web (cryptopilot-frontend)
 - Result: PARTIAL (T-040, T-059, TR-F3, TR-F5 stay PARTIAL)
 - Summary: (1) Merged into the web `develop` with merge commits and pushed, no PRs (no `gh` on the machine; owner's choice): `chore/T-112-renumbered-ids` (`cbc1bd9`, code comments follow the renumbered FE ids), `fix/T-059-funding-percent` (`fa962da`, Q-30: FUNDING_RATE threshold in percent, −5…5), `feature/T-040-plan-create` (`8e71d7d`, SCR-17 create form, Spot), `feature/TR-F3-user-queues` (`c2d3ed1`, TR-08 account pushes), `feature/TR-F5-pnl-analysis` (`40dcf1a`, PnL analysis page). (2) Backend `develop` `132c480` run locally: browser check of the account pushes and the PnL page 13/13 (token accepted in CONNECT, three user queues, no reads while idle, pushes for a resting LIMIT and a MARKET buy, PnL values equal to the API, no page errors); a new account has one daily snapshot, so the worth chart now starts on the second day (`d4e355b`). (3) Futures plans stay blocked: `leverage_bracket` is empty until T-085.
