@@ -3457,3 +3457,11 @@ Kept current as tasks close (`/end-session` step 5). Each row: BR/UC/NSF/SCR id 
 - Commits: 2 (`a55b56a` fix(paper): keep pnl and cost right when prices are missing; `b4e6d48` fix(paper): realistic replayed stops and default otoco quantity)
 - Q-51/Q-52 fixed in `bc80a4c`
 - Review: CHANGES MADE (independent review as BE1), `0504201` test(paper): prove a replayed candle passes its open to a stop; suite 2962/2962; Q-53 opened
+
+## Fix flaky CI - leaked USDT coin
+- Cause: `MarketTestData.pair` creates the USDT quote coin, but the cleanups in `WatchlistApiTest`, `AlertApiTest` and `AlertTestData.clear()` deleted only the base coin; when those classes ran before the schema tests (CI run on `develop` @ `4f9003a`), `SeedDataTest`, `SchemaConstraintTest` and `CandleBackfillJobTest` failed
+- Tests changed: `MarketTestData`, `WatchlistApiTest`, `AlertApiTest`, `AlertTestData`, `TradingPlanApiTest`, `SchemaConstraintTest` (reuses a stored BTC/USDT coin; rolled back by `@Transactional`). `SeedDataTest` left strict on purpose: clearing tables before it would make it pass every time
+- Helper added: `MarketTestData.remove(UUID pairId)` (`backend/src/test/java/com/cryptopilot/market/MarketTestData.java`): market rows → pair → base/quote coin when no other pair uses it
+- Verified orders: default, reversealphabetical, random x2 (seeds 4242, 20261020) -> 3014 tests each; reversealphabetical and seed 20261020 3014/3014. Default and seed 4242 each had 1 failure, in a different timing-based test: `ReplayLockBackoffTest.D79_…` and `BinanceStreamShardTest.NSF03_…`; neither touches coins, and both passed in the other runs. Old code with reversealphabetical on the affected classes reproduces CI (2 failures, 36 errors); fixed code 197/197
+- Follow-up: `ReplayLockBackoffTest` and `BinanceStreamShardTest` measure real time and are flaky under load; not in this fix
+- Branch/PR: `fix/test-coin-cleanup-leak` @ `f89ca10`, https://github.com/nguyenluc2411/cryptopilot_project/pull/62
