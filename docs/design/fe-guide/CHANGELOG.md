@@ -2,6 +2,13 @@
 
 Newest first. Each entry names the `develop` SHA the guide was synced to.
 
+## 2026-10-23 (later) — TP-A setup score on the preset's timeframe, branch `feature/TP-A-plan-validity`
+
+- `modules/trading-plan.md`: Q-77 answered again by the team lead: `setupScoreAtPlan` is read on
+  the preset's own timeframe (SCALPING 15m, DAY_TRADING 1h, SWING 4h), the same score the Setup Score
+  card of `GET /analysis` shows, not on `analysisTimeframe`; `analysisTimeframe` stays the plan's
+  chart timeframe and the timeframe of the fill indicators. Replaces the entry below on this point.
+
 ## 2026-10-23 — TP-A review fixes, branch `feature/TP-A-plan-validity` (on `develop` @ `612b201`)
 
 - `modules/trading-plan.md`: Q-77 answered; a plan on another timeframe than its preset's now gets a

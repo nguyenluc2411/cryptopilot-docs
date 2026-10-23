@@ -157,12 +157,17 @@ Status: on `feature/TP-A-plan-validity` (not merged). Spec: BR-33, BR-68, BR-69,
 - **`maxEntryDeviationR`**: the plan's own limit on a worse MARKET entry, in R; only stricter than
   the system's 0.75. Stored and returned; it is enforced at MARKET activation from TP-C on.
 - **`analysisTimeframe`**: defaults from the Trader's trading style (SCALPING `15m`, DAY `1h`,
-  SWING and POSITION `4h`, none `1h`); the Trader may pick any of the four.
+  SWING and POSITION `4h`, none `1h`); the Trader may pick any of the four. It is the plan's chart
+  timeframe (and the timeframe of the indicators stored at the fill); it does **not** choose the
+  timeframe of the setup score.
 - **`setupScoreAtPlan` / `setupScorePreset`**: taken at activation (Activate and Save and Activate)
-  from the latest **closed** candle of `analysisTimeframe`, under the preset the Trader's style
-  selects at that moment (a style change after the draft save counts). A null score never refuses
-  the activation. The preset's weights apply to `analysisTimeframe` even when it is not the
-  preset's own timeframe (Q-77 answered). The score is null when that candle is not analysed yet
+  under the preset the Trader's style selects at that moment (a style change after the draft save
+  counts), from the latest **closed** candle of **that preset's own timeframe** (SCALPING `15m`,
+  DAY_TRADING `1h`, SWING `4h`), whatever `analysisTimeframe` is. It is the number the Setup Score
+  card of `GET /analysis` shows at that moment (its `setupScore` is also read on the preset's
+  timeframe, whatever `tf` is open), so the plan screen can show the two side by side without a
+  mismatch (Q-77, answered again 2026-10-23). A null score never refuses the activation. The score
+  is null when that candle is not analysed yet
   (also after an indicator outage: an older candle never stands in) or a component is missing;
   `setupScorePreset` is also null when the score could not be read at all. Show "—" for null;
   never compute it on the client.
