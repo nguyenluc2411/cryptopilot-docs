@@ -4051,6 +4051,32 @@ Kept current as tasks close (`/end-session` step 5). Each row: BR/UC/NSF/SCR id 
 - Tests added: D99_theAuthorDeletingAHiddenPost_releasesNoFile, D99_theAuthorDeletingAReportedPost_keepsItsFiles_throughRemovalAndTheSweep, D99_aPostWhoseReportsWereDismissed_losesItsFiles_whenItsAuthorDeletesIt, D98_aSecondUploadUnderTheSameKey_keepsTheFirstFile (+ hidden revise assertion in ForumPostTest) | verify: 3159/3159 pass
 - Commit: 6068355 pushed to origin/fix/community-forum-review (on top of reviewed 4cc268f) (subject shortened to fit the 72-char hook) | WARN_USER-resolved reports treated like DISMISS (files released): decided 2026-10-22, SRS aligned (A-47)
 
+### 2026-10-22 — Spot paper trading: high-severity fixes
+- Status: done (verify green, committed, pushed); PR pending after the forum PR
+- Branch: fix/spot-paper-high-severity (worktree cp-spot, from develop 132c480; develop untouched), uncommitted, not pushed
+- Issues fixed: 1 missed fills on merged trades; 2–3 full symbol filters, reject not round; 4 cancel on pair stop; 5 listClientOrderId; 6 OTO/OTOCO pending checks
+- Issue 1 (missed fills):
+  - PriceRange keeps every merged trade in trade order (`prints`); PaperOrderBook.reach / TriggerBook judge each order by its own trades at or after placedAt; QUEUE consumes only volume traded after placement; candles keep D-77/D-78
+  - PaperMatchingWorker keeps recent live trades per pair (10s / 1000) and runs catch-up when Track / TrackTrigger arrives
+  - Pending legs of OTO/OTOCO wait from their working order's fill (activation time), not the group's placement
+- Issues 2–3 (filters, open-order limits):
+  - SymbolRules (market): PRICE_FILTER min/max, LOT_SIZE min/max, MARKET_LOT_SIZE, NOTIONAL max + apply flags, PERCENT_PRICE_BY_SIDE, TRAILING_DELTA, MAX_NUM_ORDERS, MAX_NUM_ALGO_ORDERS; parsed from exchangeInfo, stored for Spot only
+  - SpotFilters (paper): price/stopPrice/quantity refused off grid or out of bounds, never rounded; notional min/max (MARKET by sweep VWAP when applied); percent price vs last price; trailingDelta range (`@Min(10) @Max(2000)` replaced by `@Positive`)
+  - SpotOrderLimits: open orders incl. group legs and PENDING_NEW, and open stops, counted under the paper UserLock
+- Issue 4 (pair stops trading):
+  - SymbolSyncWriter publishes SpotPairStoppedTrading (named interface `events`, outbox per ADR-010) when Spot status leaves TRADING
+  - PairStopListener + PairStopCancellation: per account, own transaction, under UserLock; cancel open/PENDING_NEW orders with status_reason PAIR_NOT_TRADING, OCO unlocked once, PaperUserFeed + PaperOrderCanceled; idempotent, a failing account retried by the outbox
+  - New orders on a pair the exchange stopped trading are refused (404 MSG41, as an untradable pair)
+- Issue 5: `listClientOrderId` on PlaceOrderListRequest / OrderListResponse; same key + same values → 200 stored group, other values → DATA_CONFLICT
+- Issue 6: OTO pending stop checked against the working price (PAPER_ORDER_WOULD_TRIGGER); OTOCO TP/SL on either side of the working price; at activation a stop already met ends EXPIRED (WOULD_TRIGGER_ON_ACTIVATION), locks nothing, working fill stands; OTOCO TP then goes on alone
+- Migration: V27__spot_symbol_filters_and_list_client_order_id.sql (crypto_pair: 20 nullable spot_* rule columns + positive check; paper_order_list.list_client_order_id varchar(64) NOT NULL, backfilled from list_id, UNIQUE (account_id, list_client_order_id)). WARNING: V27–V29 already used by PR #63 (feat/community-forum) — renumber before merging the later one
+- New error codes: PAPER_PRICE_FILTER, PAPER_LOT_SIZE, PAPER_MARKET_LOT_SIZE, PAPER_NOTIONAL, PAPER_PERCENT_PRICE, PAPER_TRAILING_DELTA (400 MSG15); PAPER_MAX_NUM_ORDERS, PAPER_MAX_NUM_ALGO_ORDERS (409 MSG43); messageArgs = field, value, limit, MIN|MAX|STEP
+- New config: cryptopilot.paper.matching.recent-trades.window=10s, .max-trades=1000; cryptopilot.paper.order.spot-max-num-orders=200, .spot-max-num-algo-orders=5
+- Decisions taken: scope follows the registration form, kept minimal; per-trade prints kept instead of only the latest time per price (QUEUE needs volume after placement); catch-up uses trades strictly after placedAt (the trigger trade already met the order on arrival) and does not consume the queue; TriggerBook also uses prints; applyMinToMarket null→true, applyMaxToMarket null→false; percent price reference = last price (skipped without one); stop event fires on exchange status, not on the admin INACTIVE switch
+- Tests: ~110 added (SpotFiltersTest 44, PaperOrderApiTest +12, worker/book/trigger/records, market parser/mapper/entity/sync, SymbolRulesTest, PairStopListenerTest); expected-columns.csv updated by hand; PaperOrderApiTest 67 tests green (66/66 run + new pending-stop test 1/1) + affected suites green; clean `mvnw verify` 3114/3114 green, coverage gate met, spotless OK (an earlier AlertEngineTest failure did not repeat; known flaky)
+- Left for later: replayed stop-limit may be caught up by live trades; first sync after deploy logs every pair as "filters changed" once; prints copied per merge (O(n²) on a long consumer stall); partial fills by volume, slippage past depth20, OCO leg types/trailing, order amend, fills by orderId, history filters, multi-instance engine note
+- Commits: 2, pushed to origin/fix/spot-paper-high-severity 2026-10-22, no PR yet (`4640e88` feat(market): store full spot symbol filters and publish pair stops; `fb29fcd` fix(paper): filter checks, late trades, idempotent lists, OTO checks). Paper suite run twice: 275/275 both
+
 ### PR #63 review fixes, round 3 – 2026-10-22
 - Edit of a post whose files are moderation evidence (`holdsEvidence`) that drops a file: 400 MSG32 on `media`, checked before and inside the transaction: done | text, coins, market and added files still allowed: done | delete, sweep query, report creation, API shape unchanged
 - Tests added: D99_anEditOfAReportedPost_cannotDropItsFiles, D99_afterADismiss_anEditMayDropTheFiles | verify (`clean verify`, coverage gate): 3159/3159 pass
@@ -4072,3 +4098,18 @@ Kept current as tasks close (`/end-session` step 5). Each row: BR/UC/NSF/SCR id 
 - Open decisions: OD-1 slice scope (recommend NEW/RENEW/DOWNGRADE now, UPGRADE/BR-63 later); OD-2 second checkout without the same key; OD-3 send MoMo orderExpireTime = ORDER_EXPIRY_MINUTES; OD-4 Flutter deeplink vs payUrl; OD-5 EXPIRED terminal vs A-03 late success (A-03 PENDING blocks T-069); OD-6 Idempotency-Key required?; OD-7 IPN status codes (204 vs 5xx on own failure); OD-8 new V30 migration (V1 not edited; check BE2 branches for V30); OD-9 user_id + partial unique on user_subscription; OD-10 gateway payload storage for UC-48; OD-11 /billing/return/{gateway}; OD-12 receipt mail/notification owner
 - Conflicts noted: the brief's "terminal states final" vs TD 7.11/A-03; the brief's conditional update vs TD 5.5 row lock (plan uses FOR UPDATE + UNIQUE order_id); "extension" vs BR-55 queue (renewal = new SCHEDULED row). MoMo v3 portal returned 403 to automated fetch: IPN/query signature field lists to verify (plan step 4.1)
 - Next: implement T-066 minimal -> T-068 -> T-069 (MoMo IPN)
+
+### 2026-10-23 — Spot paper trading: review follow-ups on fix/spot-paper-high-severity
+- Status: done
+- 1 activated_at persisted; resting/watched instant = triggered_at > activated_at > created_at; restart test added
+- 2 pending stop met on activation now triggers (OCO TP expires); REPLAY uses the filling candle, not the live price
+- 3 per-pair PendingTrades accumulator, O(1) append, overflow folds oldest into extremes
+- 4 recent trades only for pairs with orders or tracks in flight; max-trades 20000; eviction warning
+- 5 PaperPairStopSweep every 5 min; fill/trigger cancel on stopped pair; idempotency before checks; SPOT-only queries; parser WARN
+- Migration: V28__paper_order_activated_at.sql (V28 also used by the forum branch: renumber before merge if it lands first)
+- New config: cryptopilot.paper.matching.pending-trades-max=50000; cryptopilot.paper.matching.recent-trades.max-trades 1000→20000; cryptopilot.paper.pair-stop-sweep.enabled=false (true in dev/prod), .interval=5m
+- Decisions taken: one commit (phases share files); in-flight count starts when the order event is published inside the placing transaction (commit is too late for the catch-up gap), released on Track or rollback; REPLAY fill without candle judged at the working price (never met); fill/trigger defence uses TradablePair.exchangeTrading, an admin-disabled pair keeps executing; cancellation on a stopped pair cancels the order's whole group; shape validation (MSG01/MSG15) still runs before the idempotency lookup; withTrades kept (tests use it as the reference merge); backfill skips REJECTED legs
+- Tests: 16 added, 4 changed (3 worker catch-up tests now publish first; TR10 renamed to TR10_aPendingStopMetWhenTheWorkingOrderFills_triggersAtOnce_andTheTakeProfitExpires); mvnw verify green, 3128 tests, 0 failures; paper suite 291/291 twice
+- Left for later: partial fills by volume, slippage past depth20, OCO leg types/trailing, order amend, fills by orderId, history filters, CSV export, multi-instance engine note
+- Commits: 06da02c fix(paper): persist leg activation, trigger met stops, pair-stop sweep (pushed 2026-10-23 to origin/fix/spot-paper-high-severity, no PR yet)
+- Binance parity: what the backend still lacks (B1–B8) and what the web form must change (F1–F6) recorded in paper-trading-plan §20
