@@ -8,7 +8,7 @@ task from moving. Choices the web can make on its own side are not asked here.
 | | |
 |---|---|
 | Backend read | `develop` @ `796f408` (PR #64, 2026-10-22), run locally with database migrations up to V29; `feature/TP-A-plan-validity` @ `ddd3826` (pushed, no PR) |
-| Web client | `cryptopilot-frontend` `develop` @ `7756131` and the local branch `feature/T-065-http` @ `282bdb8` (community, notifications and moderation on HTTP) |
+| Web client | `cryptopilot-frontend` `develop` @ `fd7a485` (community, notifications and moderation on HTTP) and the local branch `feature/T-087-announcements` @ `8cb12bc` (UC-44) |
 | How it was found | Browser run against the backend (Edge, 1440 and 390 px): 13 web workflows of T-065, T-059 and T-087, STOMP frames captured, backend log read |
 | Date | 2026-10-23 |
 | Owner of this file | FE; a row leaves when its fix or API is on `develop` (name the merge commit in `CHANGELOG.md`) |
@@ -24,6 +24,7 @@ module files.
 | 1 | Q-75: let a signed-in session subscribe to `/user/queue/notifications` | Defect | BE2 (notification) | **High**, one line and a test | Live bell (T-059); the web polls every 60 s meanwhile |
 | 2 | Q-76: opening a moderation case must not fail when two openings meet | Defect | BE2 (community) | Medium | Nothing today (the web sends one opening); two Admins see a false MSG43 |
 | 3 | Q-70: idempotency key for order lists (`clientListOrderId`) | Gap | BE (paper) | Medium | Safe retry of OCO / OTO / OTOCO (TR-F3, TR-F4) |
+| 3b | Q-77: let an Admin sign a media upload for an announcement | Defect | BE2 (community) | Medium | Images and video in announcements (T-087); the web form omits media meanwhile |
 | 4 | Push `feat/t-085-pair-admin`, `feat/t-082-system-settings`, `feat/t-083-user-management`, `feat/t-086-reports` and open their PRs | Release | BE2 | **High** | Admin screens SCR-33…44 (T-087); Futures plans (T-040), since `leverage_bracket` is empty |
 | 5 | Open the PR of `feature/TP-A-plan-validity` (Q-74 open) | Release | BE1 | Medium | GY-03 scope of T-040 / T-041 (STOP entry, INVALIDATED) |
 | 6 | Missing data in existing endpoints: FEQ-02, M-09, Q-21, Q-31, FEQ-04 | Gap | see section 3 | Low…medium | see section 3 |
@@ -136,6 +137,34 @@ sending it again may place a second OCO / OTO / OTOCO, so the web does not retry
 
 **Requested fix.** As PROPOSED on 2026-10-22: add `clientListOrderId` (the exchange's
 `listClientOrderId`), answered like `clientOrderId`: the same key returns the group already placed.
+
+### 1.4 Q-77 — an Admin cannot attach media to an announcement
+
+**Symptom.** With an Admin's token, `POST /media/upload-signature` answers `403 ACCESS_DENIED`
+(MSG43), so the announcement form cannot upload an image or a video (checked on `develop` `796f408`).
+
+**Cause.** The announcement API accepts media but the signing endpoint is closed to the Admin:
+
+- `community/controller/AnnouncementController.java` takes a `PostRequest` with `media`, and
+  `PostWriter.create` checks the files for an official post (video allowed without `VIDEO_POST`,
+  because the author is not a Trader).
+- `auth/config/SecurityConfig.java` lists `/api/v1/media/**` in `TRADER_AREA`, which only the TRADER
+  role may call; `ADMIN_CONSOLE` covers `/api/v1/admin/**` only.
+
+SRS 3.7.2 gives the Admin the same form "with the option Official", media included.
+
+**Requested fix** (one of):
+
+1. Allow ADMIN on `POST /media/upload-signature` (list it with the paths both roles may call, as
+   `SHARED_PASSWORD_CHANGE` is, or add `/api/v1/admin/media/upload-signature`), with the files in the
+   Admin's own folder as for a Trader.
+2. Or state in the SRS and the API that announcements carry no media.
+
+**Test.** An Admin signs a form, uploads, and publishes an announcement that names the file; a Trader
+still cannot use an Admin endpoint.
+
+**Web follow-up.** Show the media block of the form in the Official mode (one condition) and check the
+upload against the backend.
 
 ## 2. Branches to push
 
