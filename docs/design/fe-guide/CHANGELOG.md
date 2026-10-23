@@ -2,6 +2,13 @@
 
 Newest first. Each entry names the `develop` SHA the guide was synced to.
 
+## 2026-10-23 — TP-A review fixes, branch `feature/TP-A-plan-validity` (on `develop` @ `612b201`)
+
+- `modules/trading-plan.md`: Q-77 answered; a plan on another timeframe than its preset's now gets a
+  score; null score cases rewritten; `setupScorePreset` may be null when the read failed.
+- `POST /plans/calculate` now answers 400 MSG01 on `invalidationPrice` for a MARKET plan carrying
+  one, as create does.
+
 ## 2026-10-23 — TP-A plan validity, branch `feature/TP-A-plan-validity` (on `develop` @ `612b201`)
 
 - `modules/trading-plan.md`: every request and response field TP-A adds, from the branch (not merged

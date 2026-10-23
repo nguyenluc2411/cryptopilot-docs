@@ -161,9 +161,11 @@ Status: on `feature/TP-A-plan-validity` (not merged). Spec: BR-33, BR-68, BR-69,
 - **`setupScoreAtPlan` / `setupScorePreset`**: taken at activation (Activate and Save and Activate)
   from the latest **closed** candle of `analysisTimeframe`, under the preset the Trader's style
   selects at that moment (a style change after the draft save counts). A null score never refuses
-  the activation. The score is null when nothing is analysed on that candle yet, a component is
-  missing, or `analysisTimeframe` differs from the preset's own timeframe (SCALPING `15m`,
-  DAY_TRADING `1h`, SWING `4h`; Q-77 open). Show "—" for null; never compute it on the client.
+  the activation. The preset's weights apply to `analysisTimeframe` even when it is not the
+  preset's own timeframe (Q-77 answered). The score is null when that candle is not analysed yet
+  (also after an indicator outage: an older candle never stands in) or a component is missing;
+  `setupScorePreset` is also null when the score could not be read at all. Show "—" for null;
+  never compute it on the client.
 - **INVALIDATED**: a terminal status, listed in the `CANCELLED_EXPIRED` tab with its badge and
   `invalidationReason`. It frees an `ACTIVE_PLAN_MAX` slot. Nothing sets it until TP-B.
 
@@ -214,7 +216,7 @@ Response `200`:
 
 | Status | `code` | MSG | When | Show |
 |---|---|---|---|---|
-| 400 | `VALIDATION_FAILED` | MSG01/15/16 | Input and calculation rules | Under fields / in panel |
+| 400 | `VALIDATION_FAILED` | MSG01/15/16 | Input and calculation rules, and the save's validity checks (a MARKET plan with an `invalidationPrice` is MSG01 on that field, as on create) | Under fields / in panel |
 | 403 | `PLAN_FEATURE_NOT_INCLUDED` | MSG29 | FUTURES on FREE | MSG29 dialog |
 | 404 | `RESOURCE_NOT_FOUND` | MSG41 | Pair not enabled on that market | Inline |
 | 503 | `MARKET_PRICE_UNAVAILABLE` | MSG43 | MARKET entry and no live last price; an `invalidationPrice` and no live last price (always on Futures until TP-0) | "Price unavailable", retry |
