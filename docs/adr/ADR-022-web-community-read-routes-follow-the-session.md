@@ -1,6 +1,6 @@
 # ADR-022 — Web community read routes follow the session's shell
 
-**Status:** Proposed (FE, 2026-10-22)
+**Status:** Accepted (FE owner, 2026-10-23)
 **Date:** 2026-10-22
 **Deciders:** FE
 **Related:** D-99 (CF-01a), A-44; SRS 3.1.3, 3.7; CURRENT_STATE D-113; T-065, T-030
