@@ -2,6 +2,14 @@
 
 Newest first. Each entry names the `develop` SHA the guide was synced to.
 
+## 2026-10-24 — TP-A follow-up, branch `feature/TP-A-plan-validity`
+
+- `modules/trading-plan.md`: `setupScoreAtPlan` is usually null for an activation right after a
+  candle closes, until the indicator job has written that candle's row (seconds); null is not an
+  error. STOP stays hidden in the web until TP-B, since the engine does not trigger STOP entries yet.
+- `08-waiting-on-backend.md`: the TP-A rows no longer say Q-74 is open; PR #66 is open with one
+  approval.
+
 ## 2026-10-23 (later) — TP-A setup score on the preset's timeframe, branch `feature/TP-A-plan-validity`
 
 - `modules/trading-plan.md`: Q-77 answered again by the team lead: `setupScoreAtPlan` is read on

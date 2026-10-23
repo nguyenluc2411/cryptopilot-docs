@@ -25,7 +25,7 @@ module files.
 | 2 | Q-76: opening a moderation case must not fail when two openings meet | Defect | BE2 (community) | Medium | Nothing today (the web sends one opening); two Admins see a false MSG43 |
 | 3 | Q-70: idempotency key for order lists (`clientListOrderId`) | Gap | BE (paper) | Medium | Safe retry of OCO / OTO / OTOCO (TR-F3, TR-F4) |
 | 4 | Push `feat/t-085-pair-admin`, `feat/t-082-system-settings`, `feat/t-083-user-management`, `feat/t-086-reports` and open their PRs | Release | BE2 | **High** | Admin screens SCR-33…44 (T-087); Futures plans (T-040), since `leverage_bracket` is empty |
-| 5 | Open the PR of `feature/TP-A-plan-validity` (Q-74 open) | Release | BE1 | Medium | GY-03 scope of T-040 / T-041 (STOP entry, INVALIDATED) |
+| 5 | Merge PR #66 of `feature/TP-A-plan-validity` (Q-74 and Q-77 answered; one approval, 2026-10-24) | Release | BE1 | Medium | GY-03 scope of T-040 / T-041 (invalidation price, INVALIDATED; STOP stays hidden until TP-B) |
 | 6 | Missing data in existing endpoints: FEQ-02, M-09, Q-21, Q-31, FEQ-04 | Gap | see section 3 | Low…medium | see section 3 |
 | 7 | APIs not built yet | Tasks | see section 4 | Planned | see section 4 |
 
@@ -142,7 +142,7 @@ sending it again may place a second OCO / OTO / OTOCO, so the web does not retry
 | Branch (owner) | Status in `CURRENT_STATE.md` section 6 | Why the web needs it now |
 |---|---|---|
 | `feat/t-085-pair-admin` → `feat/t-082-system-settings` → `feat/t-083-user-management` → `feat/t-086-reports` (BE2), stacked, local | T-085, T-082, T-083, T-086 **DONE** 2026-10-21, not pushed | The web cannot read their contracts, so SCR-33…44 of T-087 cannot start. T-085 also fills `leverage_bracket`: the table is empty on `develop` (0 rows in a database migrated to V29), so every Futures plan calculation answers 400 `errors.leverage` (M-12) and the Futures plan form of T-040 waits |
-| `feature/TP-A-plan-validity` (BE1), pushed | TP-A PARTIAL (Q-74 open) | T-040 and T-041 gained GY-03 scope (D-111, D-112): STOP entry, invalidation price, INVALIDATED status. The web builds it against the merged contract |
+| `feature/TP-A-plan-validity` (BE1), pushed, PR #66 open with one approval | TP-A DONE (Q-74 and Q-77 answered) | T-040 and T-041 gained GY-03 scope (D-111, D-112): STOP entry, invalidation price, INVALIDATED status. The web builds it against the merged contract and keeps STOP hidden until TP-B |
 
 ## 3. Missing data in existing endpoints
 

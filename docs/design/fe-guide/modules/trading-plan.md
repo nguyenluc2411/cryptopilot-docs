@@ -15,8 +15,8 @@ Read first:
 - **Plan validity (TP-A, D-111, D-112), branch `feature/TP-A-plan-validity`, not on `develop` yet:**
   STOP entry, invalidation price, own entry deviation limit, analysis timeframe, the INVALIDATED status
   and the setup score taken at activation. See "Plan validity (TP-A)" below. A STOP plan can be
-  activated but never triggers until the engine handles it (TP-B); nothing becomes INVALIDATED until
-  TP-B either.
+  activated but never triggers until the engine handles it (TP-B), so **keep STOP hidden in the web
+  until TP-B**; nothing becomes INVALIDATED until TP-B either.
 
 ## Shared types
 
@@ -144,7 +144,9 @@ Status: on `feature/TP-A-plan-validity` (not merged). Spec: BR-33, BR-68, BR-69,
   when the last price is ≥ the stop, SHORT when ≤. Without an expiry it gets 7 days, as LIMIT.
   Activating (Activate or Save and Activate) a STOP the last price has already reached answers 400
   `errors.entryPrice` MSG16; it is never turned into MARKET — offer MARKET to the Trader. Until TP-B,
-  an activated STOP stays ACTIVE and never triggers.
+  an activated STOP stays ACTIVE and never triggers: the engine does not trigger STOP entries yet.
+  **The web keeps STOP hidden until TP-B** (do not offer it in the entry type selector); the API
+  already accepts it, so a STOP plan made through the API alone is still listed and shown.
 - **`invalidationPrice`** (LIMIT and STOP only). It must lie on the far side of the current last
   price from the entry, so the price can reach it before the entry: LONG LIMIT with last 102, entry
   100 → invalidation above 102. Checked at save and again at activation; wrong side → 400
@@ -169,8 +171,11 @@ Status: on `feature/TP-A-plan-validity` (not merged). Spec: BR-33, BR-68, BR-69,
   mismatch (Q-77, answered again 2026-10-23). A null score never refuses the activation. The score
   is null when that candle is not analysed yet
   (also after an indicator outage: an older candle never stands in) or a component is missing;
-  `setupScorePreset` is also null when the score could not be read at all. Show "—" for null;
-  never compute it on the client.
+  `setupScorePreset` is also null when the score could not be read at all. An activation right
+  after a candle closes usually gets a null score: the indicator job writes the new candle's row a
+  few seconds after the close, and until then that candle is not analysed. **A null score is not an
+  error**: the activation succeeded, the score is not filled in later, show "—"; never compute it on
+  the client.
 - **INVALIDATED**: a terminal status, listed in the `CANCELLED_EXPIRED` tab with its badge and
   `invalidationReason`. It frees an `ACTIVE_PLAN_MAX` slot. Nothing sets it until TP-B.
 
