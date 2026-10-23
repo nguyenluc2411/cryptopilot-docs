@@ -7,10 +7,10 @@ task from moving. Choices the web can make on its own side are not asked here.
 
 | | |
 |---|---|
-| Backend read | `develop` @ `796f408` (PR #64, 2026-10-22), run locally with database migrations up to V29; `feature/TP-A-plan-validity` @ `ddd3826` (pushed, no PR) |
+| Backend read | `develop` @ `612b201` (PR #65, 2026-10-23; migrations V30, V31), re-read 2026-10-24; first read `796f408` (PR #64) with migrations up to V29; `feature/TP-A-plan-validity` @ `112aa24` (rebased on `612b201`, force-pushed, not merged) |
 | Web client | `cryptopilot-frontend` `develop` @ `fd7a485` (community, notifications and moderation on HTTP) and the local branch `feature/T-087-announcements` @ `8cb12bc` (UC-44) |
 | How it was found | Browser run against the backend (Edge, 1440 and 390 px): 13 web workflows of T-065, T-059 and T-087, STOMP frames captured, backend log read |
-| Date | 2026-10-23 |
+| Date | 2026-10-23; re-checked 2026-10-24 |
 | Owner of this file | FE; a row leaves when its fix or API is on `develop` (name the merge commit in `CHANGELOG.md`) |
 
 Question ids (Q-xx), decisions (D-xx) and task ids come from `CURRENT_STATE.md` sections 4, 6 and 8,
@@ -23,14 +23,16 @@ module files.
 |---|---|---|---|---|---|
 | 1 | Q-75: let a signed-in session subscribe to `/user/queue/notifications` | Defect | BE2 (notification) | **High**, one line and a test | Live bell (T-059); the web polls every 60 s meanwhile |
 | 2 | Q-76: opening a moderation case must not fail when two openings meet | Defect | BE2 (community) | Medium | Nothing today (the web sends one opening); two Admins see a false MSG43 |
-| 3 | Q-70: idempotency key for order lists (`clientListOrderId`) | Gap | BE (paper) | Medium | Safe retry of OCO / OTO / OTOCO (TR-F3, TR-F4) |
 | 3b | Q-77: let an Admin sign a media upload for an announcement | Defect | BE2 (community) | Medium | Images and video in announcements (T-087); the web form omits media meanwhile |
 | 4 | Push `feat/t-085-pair-admin`, `feat/t-082-system-settings`, `feat/t-083-user-management`, `feat/t-086-reports` and open their PRs | Release | BE2 | **High** | Admin screens SCR-33…44 (T-087); Futures plans (T-040), since `leverage_bracket` is empty |
-| 5 | Open the PR of `feature/TP-A-plan-validity` (Q-74 open) | Release | BE1 | Medium | GY-03 scope of T-040 / T-041 (STOP entry, INVALIDATED) |
+| 5 | Merge `feature/TP-A-plan-validity` (`112aa24`, Q-74 and Q-77 answered) | Release | BE1 | Medium | GY-03 scope of T-040 / T-041 (STOP entry, INVALIDATED) |
 | 6 | Missing data in existing endpoints: FEQ-02, M-09, Q-21, Q-31, FEQ-04 | Gap | see section 3 | Low…medium | see section 3 |
 | 7 | APIs not built yet | Tasks | see section 4 | Planned | see section 4 |
 
 ## 1. Defects (found 2026-10-23 on `develop` `796f408`)
+
+Re-checked 2026-10-24 on `develop` `612b201` (PR #65): Q-75 and Q-76 are unchanged
+(`WebSocketConfig.java:74`, `ModerationServiceImpl.open`). Q-70 landed (section 5).
 
 ### 1.1 Q-75 — the notification push is refused, and the refusal closes the account's connection
 
@@ -126,18 +128,6 @@ Admins can still meet it.
 **Test.** Two concurrent openings of a post with OPEN reports both answer 200 with the same reports,
 which end REVIEWING with their version raised once.
 
-### 1.3 Q-70 — order lists have no idempotency key
-
-**Cause.** `paper/dto/request/PlaceOrderListRequest.java:37` takes `pairId`, `market`, `type`,
-`working`, `pending` and `oco`, but no client id, while `PlaceOrderRequest.java:81` has
-`clientOrderId`, which returns the order already placed when a request is sent again with the same key.
-
-**Impact.** When `POST /paper/order-lists` times out, the web cannot tell whether the group was placed;
-sending it again may place a second OCO / OTO / OTOCO, so the web does not retry it.
-
-**Requested fix.** As PROPOSED on 2026-10-22: add `clientListOrderId` (the exchange's
-`listClientOrderId`), answered like `clientOrderId`: the same key returns the group already placed.
-
 ### 1.4 Q-77 — an Admin cannot attach media to an announcement
 
 **Symptom.** With an Admin's token, `POST /media/upload-signature` answers `403 ACCESS_DENIED`
@@ -205,6 +195,7 @@ upload against the backend.
 | Demo trading module (TR-02…TR-13) | on `develop` (web re-check on `4f9003a`, 2026-10-20); web flag removed (`e9d9223`) |
 | Notification read API (list, unread count, mark read, mark all) | PR #64, `796f408` (push: Q-75) |
 | Community, moderation and announcement API (T-060…T-064, T-084, CF-01…CF-04) | PR #63 and PR #64, `796f408` |
+| Q-70 idempotency key for order lists: `listClientOrderId` (the exchange's name, not `clientListOrderId` as asked); the same key answers 200 with the group already placed, a new one 201 | PR #65, `612b201`; the web sends it (TR-F3, branch `feature/TR-F3-spot-filters`) |
 
 ## 6. Keeping this file current
 

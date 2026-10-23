@@ -2,6 +2,18 @@
 
 Newest first. Each entry names the `develop` SHA the guide was synced to.
 
+## 2026-10-24 — re-check, `develop` @ `612b201`
+
+- `08-waiting-on-backend.md`: Q-70 moved to section 5 (`listClientOrderId`, PR #65); Q-75 and Q-76
+  re-checked, still open; "Backend read" set to `612b201`; TP-A row updated to `112aa24`.
+- Not yet written into the guide (read from the backend code, used by the web on
+  `feature/TR-F3-spot-filters`): the Spot filter refusals `PAPER_PRICE_FILTER`, `PAPER_LOT_SIZE`,
+  `PAPER_MARKET_LOT_SIZE`, `PAPER_NOTIONAL`, `PAPER_PERCENT_PRICE`, `PAPER_TRAILING_DELTA` (400,
+  MSG15, `messageArgs` = `[field, value, limit, MIN|MAX|STEP]`), `PAPER_MAX_NUM_ORDERS` and
+  `PAPER_MAX_NUM_ALGO_ORDERS` (409, MSG43, `[orders|stopOrders, count, limit, MAX]`), and the order
+  `statusReason` codes `OCO_OTHER_EXECUTED`, `PAIR_NOT_TRADING`, `NOT_FILLABLE_ON_ARRIVAL`,
+  `POST_ONLY_WOULD_TAKE`, `INSUFFICIENT_BALANCE`, `DEPTH_EXHAUSTED`.
+
 ## 2026-10-23 — requests to the backend, `develop` @ `796f408`
 
 - `08-waiting-on-backend.md` rewritten as the list of requests to the backend: defects Q-75
