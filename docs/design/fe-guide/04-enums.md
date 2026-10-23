@@ -127,6 +127,7 @@ Source: `trading/model/enums/Direction.java#L8`.
 |---|---|---|
 | `LIMIT` | Limit | `entryPrice` required; expiry defaults to 7 days |
 | `MARKET` | Market | Entry = current last price; `entryPrice` ignored |
+| `STOP` | Stop (breakout) | TP-A branch. `entryPrice` = stop price, required; expiry defaults to 7 days; triggers from TP-B |
 
 Source: `trading/model/enums/EntryType.java#L8`.
 
@@ -147,11 +148,24 @@ Source: `trading/model/enums/MarginMode.java#L9`.
 | `EXECUTED` | Entry filled; the position lives in the journal. Terminal | Executed | green |
 | `CANCELLED` | Cancelled by the Trader. Terminal | Cancelled | dark grey |
 | `EXPIRED` | Expiry passed before a fill. Terminal | Expired | amber |
+| `INVALIDATED` | TP-A branch. The setup ended before the entry filled (see `InvalidationReason`). Terminal | Invalidated | amber |
 
-Transitions: `DRAFT → ACTIVE | CANCELLED`; `ACTIVE → EXECUTED | CANCELLED | EXPIRED`. Nothing leaves a
+Transitions: `DRAFT → ACTIVE | CANCELLED`; `ACTIVE → EXECUTED | CANCELLED | EXPIRED | INVALIDATED`. Nothing leaves a
 terminal status. `EXECUTED` and `EXPIRED` are set by the matching engine (T-042+), not by the client.
 
-Source: `trading/model/enums/PlanStatus.java#L19`. Spec: BR-32, D-66.
+`INVALIDATED` is set by the matching engine from TP-B.
+
+Source: `trading/model/enums/PlanStatus.java#L19`. Spec: BR-32, BR-68, D-66, D-111.
+
+### `InvalidationReason` (TP-A branch)
+
+| Value | Meaning |
+|---|---|
+| `TAKE_PROFIT_REACHED` | A LIMIT plan's take profit was reached first |
+| `STOP_LOSS_REACHED` | A STOP plan's stop loss was reached first |
+| `INVALIDATION_PRICE` | The plan's own `invalidationPrice` was reached |
+
+Source: `trading/model/enums/InvalidationReason.java`. Spec: BR-68, D-111.
 
 ### `PlanTab` — `?tab=` of `GET /plans`
 
@@ -160,7 +174,7 @@ Source: `trading/model/enums/PlanStatus.java#L19`. Spec: BR-32, D-66.
 | `DRAFT` | DRAFT | Draft |
 | `ACTIVE` | ACTIVE | Active |
 | `EXECUTED` | EXECUTED | Executed |
-| `CANCELLED_EXPIRED` | CANCELLED, EXPIRED | Cancelled / Expired |
+| `CANCELLED_EXPIRED` | CANCELLED, EXPIRED, INVALIDATED (TP-A) | Cancelled / Expired |
 
 Source: `trading/model/enums/PlanTab.java#L11`. Spec: SRS 3.5.2, D-73.
 

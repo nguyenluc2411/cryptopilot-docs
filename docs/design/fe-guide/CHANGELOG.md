@@ -2,6 +2,19 @@
 
 Newest first. Each entry names the `develop` SHA the guide was synced to.
 
+## 2026-10-23 — TP-A plan validity, branch `feature/TP-A-plan-validity` (on `develop` @ `612b201`)
+
+- `modules/trading-plan.md`: every request and response field TP-A adds, from the branch (not merged
+  yet): `entryType` `STOP`; `invalidationPrice`, `maxEntryDeviationR`, `analysisTimeframe` in the
+  request and the plan; `plannedEntryPrice`; status `INVALIDATED` with `invalidationReason` (plan and
+  list row, plus `invalidatedAt` in the row); `setupScoreAtPlan` and `setupScorePreset`, now taken at
+  activation from the latest closed candle (Q-74 answered). New section "Plan validity (TP-A)" with the
+  rules, the MSG16 and 503 MSG43 cases (every Futures plan with an invalidation price or a Futures
+  STOP activation answers 503 MSG43 until TP-0), and the null score cases (Q-77).
+- Input rules and the 400/409/503 rows of create, update and activate updated; the
+  `CANCELLED_EXPIRED` tab also lists INVALIDATED.
+- `04-enums.md`: `STOP`, `INVALIDATED` and the new `InvalidationReason`.
+
 ## 2026-10-23 — requests to the backend, `develop` @ `796f408`
 
 - `08-waiting-on-backend.md` rewritten as the list of requests to the backend: defects Q-75
