@@ -2,6 +2,17 @@
 
 Newest first. Each entry names the `develop` SHA the guide was synced to.
 
+## 2026-10-23 — requests to the backend, `develop` @ `796f408`
+
+- `08-waiting-on-backend.md` rewritten as the list of requests to the backend: defects Q-75
+  (notification queue refused by the STOMP guard) and Q-76 (concurrent opening of a moderation case)
+  with cause, fix and test; Q-70; admin and TP-A branches to push; FEQ-02, M-09 re-checked; rows
+  done since 2026-10-13 (FEQ-01, demo trading, community, notification read API) moved to its
+  section 5.
+- `07-open-questions.md` section E points to `08`. Only these two files and the T-065 row of
+  `06-task-map.md` (D-111 of the web renumbered D-113) were touched; the rest of the guide stays
+  synced to `0d92def`.
+
 ## 2026-10-08 — re-sync, `develop` @ `0d92def`
 
 - Alerts (T-054, PR #44) and the `expectedAlertCount` check of `DELETE /watchlist/{id}` are on

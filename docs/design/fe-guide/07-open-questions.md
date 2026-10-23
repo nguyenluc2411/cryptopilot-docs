@@ -67,32 +67,10 @@ Not yet in `CURRENT_STATE.md` section 8; the team lead may promote them to Q-xx.
 - Every enum value and error code named here exists in code at those commits.
 - Mermaid blocks were parsed with the Mermaid parser.
 
-## E. What the web needs from the backend (2026-10-21)
+## E. What the web needs from the backend
 
-Web `develop` `40dcf1a` uses every endpoint in backend `develop` `132c480` that its tasks need: no
-web task can move further until one of the items below lands. Ordered by how much web work each
-one unlocks. Owners and status from `CURRENT_STATE.md` section 6 on 2026-10-21.
-
-| # | Needed from the backend | Backend task (owner) · status | Unlocks on the web |
-|---|---|---|---|
-| E-1 | Push the community branches and open their PRs (`feat/t-060-community-posts` → … → `feat/cf-04-search-trending`; done locally 2026-10-20, not pushed) | T-060…T-064, T-084, CF-01…CF-04 (BE2) · DONE locally | T-065 community feed, post detail, editor, report dialog (SCR-24…27) |
-| E-2 | Leverage brackets stored and administered: `leverage_bracket` is empty at `132c480`, so every Futures calculation fails (M-12) | T-085 (BE2) · TODO | T-040 Futures plan create and edit; Futures in the T-041 detail |
-| E-3 | Manual close, plan expiry and the live position: close endpoint, position status and P/L on plan rows (M-10), `/user/queue/positions` (M-06) | T-046 (BE2) · TODO; fees and realized P/L T-045 (BE1) · TODO | T-047 close position dialog (SCR-19); T-041 position status and P/L |
-| E-4 | In-app notification read API: list, unread count, mark read / mark all, and `/user/queue/notifications` (M-06). T-056 writes the rows, but no task row names the read endpoints: **team lead to assign** | T-056 (BE2) · dispatch only | T-059 SCR-15 notification centre, unread badge, deep links |
-| E-5 | Paper Futures: leverage and margin mode, Futures orders, positions, close and margin | TR-14…TR-17 · TODO, owner TBD | TR-F4 Futures form, positions, modals |
-| E-6 | Modify a LIMIT order and the calculator (TR-25); PnL analysis API (TR-28: daily and cumulative PnL by period). The web PnL page now draws the daily worth from TR-13 | TR-25, TR-28 · TODO, owner TBD | TR-F5 drag to modify, calculator, daily PnL chart |
-| E-7 | Running candle from aggTrade for every timeframe, 16 timeframes of history | TR-35 · TODO, owner TBD | TR-F2 16 timeframes |
-| E-8 | Journal and performance: journal rows from the engine, review edits, manual trades, statistics | T-048…T-051 (BE2) · TODO | T-052 journal and performance (SCR-20…23) |
-| E-9 | Orders and subscriptions, VNPay, MoMo, IPN, expiry; the caller's tier and limits before a request (FEQ-02) | T-066…T-070 (BE1) · TODO | T-071 packages, checkout, payment result; lock icons (CR-08) |
-| E-10 | AI service, pipeline, context snapshot, conversations and quota; `/user/queue/ai` (M-06) | T-072 (DO), T-073…T-075 (BE1) · TODO | T-076 AI assistant |
-| E-11 | News sources, crawl, summary and sentiment | T-077…T-079 (BE2) · TODO | T-080 news feed (SCR-28) |
-| E-12 | System settings, user management, reports and CSV | T-082, T-083, T-086 (BE2) · TODO (T-085 as E-2) | T-087 admin console |
-
-Questions the web waits on: **Q-70** (order lists take no client id, so a retried OCO / OTO / OTOCO
-after a timeout places a second group: add a `clientListOrderId`, or document the client rule),
-Q-21 (analysis push), Q-31 (marker of alerts paused by a plan change), FEQ-02 (above), FEQ-04
-(indicator series), Q-07 (staging host, for the web and mobile builds). The other section C rows not
-marked resolved were not re-checked for this list.
-
-Mobile T-088 (app skeleton, auth) and T-089 (market, watchlist, alerts) need nothing new: they use
-the endpoints the web uses.
+Moved on 2026-10-23 to [08-waiting-on-backend.md](08-waiting-on-backend.md), which now holds the
+defects found against backend `develop` `796f408` (Q-75, Q-76) with their causes and fixes, the
+branches to push, the missing data and the APIs the web waits on. The 2026-10-21 list E-1…E-12 is
+in the history of this file; E-1 (community) and E-4 (notification read API) landed with PR #63 and
+PR #64.

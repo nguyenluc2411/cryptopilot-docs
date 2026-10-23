@@ -3,7 +3,7 @@
 **Status:** Proposed (FE, 2026-10-22)
 **Date:** 2026-10-22
 **Deciders:** FE
-**Related:** D-99 (CF-01a), A-44; SRS 3.1.3, 3.7; CURRENT_STATE D-111; T-065, T-030
+**Related:** D-99 (CF-01a), A-44; SRS 3.1.3, 3.7; CURRENT_STATE D-113; T-065, T-030
 
 ## Context
 D-99 lets a Guest read the community: the feed, the pinned announcements, a post with its comments,

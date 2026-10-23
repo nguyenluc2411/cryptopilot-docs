@@ -16,7 +16,7 @@ Kế hoạch cho phần forum của Trader (SCR-24…27) và phần kiểm duy�
 |---|---|---|
 | Schema | V1 có đủ `forum_post`, `post_coin`, `forum_comment`, `engagement`, `post_media`, `post_report` với các CHECK, unique like/save (BR-45), unique report (BR-46) | Không cần bảng mới. Có thể thêm index cho tab Most Liked và bài official |
 | Security | `/posts/**`, `/comments/**`, `/media/**` cho TRADER; `/admin/**` cho ADMIN | — |
-| Gói | `Feature.VIDEO_POST` (PREMIUM) trong `EntitlementApi` | — |
+| Gói | `Feature.VIDEO_POST` (PRO và PREMIUM từ CF-01d) trong `EntitlementApi` | — |
 | Setting | `MAX_IMAGES_PER_POST` 4, `MAX_IMAGE_SIZE_MB` 5, `MAX_VIDEO_SIZE_MB` 100, `MAX_VIDEO_DURATION_SECONDS` 300 | `SystemSettingApi` chỉ đọc được `decimal(key)` → thêm `integer(key)` |
 | User | `user_profile.display_name`, `avatar_url` | `UserApi` chưa có hàm lấy tên và avatar tác giả theo lô |
 | Coin | `MarketApi.coinsBySymbol` | Chưa có hàm kiểm tra coin đang được dùng trong cặp đã listed |
@@ -61,7 +61,7 @@ FE                         Backend                              Cloudinary
 - **Chữ ký:** chỉ ký các tham số `folder`, `public_id`, `timestamp`, `allowed_formats`. Chữ ký hết hạn sau 1 giờ (Cloudinary tự kiểm tra `timestamp`).
 - **Định dạng:** ảnh JPG/PNG/WEBP, video MP4/WEBM. Video có thumbnail do Cloudinary sinh (URL `.jpg` của video), lưu ở `thumbnail_url`.
 - **Một bài:** 1–4 ảnh hoặc đúng 1 video, không trộn (BR-44). Có video thì `post_type` = VIDEO.
-- **Xoá bài:** soft delete ngay, publish `PostMediaReleased(publicIds)`. Listener của outbox gọi `destroy` trên Cloudinary, lỗi thì retry. Sửa bài mà bỏ media nào thì cũng xoá theo cách này.
+- **Xoá bài:** soft delete ngay, publish `PostMediaReleased(publicIds)`. Listener của outbox gọi `destroy` trên Cloudinary, lỗi thì retry. Sửa bài mà bỏ media nào thì cũng xoá theo cách này. Ngoại lệ (A-47): bài HIDDEN, hoặc có báo cáo OPEN/REVIEWING hay đã xử lý HIDE_POST/REMOVE_POST/BAN_USER thì xoá bài không xoá media, job dọn file cũng giữ lại; bài HIDDEN không sửa được.
 - **File mồ côi** (đã upload nhưng không gắn vào bài nào): P2. Job hằng ngày liệt kê file trong `cryptopilot/posts/` cũ hơn 24h mà không có trong `post_media`, rồi xoá.
 - **Adapter** `community.client.CloudinaryClient`: interface `MediaStorage` gồm `sign`, `describe`, `destroy`. Bản thật chạy trên `RestClient` có timeout; khi thiếu `CLOUDINARY_*` thì profile dev dùng bản giả, còn prod không khởi động (giống cách làm của mail). Test dùng stand-in `com.sun.net.httpserver` theo D-36.
 - **Config** `cryptopilot.media.cloudinary.*` (`@ConfigurationProperties`): cloud name, key, secret, base URL, timeout, folder gốc.
@@ -86,7 +86,7 @@ Base `/api/v1`, phân trang `{items, page, pageSize, total}` 20/trang (CR-04), t
 | PUT / DELETE | `/comments/{id}` | Sửa / xoá comment của mình. Comment đã xoá mà còn reply thì vẫn trả về với `deleted: true`, không có content | 404 |
 | POST / DELETE | `/comments/{id}/like` | BR-45 | 404 |
 | POST | `/posts/{id}/reports` | `{reason, description?}` → 201 + MSG34 | 400 OTHER thiếu mô tả, 409 MSG34 report trùng, 409 report bài của mình |
-| POST | `/media/upload-signature` | `{mediaType}` → thông số upload ký sẵn | 403 MSG29 với video không phải PREMIUM |
+| POST | `/media/upload-signature` | `{mediaType}` → thông số upload ký sẵn | 403 MSG29 với video khi gói không có `VIDEO_POST` (FREE) |
 
 **Một dòng trong feed** gồm:
 - `id`, `author {userId, displayName, avatarUrl}`, `title`, `excerpt` (300 ký tự)
@@ -110,6 +110,7 @@ Base `/api/v1`, phân trang `{items, page, pageSize, total}` 20/trang (CR-04), t
 | Code | HTTP | MSG |
 |---|---|---|
 | `MEDIA_INVALID` | 400 | MSG32 |
+| `MEDIA_KEPT_AS_EVIDENCE` | 400 | MSG56 (sửa bài bỏ media đang là bằng chứng kiểm duyệt, A-47) |
 | `POST_ALREADY_REPORTED` | 409 | MSG34 |
 | `POST_REPORT_OWN_POST` | 409 | MSG43 |
 | `MEDIA_NOT_OWNED` | 400 | MSG32 |
@@ -171,7 +172,7 @@ Phần FE (T-065, SCR-36 của T-087) có plan riêng trong repo FE, không ghi 
   - stand-in Cloudinary: chữ ký đúng thuật toán (so với ví dụ trong tài liệu Cloudinary);
   - file quá dung lượng, sai định dạng, video quá 5 phút, `public_id` của người khác → MSG32;
   - xoá bài → `destroy` được gọi qua outbox, lỗi thì retry.
-- **Gói:** FREE và PRO xin chữ ký video hoặc tạo bài video → MSG29; PREMIUM hết hạn → video cũ vẫn hiển thị.
+- **Gói:** FREE xin chữ ký video hoặc tạo bài video → MSG29 (PRO được đăng video từ CF-01d); hết gói → video cũ vẫn hiển thị.
 - **Kiểm duyệt:** mọi report của bài được giải quyết cùng lúc; có audit; quyết định lỗi thì không có dòng audit nào.
 - Chạy `./mvnw clean verify` sau mỗi lần checkout. `ModularityTest` và `PackageConventionTest` phải pass. Cập nhật OpenAPI, TECHNICAL_DESIGN 8 và fe-guide `modules/community.md` khi API đã chốt.
 
@@ -197,7 +198,7 @@ So với hiểu biết chung về CMC Community, có thể chưa khớp hoàn to
 |---|---|---|
 | Feed bài viết, tab Latest/Top | Có | ✅ Có (Latest, Most Liked 7 ngày, Saved, My Posts) |
 | Gắn coin vào bài, lọc theo coin | Có (kiểu `$BTC`) | ✅ Có (0–5 coin, lọc theo coin và market) |
-| Ảnh, video | Có | ✅ Có (4 ảnh hoặc 1 video; video chỉ PREMIUM) |
+| Ảnh, video | Có | ✅ Có (4 ảnh hoặc 1 video; video cho PRO và PREMIUM) |
 | Like, comment, reply | Có | ✅ Có |
 | Lưu bài (bookmark) | Có | ✅ Có |
 | Report vi phạm, Admin kiểm duyệt | Có | ✅ Có |
@@ -225,7 +226,7 @@ So với hiểu biết chung về CMC Community, có thể chưa khớp hoàn to
 
 ### 9.3 Việc kỹ thuật còn treo (trong phạm vi hiện tại)
 
-- **Dọn file Cloudinary mồ côi** (đã upload nhưng không gắn vào bài): job hằng ngày xoá file trong `cryptopilot/posts/` cũ hơn 24h mà không có trong `post_media`. Nên làm trước khi deploy thật.
+- ~~**Dọn file Cloudinary mồ côi**~~ **Xong 21/10 (`cf-06`, `5255425`):** `MediaSweepJob` chạy 00:45 UTC hằng ngày (bật ở dev/prod), liệt kê `cryptopilot/posts/` cũ nhất trước, xoá file cũ hơn 24h mà không bài nào (trừ bài DELETED) còn mang; tối đa 20 trang × 500 file mỗi loại mỗi lần chạy (`cryptopilot.media.sweep.*`).
 - **Giới hạn số request mỗi giờ của Cloudinary Admin API:** mỗi file mới tốn 1 request để kiểm tra. Đủ cho demo; nếu dùng thật thì cân nhắc nâng gói, hoặc thêm giới hạn số chữ ký upload cho mỗi user.
 - **FE:** T-065 (feed, chi tiết bài, form đăng bài có upload Cloudinary, dialog report) và SCR-36 của T-087 (hàng đợi kiểm duyệt). Plan FE viết trong repo FE.
 
@@ -246,6 +247,8 @@ Người dùng chốt: forum **làm theo file đăng ký đề tài** (`CryptoPi
 Ngoài forum, file đăng ký còn yêu cầu thống kê "forum activity" (T-086), quản lý trạng thái tài khoản (T-083) và web cho Guest (T-065). Các mục này làm trong task của chúng.
 
 ### 10.2 Giai đoạn 2: giống CoinMarketCap Community
+
+> **Đã thu hẹp ngày 21/10/2026 (mục 12):** chỉ giữ E-4 (profile công khai) và E-5 (tìm kiếm). E-2, E-3, E-6, E-7, E-8 ngoài phạm vi.
 
 Thứ tự đề xuất (chi tiết backend ở mục 9.2): E-2 Bullish/Bearish → E-4 trang profile công khai → E-5 tìm kiếm → E-6 follow và tab Following → E-7 hashtag và trending → E-8 repost và poll. E-3 (giá coin trên thẻ bài) là việc của FE. E-1 (thông báo in-app) có sẵn trong SRS, làm cùng task notification.
 
@@ -278,9 +281,11 @@ Các nhánh nối tiếp nhau, nhánh sau tách từ nhánh trước. Khi mở P
 | 6 | `feat/cf-01-registration-alignment` | D-99 giai đoạn 1 (file đăng ký) | `d2f8a25`, `1f7f836` | 3083/3083 ✅ |
 | 7 | `feat/cf-02-sentiment` | E-2 Bullish/Bearish | `7bd736f` | (gộp vào #8) |
 | 8 | `feat/cf-03-profiles-follow` | E-4 profile, E-6 follow | `632eceb` | 3100/3100 ✅ |
-| 9 | `feat/cf-04-search-trending` | E-5 tìm kiếm, E-7 hashtag/trending | `3ebf9ed`, `79e12bc` | 3107/3108: 1 fail (enum contract) đã sửa ở commit sau; chưa chạy lại toàn bộ |
+| 9 | `feat/cf-04-search-trending` | E-5 tìm kiếm, E-7 hashtag/trending | `3ebf9ed`, `79e12bc` | (xem #10) |
+| 10 | `feat/cf-05-notifications` | E-1 thông báo in-app (21/10) | `163ad18` | 3115/3116, lỗi còn lại (DTO phụ thuộc entity) đã sửa trong commit; test kiến trúc + `NotificationApiTest` chạy lại đạt |
+| 11 | `feat/cf-06-predeploy-hardening` | Dọn file Cloudinary mồ côi; giới hạn tần suất cho Guest (rule `guest` 300/phút/IP, ADR-014 amendment) | `5255425`, `09c9ac8` | xem B2 |
 
-Repo đang đứng ở nhánh `feat/cf-04-search-trending`. Migration của forum: V27 → V31 (V26 thuộc `feat/t-044-exit-rules`, chưa merge; kiểm tra lại số trước khi merge). Test flaky có từ trước, không liên quan forum: `AlertEngineTest.NSF06_aCommittedEdit_replacesTheRuleInTheBook`.
+Repo đang đứng ở nhánh `feat/cf-05-notifications`. Migration của forum: V27 → V32 (V26 thuộc `feat/t-044-exit-rules`, đã merge vào `develop` ngày 21/10). Test flaky có từ trước, không liên quan forum: `AlertEngineTest.NSF06_aCommittedEdit_replacesTheRuleInTheBook`.
 
 ### 11.2 Những gì đã sửa ngoài module `community`
 
@@ -295,10 +300,28 @@ Repo đang đứng ở nhánh `feat/cf-04-search-trending`. Migration của foru
 
 ### 11.3 Việc tiếp theo (chọn khi làm tiếp)
 
-1. **E-1 thông báo in-app:** listener cho `PostCommented`, `PostModerated`, `UserFollowed` ghi vào `notification` (cần migration thêm type cho comment và follow), và API đọc/đánh dấu đã đọc. Đây cũng là phần còn thiếu của SRS 3.7.3 và 3.11.3.
+1. ~~**E-1 thông báo in-app:**~~ **Xong 21/10 (nhánh #10, migration V32).** Chưa làm: thông báo ALERT từ `AlertTriggered` và gửi email/push (thuộc T-056/T-058, báo người phụ trách). Nội dung tự viết bằng tiếng Anh, chưa có mã MSG trong SRS. listener cho `PostCommented`, `PostModerated`, `UserFollowed` ghi vào `notification` (cần migration thêm type cho comment và follow), và API đọc/đánh dấu đã đọc. Đây cũng là phần còn thiếu của SRS 3.7.3 và 3.11.3.
 2. **E-8 repost và poll** (lớn, ưu tiên thấp).
-3. **FE T-065:** feed, chi tiết bài, form đăng bài có upload Cloudinary (form ký trước, rồi upload thẳng), dialog report, khối thảo luận và sentiment trên trang coin, profile, trending; giá coin trên thẻ bài (E-3). Làm trong repo FE: pull `develop`, tạo nhánh riêng, viết plan FE trong repo FE.
-4. **Trước khi deploy:** job dọn file Cloudinary mồ côi; cân nhắc giới hạn chữ ký upload theo user (giới hạn Admin API của Cloudinary); rate limit cho các GET công khai của Guest (hiện chỉ giới hạn theo account).
-5. **Docs:** sửa SRS theo A-44 (Guest đọc forum, REMOVE_POST, video cho PRO, loại bài official) và các tính năng D-99 giai đoạn 2; cập nhật fe-guide `modules/community.md` khi bắt đầu FE.
+3. **FE T-065:** feed (có ô tìm kiếm), chi tiết bài, form đăng bài có upload Cloudinary (form ký trước, rồi upload thẳng), dialog report, khối thảo luận trên trang coin, trang profile công khai, trung tâm thông báo. Làm trong repo FE: pull `develop`, tạo nhánh riêng, viết plan FE trong repo FE.
+4. **Trước khi deploy:** ~~job dọn file Cloudinary mồ côi~~ và ~~rate limit cho Guest~~ xong ở `cf-06` (21/10). ~~Thử upload thật với key Cloudinary~~ **xong 21/10** trên nhánh `cf-07`: ký form, upload ảnh thẳng lên Cloudinary, đăng bài (backend đọc lại file thật), Guest thấy ảnh bìa trên feed, `publicId` không tồn tại bị từ chối 400, xoá bài thì file bị xoá khỏi Cloudinary. Còn (tuỳ chọn): giới hạn chữ ký upload theo user.
+5. **Docs:** ✅ (22/10/2026, A-44 và A-47) sửa SRS theo A-44 (Guest đọc forum, REMOVE_POST, video cho PRO, loại bài official) và E-4, E-5 của D-99 giai đoạn 2; cập nhật fe-guide `modules/community.md` khi bắt đầu FE.
 6. **Push và mở PR** cho các nhánh ở 11.1 khi team sẵn sàng review.
+
+## 12. Chốt phạm vi trước khi merge (21/10/2026)
+
+Người dùng chốt: merge vào `develop` là xong, không sửa thêm. Forum chỉ gồm SRS v1.0, file đăng ký (giai đoạn 1, mục 10.1), E-1 thông báo in-app (có trong SRS), **E-4 trang profile công khai** và **E-5 tìm kiếm**.
+
+| Mục | Quyết định |
+|---|---|
+| E-2 Bullish/Bearish, vote coin theo ngày | Bỏ |
+| E-3 giá coin trên thẻ bài | Bỏ |
+| E-6 follow, tab Following, thông báo FOLLOW | Bỏ |
+| E-7 hashtag, trending | Bỏ |
+| E-8 repost, poll | Bỏ (chưa từng làm) |
+
+Gỡ trên nhánh `feat/cf-07-scope-trim` (tách từ `cf-06` đã merge `origin/develop` @ `132c480`, không conflict, 3171/3171 test đạt trước khi gỡ):
+
+- Xoá migration V29 (sentiment), V30 (follow), V31 (hashtag); V32 thông báo đổi số thành **V29** và bỏ type FOLLOW. Vì nhánh chưa merge nên sửa thẳng migration; DB dev đã chạy V27–V32 thì phải xoá và dựng lại (`docker compose down -v`) hoặc `flyway clean`.
+- Xoá API `/posts/trending`, `/posts/coins/{symbol}/sentiment`, `/community/members/{id}/follow`, `/followers`, `/following`; bỏ filter `sentiment`, `hashtag`, tab FOLLOWING, trường `sentiment`, `hashtags[]` của bài; bỏ `followers`, `following`, `followedByMe` của profile; bỏ `ErrorCode.FOLLOW_SELF`, `NotificationType.FOLLOW`, `NotificationReference.MEMBER`.
+- Giữ `GET /community/members/{id}` và filter `author`, `q` của feed. Test tìm kiếm chuyển sang `SearchApiTest`.
 

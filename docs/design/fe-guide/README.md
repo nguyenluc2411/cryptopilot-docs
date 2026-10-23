@@ -47,7 +47,7 @@ exists in code, marks what is not built yet, and lists the gaps that need a deci
 | [modules/planned.md](modules/planned.md) | Journal, community, news, AI, billing, notifications, admin (spec only) |
 | [06-task-map.md](06-task-map.md) | FE task → screens → endpoints → status |
 | [07-open-questions.md](07-open-questions.md) | Open questions and spec-vs-code mismatches |
-| [08-waiting-on-backend.md](08-waiting-on-backend.md) | What FE cannot build until the backend adds the data or API |
+| [08-waiting-on-backend.md](08-waiting-on-backend.md) | Requests to the backend: defects with cause and fix, branches to push, missing data and APIs the web waits on |
 | [CHANGELOG.md](CHANGELOG.md) | Changes to this guide |
 
 ## Endpoint count at this sync

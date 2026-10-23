@@ -503,7 +503,7 @@ Rules:
   - **Ownership** — checked in services (`resource.userId == currentUser.id`), because it is a property of the row and not of the path: the matrix grants two Traders the same area and they must not read each other's rows.
   - **Entitlement** — subscription state, via `@PreAuthorize("@entitlement.has(authentication, 'AI')")` backed by `BillingApi` (7.12). Applies to SCR-29 and to posting a video; both are `TRADER` in the chain with the entitlement as a second check, because "Trader (Subscribed)" is an entitlement of the Trader role and not a fourth role (SRS 3.1.3), and because a fact that expires must not be encoded in a token that cannot be recalled.
 - The payment callbacks `/billing/ipn/*` and `/billing/return/{gateway}` are not screens and carry no bearer token: they are authenticated by the gateway signature (BR-53) and must never fall under a role rule.
-- Rate limits (ADR-014, `common.web.RateLimitFilter`, Redis fixed window): login 10/min per client address, other public auth calls 20/min per client address, authenticated API 120/min per account; AI 10/min/user when the AI endpoints exist. Over the limit: 429, `Retry-After` in seconds, `RATE_LIMITED` / MSG50 with the seconds as its argument. Off without a profile, on in `dev` (x10) and `prod`; `RATE_LIMIT_LOGIN`, `RATE_LIMIT_AUTH`, `RATE_LIMIT_API`.
+- Rate limits (ADR-014, `common.web.RateLimitFilter`, Redis fixed window): login 10/min per client address, other public auth calls 20/min per client address, authenticated API 120/min per account, calls without an account (Guests: market data, forum reads, D-99) 300/min per client address; AI 10/min/user when the AI endpoints exist. Over the limit: 429, `Retry-After` in seconds, `RATE_LIMITED` / MSG50 with the seconds as its argument. Off without a profile, on in `dev` (x10) and `prod`; `RATE_LIMIT_LOGIN`, `RATE_LIMIT_AUTH`, `RATE_LIMIT_API`, `RATE_LIMIT_GUEST`.
 - Client address (R-11, `common.web.ClientAddressFilter`): `X-Forwarded-For` is read only when the direct peer is in `TRUSTED_PROXIES` (addresses or CIDR ranges), from the right, skipping trusted hops; otherwise the peer is the client. Every `getRemoteAddr()` (audit, limiter) sees the result; `server.forward-headers-strategy` stays `none`.
 - CORS restricted to the configured web origins: `CORS_ALLOWED_ORIGINS` (`cryptopilot.web.cors.allowed-origins`) feeds both the REST policy (`common.config.CorsConfig`, applied by `http.cors(...)`) and the STOMP endpoint. No credentials, no bare `*`; a wildcard port only on localhost. Empty in `prod` until set, which refuses every cross-origin caller.
 
@@ -581,7 +581,7 @@ Key indexes (in addition to PKs and FKs):
 | trading_journal | (user_id, trade_status, exit_time DESC) | journal, performance |
 | trading_journal | (pair_id, trade_status) WHERE trade_status = 'OPEN' | engine rebuild |
 | alert | (watchlist_id), (alert_status) WHERE alert_status = 'ACTIVE' | engine rebuild |
-| notification | (user_id, is_read, created_at DESC) | bell badge |
+| notification | (user_id, is_read, created_at DESC); (user_id, created_at DESC); (created_at); UNIQUE source_key (V32) | bell badge, SCR-15 list, NSF-17 sweep, one row per delivered event |
 | news_article | UNIQUE url_hash; (title_hash, published_at); (published_at DESC) | dedup, feed |
 | subscription_order | UNIQUE order_code; (order_status, created_at) | IPN, reconciliation |
 | user_subscription | UNIQUE order_id; (subscription_status, end_at) | entitlement, expiry |
@@ -776,6 +776,10 @@ DAY_TRADING v1 keeps the BR-13 weights. The preset weights, timeframes and versi
 
 **Read path (T-029):** `AnalysisServiceImpl` reads the latest row of the requested timeframe and, for the score, the latest row of the preset's timeframe (the same row when they coincide), weights it with `SetupScoreCalculator`, and on Futures reads `dominant_side` from the stored EMAs and `ohlcv.close_price` of that candle (null when either is missing). The preset comes from `market.SetupStyleSource`, a port the profile's owner implements (T-103); with no caller, no implementation or no selection it is DAY_TRADING. Nothing is recomputed or filled in on read.
 
+**Setup score of a trading plan (D-112; TP-A, T-048).** A plan carries a required `analysis_timeframe`, one of the BR-08 timeframes (15m, 1h, 4h, 1d). Its default is the primary timeframe of the Trader's current style preset, with `trading_style` mapped as above: SCALPING 15m, DAY_TRADING 1h, SWING 4h (POSITION → SWING; no style → DAY_TRADING, 1h); the Trader may change it, and existing plans are backfilled from their owner's preset the same way. The plan's score is taken at activation, not at the last draft save: the read path above weights the components of the latest closed candle of `analysis_timeframe` with the Trader's preset at that moment, and the plan stores `setup_score_at_plan` with `setup_score_preset` (name and version, e.g. `DAY_TRADING v1`). At the fill, `setup_score_at_fill` uses the stored preset and version, not the Trader's current one, and `fill_indicators` (RSI14, EMA20/50/200, MACD) come from the latest closed candle of the same timeframe; a forming candle is never used. The formulas and weights of this section are unchanged. When either score is null (fewer than 200 closed candles, a component missing) there is no comparison: `setup_score_drop_warned` stays false and no MSG55 is sent (7.8).
+
+*Storage (TP-A, V30).* `trading_plan.analysis_timeframe varchar(32) NOT NULL` with CHECK in (`15m`, `1h`, `4h`, `1d`), held in code as `trading.model.enums.AnalysisTimeframe` (code `15m`…`1d`; `defaultFor(SetupStyle)` gives the defaults above, the style read through `market.SetupStyleSource`). A request without the field takes the default; a value outside BR-08 is MSG15 on `analysisTimeframe`. `setup_score_at_plan numeric(5,2)` (CHECK 0–100, the score type of 5.4) and `setup_score_preset varchar(32)`, both nullable; the journal has the same columns plus `setup_score_at_fill numeric(5,2)` and `setup_score_drop_warned boolean` (nullable, written by T-048). `market` has no public read of the setup score of a (pair, market, timeframe, preset) yet: `MarketApi` does not offer one and the read path of T-029 is internal to `market`. Until it does, activation stores both columns as null and is never blocked by it (Q-74).
+
 References: Wilder 1978 (RSI); Murphy 1999.
 
 ### 7.5 Risk calculation and warnings (BR-21..31)
@@ -823,7 +827,7 @@ Worked example (test vector): E = 100, S = 95, C = 1,000, p = 1, step 0.001, tic
 - L = 20: LP = 95/0.996 = 95.3815… → 95.39; S = 95 ≤ 95.39 → BLOCKING SL_BEYOND_LIQUIDATION.
 - SHORT E = 100, S = 105, L = 10: LP = 110/1.004 = 109.5617… → floor → 109.56; S < LP → OK.
 
-### 7.7 Simulated matching engine (NSF-07, BR-33..39, ADR-011)
+### 7.7 Simulated matching engine (NSF-07, BR-33..39, BR-68, ADR-011, D-111)
 
 Price sources: entry, TP and SL use the traded price range of the forming 1m candle (`kline_1m` updates carry cumulative high/low); futures liquidation uses `markPrice@1s`. Using the high/low range detects touches that happen between ticker updates.
 
@@ -865,7 +869,74 @@ Built in T-043 (PR #47 rules, PR #48 feed and replay):
 
 Built in T-044 (rules only, not wired; Q-59): `trading.matching.ExitRule` decides an exit of an `OpenPosition` (`Exit`: reason, price, time). `byRange` checks the stop loss before the take profit, both bounds inclusive, exit at the level, or at the candle's open when the candle opened beyond the level (gap rule, same as the paper engine: Q-51, Q-53), time = the candle's open time (as D-78). `byMark` liquidates at the liquidation price when the mark price is at or beyond it, also through a gap; a position with no liquidation price (Spot, or a LONG that cannot be liquidated) never is. `CloseReason` holds the four `close_reason` values. T-044 is the calculation layer only (Q-59): the exit and mark books, the mark price feed and mark kline replay, storing the exit, MSG23/MSG24, `PositionClosed` and the rule for an exit in the entry candle are T-048.
 
-### 7.8 Fees, funding and realized P/L (BR-35..38, D-97)
+**GY-03 additions (D-111; built by TP-0, TP-B, TP-C and T-048).**
+
+*Last price per market.* Spot: the ticker's last price. Futures: the close of the latest futures `kline_1m` update. That close is the last trade, because Binance publishes mark price klines as a separate stream. Before TP-0 it only reached the matching feed and the alert engine, never the price cache, so `currentLastPrice(FUTURES)` was always empty. TP-0 writes it into the cache's `last` field with the update's event time and the usual TTL. The last price drives MARKET fills, the marketable-LIMIT check at activation and STOP triggers. The mark price drives liquidation and unrealized PnL only (D-84 and A-41, amended).
+
+*STOP entries (stop-market, BR-33).* The stop price is stored in `entry_price`.
+- A LONG STOP sits in the `AboveBook` and fires when `hi ≥ stop`. A SHORT STOP sits in the `BelowBook` and fires when `lo ≤ stop`.
+- Fill price: the stop price, or the candle open `o` when the candle opened past it (LONG `o ≥ stop`, SHORT `o ≤ stop`). This is the gap rule `ExitRule.byRange` already uses.
+- A STOP always pays taker, with slippage (7.8).
+- There is no stop-limit.
+- STOP waits like LIMIT (books, D-77, D-78, replay) and takes the LIMIT expiry default.
+- An activation (Activate or Save and Activate) whose stop the last price has already reached (LONG last ≥ stop, SHORT last ≤ stop) is refused with MSG16 on `entryPrice`. It is never converted to MARKET; the Trader may choose MARKET, which runs the deviation check of 7.8 (D-112).
+- Built in TP-A: STOP is saved (stop price required, MSG01 on `entryPrice`; CHECK `ck_trading_plan_limit_has_entry_price` covers LIMIT and STOP), takes the 7-day default expiry and is activated; activation never fills a STOP (`EntryFillRule.atActivation` is not asked) and publishes `TradingPlanActivated` with `entryType` STOP, which the worker ignores, as `findActiveLimitEntries` leaves STOP out. Until TP-B an ACTIVE STOP waits and can only be cancelled or expire.
+
+*Invalidation (BR-68).* A waiting plan (LIMIT or STOP) has up to two invalidation levels. Each sits on the side of the book opposite its entry:
+
+| Plan | Entry book | Invalidation levels (book) |
+|---|---|---|
+| LIMIT LONG | Below (`lo ≤ entry`) | TP and `invalidation_price` (Above, `hi ≥ level`) |
+| LIMIT SHORT | Above (`hi ≥ entry`) | TP and `invalidation_price` (Below, `lo ≤ level`) |
+| STOP LONG | Above (`hi ≥ stop`) | SL and `invalidation_price` (Below, `lo ≤ level`) |
+| STOP SHORT | Below (`lo ≤ stop`) | SL and `invalidation_price` (Above, `hi ≥ level`) |
+
+`invalidation_price` must lie on the far side of the current price from the entry, so the price can reach it before the entry. It is checked at save and at activation (MSG16 on the field, D-112). A MARKET plan has none.
+
+*Built in TP-A.* `trading.calculator.PlanValidityRule.invalidationPrice`: above the last price for LIMIT LONG and STOP SHORT, below it for LIMIT SHORT and STOP LONG, equal refused; MSG16 on `invalidationPrice` with the condition and the price in the detail. The current price is the last price, never the mark price, at save (create, edit, Save and Activate) and at Activate (before the count's recalculation). Without a current last price the check cannot run and the request is refused with MSG43; on Futures this holds for every plan with an invalidation price until TP-0 caches the Futures last price. A MARKET plan carrying one is MSG01 on the field (the aggregate's rule; CHECK `ck_trading_plan_invalidation_price`). The status side: `PlanStatus.INVALIDATED` (terminal, only from ACTIVE); `TradingPlan.invalidate(reason, at)` returns false and changes nothing unless the plan is ACTIVE; `TradingPlanRepository.invalidateIfActive(id, at, reason, now)` is the compare-and-set for the engine, like `executeIfActive`. Neither has a caller before TP-B. Schema (V30): `invalidated_at` and `invalidation_reason` are set exactly with INVALIDATED (CHECKs as V15), `ck_trading_plan_activated_at` includes INVALIDATED, `invalidation_price numeric(28,12)`. PlanTab `CANCELLED_EXPIRED` lists INVALIDATED; the list row carries `invalidatedAt` and `invalidationReason`.
+
+Per range `[lo, hi]` with open `o` (o may be unknown) and a plan whose candle passed the D-77 check:
+```
+E = entry reached?   I = some invalidation level reached?      "past L" = o ≥ L for an Above level, o ≤ L for a Below level
+if E and I:
+    if o known and o past an invalidation level  → INVALIDATED   (that level's reason)
+    elif o known and o past the entry           → FILLED          (LIMIT at entry; STOP at o, a gap)
+    else                                        → INVALIDATED     (pessimistic, E6; like SL first, BR-35; o unknown is logged, D-112 R4)
+elif I:  → INVALIDATED
+elif E:  → FILLED
+```
+The open cannot be past both, because the entry and the invalidation levels lie on opposite sides of the price at activation.
+- INVALIDATED is a compare-and-set `ACTIVE → INVALIDATED` with `invalidated_at` = the candle's open time (as D-78) and `invalidation_reason` (`TAKE_PROFIT_REACHED`, `STOP_LOSS_REACHED` or `INVALIDATION_PRICE`). All the plan's levels leave the books, and `TradingPlanInvalidated` is published after commit (T-046 sends MSG54).
+- A candle that opened before `activated_at` neither fills nor invalidates (D-77).
+- Restart replay and the hole replay run the same rule on closed candles, so replay equals live.
+- `ACTIVE_PLAN_MAX` counts ACTIVE plans only (TP-A, BR-62). An INVALIDATED or EXPIRED plan frees its slot with no extra step.
+- At activation the last price (never the mark price) is checked against the invalidation levels with the same inclusive bounds: a LIMIT whose TP, a STOP whose SL, or a LIMIT or STOP whose `invalidation_price` the last price has already reached is refused with MSG16 on that field, so no plan becomes ACTIVE only to be invalidated at once (D-112).
+
+*Activation.*
+- MARKET: the entry deviation check of 7.8 runs (TP-C).
+- A LIMIT the last price already reaches fills at once at the last price, as taker with slippage, and its deviation is ≤ 0.
+- A Futures LIMIT now gets that check too, because the Futures last price exists. Before TP-0 it always waited (E3).
+
+*Excursions (T-048).* For each open position the engine keeps the most adverse and the most favourable price.
+- They start at the fill price and are updated from every range the exit book reads.
+- The entry candle contributes only its adverse extreme to the most adverse price and nothing to the most favourable price, because the order inside the minute is unknown (E6). This holds also when the fill was at the candle's open (D-112 R5).
+- The exit candle is clamped at the exit price.
+- The engine passes the extremes to `journal.JournalApi`, which writes them when they move on a closed candle and at close. The restart replay covers downtime.
+
+**Simulation assumptions** (stated, so every result can be explained; D-111 E6):
+1. Prices are 1-minute candles: open, high, low, and close as the last price. The order of prices inside a minute is unknown, so every rule about two levels in one candle is a pessimistic choice:
+   - SL before TP for an open position (BR-35; an open beyond the TP is Q-61);
+   - invalidation before entry for a waiting plan, unless the open decides (above).
+2. A resting LIMIT fills at its own price, also through a gap (E7; Harris 2003, ch. 4). STOP entries, SL and TP fill at the candle open when the candle opened past them.
+3. A candle that opened before the activation does not act on the plan (D-77). A fill or invalidation from a candle is stamped with its open time (D-78).
+4. The whole snapshot quantity fills at one price. There is no queue position, partial fill or market impact; a plan does not walk the book. Paper trading does walk it (D-92), and plans do not.
+5. Slippage is `SLIPPAGE_BPS`, default 0, on taker fills only (7.8). With 0 the simulated taker fill is the observed last price.
+6. The mark price is used for liquidation and unrealized PnL only. The last price is used for everything else (E2).
+7. Fees go by liquidity role (7.8). Funding is settled at the recorded funding times (A-05).
+
+References: Harris, L. (2003), ch. 4 (limit and stop orders) and ch. 6 (liquidity suppliers and demanders). Binance FAQ, "Types of Order on Binance Futures" (stop-market triggers on the last or mark price; the plan engine uses the last price). Binance FAQ, "What Is the Difference Between a Futures Contract's Last Price and Mark Price?". Binance API documentation, USDⓈ-M Futures "Kline/Candlestick Streams" and "Mark Price Kline/Candlestick Streams".
+
+### 7.8 Fees, funding and realized P/L (BR-35..38, BR-69, BR-70, D-97, D-111)
 
 Three stored amounts on `trading_journal` and one derived amount (D-97, A-02):
 ```
@@ -875,7 +946,9 @@ realized_pnl  (gross, BR-35)
   no fee, no funding
 fee_amount  (≥ 0, BR-36) = fee(entry fill) + fee(exit fill)
   fee(fill) = fillPrice × qty × rate      notional at the fill; leverage does not reduce it
-  rate: maker for LIMIT entry and TAKE_PROFIT exit; taker for MARKET entry, STOP_LOSS, MANUAL
+  rate by liquidity role (D-111 E1): maker when the order rested and was then reached (LIMIT entry reached by a candle,
+        TAKE_PROFIT exit); taker when it executed against the market (MARKET entry, STOP entry, LIMIT marketable at
+        activation, STOP_LOSS, MANUAL); fillPrice of a taker fill includes the slippage below
   LIQUIDATION exit: no taker fee; fee(exit) = clearance fee
     clearance = min(N_liq × LIQUIDATION_CLEARANCE_FEE, MM)     N_liq = liq × qty
     MM = N_liq × MMR − cum   bracket used to derive the liquidation price (entry notional), at N_liq (Q-58)
@@ -906,6 +979,87 @@ Funding is computed from `funding_rate_history` rows (7.1 step 8) when the posit
 
 Test vector: LONG futures qty 2, entry 100 (LIMIT, maker 0.02%), exit TP 115 (maker), one funding at mark 101 rate 0.0001:
 realized_pnl = 30; fee_amount = 0.04 + 0.046 = 0.086; funding_fee_amount = −0.0202; net_pnl = 30 − 0.086 − 0.0202 = 29.8938.
+
+**Liquidity role and slippage (D-111 E1, E5; TP-0).** The role of a fill is stored with it: `trading_plan.fill_liquidity` and `trading_journal.entry_liquidity`, MAKER or TAKER (`varchar(32)` with a CHECK, `trading.model.enums.LiquidityRole`). TP-A records it: set exactly when EXECUTED (CHECK as V18); a fill at activation (MARKET, marketable LIMIT) is TAKER, a candle fill through `executeIfActive` is MAKER; V30 backfills EXECUTED LIMIT as MAKER and EXECUTED MARKET as TAKER. `TradeResultCalculator` reads the role, not the entry type. A taker fill is moved against the Trader by `SLIPPAGE_BPS` (`system_setting`, INT, default 0):
+```
+buy  (LONG entry, SHORT exit):  fill = ref × (1 + bps / 10 000), rounded up to the tick
+sell (SHORT entry, LONG exit):  fill = ref × (1 − bps / 10 000), rounded down to the tick
+ref = last price (MARKET, marketable LIMIT, manual close), stop price (STOP, after its trigger), SL level (STOP_LOSS); the open when the candle opened past the level
+not applied to: maker fills (resting LIMIT, TAKE_PROFIT) and liquidation (exit at LP, clearance fee)
+```
+At MARKET activation the expected fill already includes the slippage, so the quantity is sized on the price paid (D-112 R6). Paper trading (D-86) is not affected.
+Worked examples (Futures, maker 0.02 %, taker 0.05 %, qty 2, tick 0.01):
+- LONG MARKET, last price 100.00, 10 bps: fill = 100.00 × 1.001 = 100.10 (on the tick). Taker fee = 100.10 × 2 × 0.0005 = 0.1001. With 0 bps: fill 100.00, fee 0.1, the entry fee of T-044 case (b), unchanged.
+- SHORT STOP, stop 95.00, no gap, 10 bps: 95.00 × 0.999 = 94.905, rounded down to 94.90. Taker fee = 94.90 × 2 × 0.0005 = 0.0949.
+- LONG LIMIT 100 activated while the last price is 99.50, 0 bps: fills at once at 99.50 as **taker**, fee = 99.50 × 2 × 0.0005 = 0.0995. Before D-111 it paid maker, 99.50 × 2 × 0.0002 = 0.0398.
+- LONG LIMIT 100 reached later by a candle: fills at 100 as maker, fee = 100 × 2 × 0.0002 = 0.04, as T-044 case (a), unchanged.
+
+**Entry deviation (D-111 M2, BR-69; TP-C, T-048).**
+```
+planned_entry_price = entered price (LIMIT, STOP); reference price at the last draft save (MARKET)
+deviation_r = d × (fill − planned) / |planned − SL|        d = +1 LONG, −1 SHORT;  > 0 = worse entry, < 0 = better
+MARKET activation, block = min(ENTRY_DEVIATION_BLOCK_R, max_entry_deviation_r if set):
+  deviation_r < ENTRY_DEVIATION_CONFIRM_R                   → activate
+  ENTRY_DEVIATION_CONFIRM_R ≤ deviation_r ≤ block           → MSG51 {deviation, quantity, riskReward}; activate only with confirmDeviation=true
+  deviation_r > block, or fill at or past TP                → MSG52 (refused)
+quantity is re-sized at the fill so risk_amount stays the planned risk (BR-23, BR-31)
+```
+When the override is below `ENTRY_DEVIATION_CONFIRM_R` there is no confirm band. An override above `ENTRY_DEVIATION_BLOCK_R` is refused at save (MSG15) (D-112 R7). Every fill stores `entry_deviation_r`:
+- resting LIMIT: 0;
+- marketable LIMIT: ≤ 0;
+- STOP gap: > 0, recorded and never refused.
+
+Stored by TP-A (V30): `trading_plan.planned_entry_price numeric(28,12)`, set on every save from the calculated entry (the entered price rounded to the tick for LIMIT and STOP, the last price of the save for MARKET) and kept by activation, which moves only `entry_price`. V30 backfills it from `entry_price` for LIMIT plans and for MARKET plans not yet EXECUTED (their `entry_price` is still the price of the last save); an EXECUTED MARKET plan keeps null, as its `entry_price` is the fill. `max_entry_deviation_r numeric(12,8)`, CHECK > 0; the upper bound is the setting, so `PlanValidityRule.maxEntryDeviation` checks it at save (MSG15 on `maxEntryDeviationR`), and Bean Validation refuses 0 and negatives (MSG15). Settings seeded by V30: `ENTRY_DEVIATION_CONFIRM_R` 0.25000000 and `ENTRY_DEVIATION_BLOCK_R` 0.75000000 (DECIMAL, at the scale of the column), `SETUP_SCORE_DROP_WARN` 15 and `SLIPPAGE_BPS` 0 (INT). The deviation check at activation is TP-C.
+
+Worked example LONG (BTC example from the team lead's summary of 2026-10-07): BTC entry 100,000, SL 98,000, TP 106,000, risk 100 USDT, step 0.0001; |planned − SL| = 2,000.
+- fill 100,000: deviation = (100,000 − 100,000) / 2,000 = 0 → activate. qty = 100 / 2,000 = 0.05. RR = 6,000 / 2,000 = 3.0.
+- fill 101,000: deviation = 1,000 / 2,000 = 0.5R → MSG51. qty = 100 / 3,000 = 0.0333… → 0.0333. RR = 5,000 / 3,000 = 1.67.
+- fill 102,000: deviation = 2,000 / 2,000 = 1.0R > 0.75 → MSG52. It would be qty = 100 / 4,000 = 0.025, RR = 4,000 / 4,000 = 1.0.
+
+Worked example SHORT: planned 50.00, SL 52.00, TP 44.00; |planned − SL| = 2.00.
+- fill 49.50: deviation = −1 × (49.50 − 50.00) / 2.00 = −1 × (−0.50) / 2.00 = 0.25R (sold 0.50 lower, worse) → MSG51 (equal to the confirm value).
+- fill 50.40: deviation = −1 × (0.40) / 2.00 = −0.20R (better) → activate.
+
+Other fills:
+- marketable LONG LIMIT 100 (SL 95) filled at 99.50: (99.50 − 100) / 5 = −0.10R;
+- LONG STOP 100 (SL 95) on a candle that opened at 101: (101 − 100) / 5 = +0.20R.
+
+**Learning metrics (D-111 M4, BR-70; T-048 stores, T-051 and T-074 derive).** Stored per SIMULATED trade:
+- `planned_entry_price`, `entry_deviation_r`, `entry_liquidity`, the planned `risk_amount`;
+- `analysis_timeframe`, `setup_score_preset`, `setup_score_at_plan` (at activation), `setup_score_at_fill`, `fill_indicators` (RSI14, EMA20/50/200, MACD), all from the latest closed candle of `analysis_timeframe` (7.4, D-112);
+- `max_adverse_price`, `max_favorable_price`.
+
+Column types (V30, all nullable, written only by the journal, T-048): `planned_entry_price`, `max_adverse_price`, `max_favorable_price` numeric(28,12); `entry_deviation_r` numeric(20,8) (a gap on a narrow stop can exceed 10,000R in theory, as the reward/risk ratio did before V16); `risk_amount` numeric(28,8); `entry_liquidity` and `analysis_timeframe` varchar(32) with CHECKs; `setup_score_preset` varchar(32); `setup_score_at_plan`, `setup_score_at_fill` numeric(5,2); `setup_score_drop_warned` boolean; `fill_indicators` jsonb.
+
+Derived, never stored, in one domain method and one SQL expression each, like `net_pnl`:
+```
+R            = net_pnl / risk_amount                         (the realized R of BR-42; planned risk, so a STOP gap shows in deviation, not in R's base)
+expectancy_R = Σ R / n                                        (Van Tharp)
+avg_deviation_R = Σ entry_deviation_r / n;   cost_of_late_entry_R = Σ entry_deviation_r
+LONG:  MAE = fill − max_adverse_price     MFE = max_favorable_price − fill
+SHORT: MAE = max_adverse_price − fill     MFE = fill − max_favorable_price
+MAE_R = MAE × qty / risk_amount            MFE_R = MFE × qty / risk_amount
+setup score warning: setup_score_at_plan − setup_score_at_fill ≥ SETUP_SCORE_DROP_WARN (15) → journal warning + MSG55, never blocks
+```
+Worked example LONG, T-044 case (a) with SL 95: qty 2, entry 100, TP 115, `net_pnl` 29.914, risk_amount = |100 − 95| × 2 = 10.
+- R = 29.914 / 10 = 2.9914.
+- Lowest price after the fill 97. Highest 116 in the exit candle, clamped to the exit 115.
+- MAE = 100 − 97 = 3 → 3 × 2 / 10 = 0.6R.
+- MFE = 115 − 100 = 15 → 15 × 2 / 10 = 3.0R.
+
+Worked example SHORT, T-044 case (b): qty 2, entry 100, SL 105, `net_pnl` −10.205, risk_amount = |100 − 105| × 2 = 10.
+- R = −10.205 / 10 = −1.0205. A full stop-loss costs more than 1R because of fees.
+- Highest 106 in the exit candle, clamped to the exit 105. Lowest 98.
+- MAE = 105 − 100 = 5 → 5 × 2 / 10 = 1.0R.
+- MFE = 100 − 98 = 2 → 2 × 2 / 10 = 0.4R.
+
+Over the two trades:
+- expectancy = (2.9914 + (−1.0205)) / 2 = 1.9709 / 2 = 0.98545R;
+- with deviations 0.5, −0.1 and 0.2 on three trades: cost of late entry = 0.6R, average 0.2R.
+
+Setup score drop: 72 → 55 is a drop of 17 ≥ 15, so warn; 72 → 58 is 14, so no warning.
+
+References: Tharp, V. K., *Trade Your Way to Financial Freedom* (2nd ed.): R-multiples and expectancy. Sweeney, J. (1996), *Maximum Adverse Excursion*: MAE/MFE. Harris, L. (2003), ch. 6 (liquidity suppliers pay less than liquidity demanders). Binance FAQ, "Binance Futures Fee Structure & Fee Calculations" (maker and taker by whether the order added or took liquidity).
 
 ### 7.9 Alert engine (NSF-06, BR-18..20)
 
@@ -1040,12 +1194,12 @@ Endpoint catalogue (summary):
 | watchlist | GET/POST /watchlist; PATCH/DELETE /watchlist/{id}; GET/POST /alerts; PUT/DELETE /alerts/{id}; POST /alerts/{id}/pause, /resume. Built in T-053 (D-75), Trader only: `GET /watchlist` → `{ items, limit }` (whole list, not paged, `sortOrder` then `addedAt`; `limit` = `WATCHLIST_MAX`, null when unlimited); `POST /watchlist` `{ pairId, label?, note? }` → 201 (404 MSG41 unknown or unlisted pair, 409 MSG45 already watched, 409 MSG27 limit); `PATCH /watchlist/{id}` `{ label?, note?, sortOrder? }` (null = unchanged, empty = cleared); `DELETE /watchlist/{id}?confirm=&expectedAlertCount=` → 204, or 400 MSG26 (symbol, alert count) when the row has alerts and `confirm` is not true, or when `expectedAlertCount` (optional, the {n} the Trader confirmed) differs from the count under the D-63 lock — nothing is removed (D-76). Another Trader's row answers 404. Alerts built in T-054 (D-76): `GET /alerts?status=&type=&page=&pageSize=` (newest first, 20 per page, CR-04); `POST /alerts` `{ pairId, market, type, indicator?, timeframe?, condition, threshold? (null for MACD_CROSS / EMA_CROSS), triggerMode, cooldownMinutes?, notifyEmail?, notifyPush?, expiresAt? }` → 201 ACTIVE, a pair not yet watched is added to the watchlist in the same transaction (BR-16); `PUT /alerts/{id}` (same body without `pairId`; a TRIGGERED or EXPIRED alert becomes ACTIVE); `POST /alerts/{id}/pause`, `/resume`; `DELETE /alerts/{id}` → 204. 400 MSG01/MSG15 per field, 403 MSG29 (INDICATOR_ALERT, FUTURES_ANALYSIS, EXTERNAL_ALERT_CHANNELS), 404 MSG41 (not the caller's, or the pair not enabled on the market), 409 MSG27 (ACTIVE_ALERT_MAX or WATCHLIST_MAX, under the D-63 lock), 409 MSG43 `ALERT_STATUS_TRANSITION_INVALID` |
 | trading | POST /plans/calculate (no persistence); GET/POST /plans; GET/PUT /plans/{id}; POST /plans/{id}/activate, /cancel, /close-position |
 | journal | GET /journal; GET/PUT /journal/{id}; POST /journal/manual; DELETE /journal/{id} (MANUAL only); GET /performance |
-| community | Built in T-060 (D-98), Trader only: `GET /posts?tab=LATEST, MOST_LIKED, SAVED or MINE &coin=&market=&page=&pageSize=` → page of cards `{id, author{userId, displayName, avatarUrl}, title, excerpt (300), postType, marketType, official, status, coins[], likeCount, commentCount, likedByMe, savedByMe, createdAt, updatedAt}` (official posts not in LATEST/MOST_LIKED; MOST_LIKED = last 7 days by likes; an unknown coin → empty page); `GET /posts/pinned` (published announcements); `GET /posts/{id}` (+`content`, `mine`; 404 MSG41 when not visible under BR-47); `POST /posts` `{title 5–150, content 1–10 000, marketType?, coins[0–5 symbols of listed pairs]}` → 201 (400 MSG01 per field); `PUT /posts/{id}`, `DELETE /posts/{id}` → 204 (own, not deleted, else 404). Admin: `GET/POST /admin/announcements`, `PUT/DELETE /admin/announcements/{id}`. Media (T-061, T-062, D-98): `POST /media/upload-signature` (Trader) and `POST /admin/media/upload-signature` (Admin) `{mediaType IMAGE or VIDEO}` → `{uploadUrl, apiKey, timestamp, signature, publicId, allowedFormats, mediaType, maxBytes, maxDurationSeconds}` (403 MSG29 for VIDEO without `VIDEO_POST`, 503 MSG43 storage unavailable); the post body takes `media: [{publicId, mediaType}]` (4 images or 1 video, checked on the stored file, 400 MSG32 with the limit as message argument) and answers `media[]` (detail) / `cover` (card). Comments and reactions (T-063): `GET/POST /posts/{postId}/comments` (threads oldest first with `replies[]`; `{content 1–2 000, parentCommentId?}`; a reply to a reply joins the first comment's thread), `PUT/DELETE /comments/{id}` (own, not deleted), `POST/DELETE /posts/{id}/like`, `/posts/{id}/save`, `/comments/{id}/like` → `{active, count}`. Reports (T-064): `POST /posts/{id}/reports` `{reason SPAM, SCAM, ABUSE, MISLEADING or OTHER, description? ≤ 500, required for OTHER}` → 201 OPEN; 409 MSG34 `POST_ALREADY_REPORTED`, 409 MSG43 `POST_REPORT_OWN_POST`. Moderation (T-084, Admin): `GET /admin/reports-queue` (one row per post with open reports: card, `reportCount`, `reasons`, first/last reported), `GET /admin/reports-queue/{postId}` (post + open reports, marks them REVIEWING), `POST /admin/reports-queue/{postId}/decision` `{action HIDE_POST, DISMISS, WARN_USER or BAN_USER, note? ≤ 500}` → `{postId, action, postStatus, resolvedReports, authorBanned}` (404 without open reports, 409 MSG39 banning an administrator), `GET /admin/posts/{id}` (any status), `POST /admin/posts/{id}/restore` (409 `POST_NOT_HIDDEN`). D-99 additions: Guest GET on `/posts`, `/posts/pinned`, `/posts/{id}`, `/posts/{id}/comments`, `/posts/trending`, `/posts/coins/{symbol}/discussion` or `/sentiment`, `/community/members/{id}` (and `/followers`, `/following`); feed filters `sentiment`, `author`, `hashtag`, `q` and tab FOLLOWING; post fields `sentiment`, `hashtags[]`, `officialCategory`; `POST /posts/coins/{symbol}/sentiment` `{sentiment}`; `POST/DELETE /community/members/{id}/follow` → `{active, count}`; moderation action REMOVE_POST. |
+| community | Built in T-060 (D-98), Trader (Guest reads, see the D-99 additions): `GET /posts?tab=LATEST, MOST_LIKED, SAVED or MINE &coin=&market=&page=&pageSize=` → page of cards `{id, author{userId, displayName, avatarUrl}, title, excerpt (300), postType, marketType, official, status, coins[], likeCount, commentCount, likedByMe, savedByMe, createdAt, updatedAt}` (official posts not in LATEST/MOST_LIKED; MOST_LIKED = last 7 days by likes; an unknown coin → empty page); `GET /posts/pinned` (published announcements); `GET /posts/{id}` (+`content`, `mine`; 404 MSG41 when not visible under BR-47); `POST /posts` `{title 5–150, content 1–10 000, marketType?, coins[0–5 symbols of listed pairs]}` → 201 (400 MSG01 per field); `PUT /posts/{id}` (own, neither deleted nor hidden, else 404; 400 `MEDIA_KEPT_AS_EVIDENCE` with MSG56 under `errors.media` when it drops a file kept as moderation evidence), `DELETE /posts/{id}` → 204 (own, not deleted, else 404); a delete releases the media unless the post is HIDDEN or has a report OPEN, REVIEWING or resolved HIDE_POST, REMOVE_POST or BAN_USER, and the daily media sweep keeps the same files (moderation evidence, A-47). Admin: `GET/POST /admin/announcements`, `PUT/DELETE /admin/announcements/{id}`. Media (T-061, T-062, D-98): `POST /media/upload-signature` (Trader) and `POST /admin/media/upload-signature` (Admin) `{mediaType IMAGE or VIDEO}` → `{uploadUrl, apiKey, timestamp, signature, publicId, allowedFormats, mediaType, maxBytes, maxDurationSeconds, overwrite=false}` (403 MSG29 for VIDEO without `VIDEO_POST`, which PRO and PREMIUM have, 503 MSG43 storage unavailable); the post body takes `media: [{publicId, mediaType}]` (4 images or 1 video, checked on the stored file, 400 MSG32 with the limit as message argument) and answers `media[]` (detail) / `cover` (card). Comments and reactions (T-063): `GET/POST /posts/{postId}/comments` (threads oldest first with `replies[]`; `{content 1–2 000, parentCommentId?}`; a reply to a reply joins the first comment's thread), `PUT/DELETE /comments/{id}` (own, not deleted), `POST/DELETE /posts/{id}/like`, `/posts/{id}/save`, `/comments/{id}/like` → `{active, count}`. Reports (T-064): `POST /posts/{id}/reports` `{reason SPAM, SCAM, ABUSE, MISLEADING or OTHER, description? ≤ 500, required for OTHER}` → 201 OPEN; 409 MSG34 `POST_ALREADY_REPORTED`, 409 MSG43 `POST_REPORT_OWN_POST`. Moderation (T-084, Admin): `GET /admin/reports-queue` (one row per post with open reports: card, `reportCount`, `reasons`, first/last reported), `GET /admin/reports-queue/{postId}` (post + open reports, marks them REVIEWING), `POST /admin/reports-queue/{postId}/decision` `{action HIDE_POST, REMOVE_POST, DISMISS, WARN_USER or BAN_USER, note? ≤ 500}` → `{postId, action, postStatus, resolvedReports, authorBanned}` (404 without open reports, 409 MSG39 banning an administrator), `GET /admin/posts/{id}` (any status), `POST /admin/posts/{id}/restore` (409 `POST_NOT_HIDDEN`). D-99 additions: Guest GET on `/posts`, `/posts/pinned`, `/posts/{id}`, `/posts/{id}/comments`, `/posts/coins/{symbol}/discussion`, `/community/members/{id}` (public page `{userId, displayName, avatarUrl, joinedAt, posts, likesReceived, me}`); feed filters `author` and `q` (search in title and text, 2–100 characters, 400 MSG15 otherwise); post field `officialCategory`; moderation action REMOVE_POST. Out of scope (2026-10-21): Bullish/Bearish labels and coin votes, following and the Following tab, hashtags and trending, repost and polls. |
 | news | GET /news?coin=&sentiment=&range=; GET /news/sentiment-summary |
 | ai | GET/POST /ai/conversations; PATCH/DELETE /ai/conversations/{id}; GET/POST /ai/conversations/{id}/messages |
 | billing | GET /billing/packages; POST /billing/orders; GET /billing/orders; GET /billing/orders/{code}; GET /billing/subscription; POST /billing/ipn/vnpay; POST /billing/ipn/momo; GET /billing/return/{gateway} |
-| notification | GET /notifications; POST /notifications/{id}/read; POST /notifications/read-all |
-| admin (+ community for /admin/reports-queue and /admin/announcements; user for /admin/users; market for /admin/pairs and /admin/leverage-brackets; billing for /admin/packages and /admin/orders; news for /admin/news-sources; ai for /admin/ai-configurations) | /admin/dashboard, /admin/reports, /admin/users, /admin/reports-queue, /admin/pairs, /admin/leverage-brackets, /admin/packages, /admin/orders, /admin/news-sources, /admin/ai-configurations, /admin/settings, /admin/audit-log, /admin/announcements |
+| notification | Built in E-1 (V29), Trader only: `GET /notifications?unreadOnly=&page=&pageSize=` → page of `{id, type, title, content, referenceType (ALERT, PLAN, POST, or SUBSCRIPTION), referenceId, read, readAt, createdAt}`, newest first, 20 per page; `GET /notifications/unread-count` → `{unread}`; `POST /notifications/{id}/read` → the notification (404 MSG41 when not the caller's; a second call keeps the first `readAt`); `POST /notifications/read-all` → `{unread: 0}`. Each new notification is also pushed on `/user/queue/notifications` (same body) after its transaction commits. Written by `@ApplicationModuleListener`s of the community events: `PostCommented` → COMMENT to the post's author (not their own comment), `PostModerated` → MODERATION to the author (not for DISMISS) and each reporter; `source_key` makes a redelivery write nothing. Type added in V29: COMMENT. NSF-17: `NotificationSweepJob` deletes rows older than `cryptopilot.notification.sweep.retention` (90d), daily 00:30 UTC in dev/prod. Not yet: ALERT rows from `AlertTriggered` and email/push dispatch (T-056, T-058) |
+| admin (+ community for /admin/reports-queue and /admin/announcements; user for /admin/users; market for /admin/pairs and its brackets; billing for /admin/packages and /admin/orders; news for /admin/news-sources; ai for /admin/ai-configurations) | /admin/dashboard, /admin/reports, /admin/users, /admin/reports-queue, /admin/pairs, /admin/packages, /admin/orders, /admin/news-sources, /admin/ai-configurations, /admin/settings, /admin/audit-log, /admin/announcements. Built 2026-10-21: T-085 `GET/POST /admin/pairs`, `GET /admin/pairs/exchange-symbols`, `GET/PUT /admin/pairs/{id}` `{status, spotEnabled, futuresEnabled, maxLeverage, displayOrder}` (409 MSG40 `PAIR_HAS_OPEN_POSITIONS`, BR-59), `GET/PUT /admin/pairs/{id}/brackets` `{brackets: [{notionalFloor, notionalCap, maxLeverage, maintenanceMarginRate}]}` (maintenance amount computed, BR-27; 400 per row); T-082 `GET /admin/settings`, `GET/PUT /admin/settings/{key}` `{value}` (type and range per key, 400); T-083 `GET /admin/users`, `GET /admin/users/{id}`, `POST /admin/users/{id}/lock`, `/unlock`, `/ban` `{reason}`, `PUT /admin/users/{id}/role` `{role, reason}` (409 on own account or the last active administrator, BR-58); T-086 `GET /admin/dashboard`, `GET /admin/reports?groupBy=DAY|WEEK|MONTH`, `GET /admin/reports/export` (text/csv). |
 
 ---
 
@@ -1177,7 +1331,8 @@ Since T-025: `tools/golden/generate_indicator_fixture.py` writes `btcusdt-1h-tal
 ## 14. References
 
 - Appel, G. (2005). *Technical Analysis: Power Tools for Active Investors*. FT Prentice Hall.
-- Binance (2026). *Binance Spot API* and *USDⓈ-M Futures API* documentation (market data endpoints, streams, liquidation price).
+- Binance (2026). *Binance Spot API* and *USDⓈ-M Futures API* documentation (market data endpoints, streams, liquidation price; Kline/Candlestick and Mark Price Kline streams).
+- Binance (2026). FAQ: *Types of Order on Binance Futures*; *What Is the Difference Between a Futures Contract's Last Price and Mark Price?*; *Binance Futures Fee Structure & Fee Calculations*.
 - Bollinger, J. (2001). *Bollinger on Bollinger Bands*. McGraw-Hill.
 - Cohn, M. (2009). *Succeeding with Agile*. Addison-Wesley (test pyramid).
 - Cormen, T. H., Leiserson, C. E., Rivest, R. L., & Stein, C. (2009). *Introduction to Algorithms* (3rd ed.). MIT Press.
@@ -1188,6 +1343,7 @@ Since T-025: `tools/golden/generate_indicator_fixture.py` writes `btcusdt-1h-tal
 - Evans, E., & Fowler, M. (1997). *Specifications*. martinfowler.com.
 - Fowler, M. (2002). *Patterns of Enterprise Application Architecture*. Addison-Wesley.
 - Gamma, E., Helm, R., Johnson, R., & Vlissides, J. (1994). *Design Patterns*. Addison-Wesley.
+- Harris, L. (2003). *Trading and Exchanges: Market Microstructure for Practitioners*. Oxford University Press (ch. 4 order types, ch. 6 liquidity suppliers and demanders).
 - Hewitt, C., Bishop, P., & Steiger, R. (1973). A universal modular ACTOR formalism for artificial intelligence. *IJCAI 1973*.
 - Hohpe, G., & Woolf, B. (2003). *Enterprise Integration Patterns*. Addison-Wesley.
 - IETF RFC 3986 (URI syntax), RFC 7519 (JWT), RFC 9457 (Problem Details for HTTP APIs).
@@ -1199,6 +1355,7 @@ Since T-025: `tools/golden/generate_indicator_fixture.py` writes `btcusdt-1h-tal
 - Nygard, M. T. (2018). *Release It!* (2nd ed.). Pragmatic Bookshelf.
 - OWASP (2021). *OWASP Top 10*; OWASP ASVS 4.0.
 - Richardson, C. (2018). *Microservices Patterns*. Manning (transactional outbox, idempotent consumer).
+- Sweeney, J. (1996). *Maximum Adverse Excursion: Analyzing Price Fluctuations for Trading Management*. Wiley.
 - Tharp, V. K. (1999). *Trade Your Way to Financial Freedom*. McGraw-Hill.
 - Tharp, V. K. (2007). *Trade Your Way to Financial Freedom* (2nd ed.). McGraw-Hill.
 - VNPay (2024). *VNPAY Payment Gateway Integration, API 2.1.0*. MoMo (2024). *MoMo Payment Platform API v2*.
