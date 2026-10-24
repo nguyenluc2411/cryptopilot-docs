@@ -127,7 +127,7 @@ Source: `trading/model/enums/Direction.java#L8`.
 |---|---|---|
 | `LIMIT` | Limit | `entryPrice` required; expiry defaults to 7 days |
 | `MARKET` | Market | Entry = current last price; `entryPrice` ignored |
-| `STOP` | Stop (breakout) | TP-A branch. `entryPrice` = stop price, required; expiry defaults to 7 days; triggers from TP-B |
+| `STOP` | Stop (breakout) | `entryPrice` = stop price, required; expiry defaults to 7 days; triggered by the last price from TP-B, fills at the stop or at the candle open on a gap, taker, with slippage |
 
 Source: `trading/model/enums/EntryType.java#L8`.
 
@@ -153,7 +153,8 @@ Source: `trading/model/enums/MarginMode.java#L9`.
 Transitions: `DRAFT → ACTIVE | CANCELLED`; `ACTIVE → EXECUTED | CANCELLED | EXPIRED | INVALIDATED`. Nothing leaves a
 terminal status. `EXECUTED` and `EXPIRED` are set by the matching engine (T-042+), not by the client.
 
-`INVALIDATED` is set by the matching engine from TP-B.
+`INVALIDATED` is set by the matching engine (TP-B branch), see `modules/trading-plan.md` "Engine: STOP trigger and
+invalidation (TP-B)".
 
 Source: `trading/model/enums/PlanStatus.java#L19`. Spec: BR-32, BR-68, D-66, D-111.
 

@@ -14,9 +14,11 @@ Read first:
 - Plan responses carry `pairId` but **no symbol** (FEQ-01).
 - **Plan validity (TP-A, D-111, D-112), branch `feature/TP-A-plan-validity`, not on `develop` yet:**
   STOP entry, invalidation price, own entry deviation limit, analysis timeframe, the INVALIDATED status
-  and the setup score taken at activation. See "Plan validity (TP-A)" below. A STOP plan can be
-  activated but never triggers until the engine handles it (TP-B), so **keep STOP hidden in the web
-  until TP-B**; nothing becomes INVALIDATED until TP-B either.
+  and the setup score taken at activation. See "Plan validity (TP-A)" below.
+- **STOP trigger and invalidation (TP-B), branch `feat/tp-b-stop-invalidation`, stacked on TP-0, not
+  on `develop` yet:** the engine triggers STOP entries and invalidates waiting plans, so **STOP can
+  be offered in the web (T-040)** once TP-B is on `develop`. See "Engine: STOP trigger and
+  invalidation (TP-B)" below.
 - **Fees in the risk panel (TP-0, D-116), branch `feat/tp-0-realism`, not on `develop` yet:** the
   snapshot carries seven fee figures and a ninth warning `HIGH_FEE_SHARE`. See "Fees and slippage in
   the risk panel (TP-0)" below. Futures MARKET plans are now priced at the Futures **last** price.
@@ -203,10 +205,9 @@ Status: on `feature/TP-A-plan-validity` (not merged). Spec: BR-33, BR-68, BR-69,
 - **STOP entry.** A stop-market entry for breakouts: `entryPrice` is the stop price. LONG triggers
   when the last price is ≥ the stop, SHORT when ≤. Without an expiry it gets 7 days, as LIMIT.
   Activating (Activate or Save and Activate) a STOP the last price has already reached answers 400
-  `errors.entryPrice` MSG16; it is never turned into MARKET — offer MARKET to the Trader. Until TP-B,
-  an activated STOP stays ACTIVE and never triggers: the engine does not trigger STOP entries yet.
-  **The web keeps STOP hidden until TP-B** (do not offer it in the entry type selector); the API
-  already accepts it, so a STOP plan made through the API alone is still listed and shown.
+  `errors.entryPrice` MSG16; it is never turned into MARKET — offer MARKET to the Trader. How an
+  ACTIVE STOP triggers and fills: "Engine: STOP trigger and invalidation (TP-B)". Offer STOP in the
+  entry type selector once TP-B is on `develop`; before that it is accepted but never triggers.
 - **`invalidationPrice`** (LIMIT and STOP only). It must lie on the far side of the current last
   price from the entry, so the price can reach it before the entry: LONG LIMIT with last 102, entry
   100 → invalidation above 102. Checked at save and again at activation; wrong side → 400
@@ -238,7 +239,42 @@ Status: on `feature/TP-A-plan-validity` (not merged). Spec: BR-33, BR-68, BR-69,
   error**: the activation succeeded, the score is not filled in later, show "—"; never compute it on
   the client.
 - **INVALIDATED**: a terminal status, listed in the `CANCELLED_EXPIRED` tab with its badge and
-  `invalidationReason`. It frees an `ACTIVE_PLAN_MAX` slot. Nothing sets it until TP-B.
+  `invalidationReason`. It frees an `ACTIVE_PLAN_MAX` slot. The matching engine sets it (TP-B).
+
+## Engine: STOP trigger and invalidation (TP-B)
+
+Status: on `feat/tp-b-stop-invalidation` (stacked on TP-0, not merged). Spec: BR-33, BR-36, BR-68,
+NSF-07; D-77, D-78, D-111, D-112. Nothing in the request or response shapes changes; plans move to
+`EXECUTED` or `INVALIDATED` on their own, so refetch (or poll) the plan list and detail.
+
+- **STOP trigger.** An ACTIVE STOP waits for the Futures or Spot **last** price (never the mark
+  price): LONG triggers when a price ≥ the stop trades, SHORT when ≤. Equal to the stop counts.
+- **STOP fill price.** It is a stop-market order: it fills at the stop price, or at the **open of
+  the 1-minute candle** when that candle already opened past the stop (a gap: a LONG stop 100 and a
+  candle opening at 101 fills at 101). The price is then moved by `SLIPPAGE_BPS` against the Trader
+  and rounded to the tick; nothing caps it. It always pays the **taker** fee. A STOP fill can
+  therefore be worse than the stop price; say so in the STOP help text ("fills at the stop or
+  worse on a gap").
+- **LIMIT fill price** (unchanged): a resting LIMIT reached by the price fills at its own price, also
+  through a gap, as **maker**, with no slippage.
+- **Fill time.** `executedAt` (and `invalidatedAt`) is the open time of the candle that decided it,
+  not the moment the server noticed; after a server restart the missed candles are replayed with the
+  same rules and give the same result.
+- **Invalidation.** A waiting plan becomes `INVALIDATED` before its entry fills when the price
+  reaches first: a LIMIT's take profit (`TAKE_PROFIT_REACHED`), a STOP's stop loss
+  (`STOP_LOSS_REACHED`), or the plan's `invalidationPrice` (`INVALIDATION_PRICE`). When one candle
+  reaches both the entry and an invalidation level, the candle's open decides if it already lies
+  past one of them; otherwise invalidation wins. A candle that opened before the activation neither
+  fills nor invalidates the plan.
+- **Activation refusals.** Activate and Save and Activate also answer 400 MSG16 on
+  `errors.takeProfit` for a LIMIT whose take profit the last price has already reached, and on
+  `errors.stopLoss` for a STOP whose stop loss it has already reached (at the level counts), so no
+  plan becomes ACTIVE only to be invalidated at once. Fill `{rule}` of MSG16 yourself (M-11), e.g.
+  "take profit must be above the current price".
+- **Races.** A cancel and the engine's fill or invalidation never both happen: the loser of a cancel
+  gets 409 MSG43; reload the plan to show its new status.
+- **Notification.** The Trader's notice of an invalidation (MSG54, with the reason) is T-046; until
+  then the web learns it only from the plan's status.
 
 ---
 
@@ -450,7 +486,7 @@ Response `200`: `TradingPlanResponse` (`status: "ACTIVE"`, new snapshot).
 
 | Status | `code` | MSG | When | Show |
 |---|---|---|---|---|
-| 400 | `VALIDATION_FAILED` | MSG01/15/16 | Inputs no longer pass (e.g. MARKET price moved past the stop → `errors.stopLoss` MSG16); a STOP already triggered → `errors.entryPrice` MSG16; the invalidation price now on the wrong side → `errors.invalidationPrice` MSG16; expiry already passed → MSG01 | Fields / banner; offer Edit |
+| 400 | `VALIDATION_FAILED` | MSG01/15/16 | Inputs no longer pass (e.g. MARKET price moved past the stop → `errors.stopLoss` MSG16); a STOP already triggered → `errors.entryPrice` MSG16; the invalidation price now on the wrong side → `errors.invalidationPrice` MSG16; TP-B: a LIMIT whose take profit the last price reached → `errors.takeProfit` MSG16, a STOP whose stop loss it reached → `errors.stopLoss` MSG16; expiry already passed → MSG01 | Fields / banner; offer Edit |
 | 403 | `PLAN_FEATURE_NOT_INCLUDED` | MSG29 | Futures plan, plan downgraded | Dialog |
 | 404 | `RESOURCE_NOT_FOUND` | MSG41 | Not the caller's, or pair disabled | Inline |
 | 409 | `TRADING_PLAN_STATUS_TRANSITION_INVALID` | MSG43 | Not DRAFT (double click, other tab) | Reload |

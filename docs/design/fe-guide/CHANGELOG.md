@@ -2,6 +2,22 @@
 
 Newest first. Each entry names the `develop` SHA the guide was synced to.
 
+## 2026-10-25 — TP-B STOP trigger and invalidation, branch `feat/tp-b-stop-invalidation`
+
+**Huy — visible change for the web (stacked on TP-0, not merged yet):**
+
+- **STOP can be shown in the web (T-040)** once TP-B is on `develop`: the engine triggers an ACTIVE
+  STOP when the last price reaches the stop (LONG ≥, SHORT ≤) and fills it at the stop, or at the
+  1-minute candle's open on a gap, moved by `SLIPPAGE_BPS` against the Trader, as taker. A resting
+  LIMIT still fills at its own price, as maker.
+- Plans now become `INVALIDATED` on their own (`TAKE_PROFIT_REACHED` for LIMIT, `STOP_LOSS_REACHED`
+  for STOP, `INVALIDATION_PRICE`), and `EXECUTED` for STOP; refetch the list and detail. The
+  notification MSG54 is T-046.
+- Activate and Save and Activate: new 400 MSG16 on `errors.takeProfit` (LIMIT, take profit already
+  reached by the last price) and `errors.stopLoss` (STOP, stop loss already reached).
+- `modules/trading-plan.md`: new section "Engine: STOP trigger and invalidation (TP-B)", activate
+  errors updated; `04-enums.md`: `STOP` and `INVALIDATED` notes.
+
 ## 2026-10-24 — TP-0 fees in the risk panel, Futures last price, slippage, branch `feat/tp-0-realism`
 
 **Huy — visible change for the web (stacked on TP-A and T-045, not merged yet):**

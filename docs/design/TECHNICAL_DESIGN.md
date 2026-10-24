@@ -909,7 +909,7 @@ Built in T-044 (rules only, not wired; Q-59): `trading.matching.ExitRule` decide
 - There is no stop-limit.
 - STOP waits like LIMIT (books, D-77, D-78, replay) and takes the LIMIT expiry default.
 - An activation (Activate or Save and Activate) whose stop the last price has already reached (LONG last ≥ stop, SHORT last ≤ stop) is refused with MSG16 on `entryPrice`. It is never converted to MARKET; the Trader may choose MARKET, which runs the deviation check of 7.8 (D-112).
-- Built in TP-A: STOP is saved (stop price required, MSG01 on `entryPrice`; CHECK `ck_trading_plan_limit_has_entry_price` covers LIMIT and STOP), takes the 7-day default expiry and is activated; activation never fills a STOP (`EntryFillRule.atActivation` is not asked) and publishes `TradingPlanActivated` with `entryType` STOP, which the worker ignores, as `findActiveLimitEntries` leaves STOP out. Until TP-B an ACTIVE STOP waits and can only be cancelled or expire.
+- Built in TP-A: STOP is saved (stop price required, MSG01 on `entryPrice`; CHECK `ck_trading_plan_limit_has_entry_price` covers LIMIT and STOP), takes the 7-day default expiry and is activated; activation never fills a STOP (`EntryFillRule.atActivation` is not asked) and publishes `TradingPlanActivated` with `entryType` STOP, which the worker ignored before TP-B. An ACTIVE STOP activated then never entered the books; the start-up rebuild of TP-B loads it with the other waiting plans.
 
 *Invalidation (BR-68).* A waiting plan (LIMIT or STOP) has up to two invalidation levels. Each sits on the side of the book opposite its entry:
 
@@ -940,6 +940,15 @@ The open cannot be past both, because the entry and the invalidation levels lie 
 - Restart replay and the hole replay run the same rule on closed candles, so replay equals live.
 - `ACTIVE_PLAN_MAX` counts ACTIVE plans only (TP-A, BR-62). An INVALIDATED or EXPIRED plan frees its slot with no extra step.
 - At activation the last price (never the mark price) is checked against the invalidation levels with the same inclusive bounds: a LIMIT whose TP, a STOP whose SL, or a LIMIT or STOP whose `invalidation_price` the last price has already reached is refused with MSG16 on that field, so no plan becomes ACTIVE only to be invalidated at once (D-112).
+
+*Built in TP-B.*
+- `PriceRange` carries the candle open (`null` when the source gives none); `MinuteKlineFeed` passes the `kline_1m` open, and a merged range keeps the open of its earliest candle.
+- `TrackedEntry` holds the owner, entry type, SL, TP and `invalidation_price`. `MatchingEngine` places the entry on `EntryFillRule.entrySide` (LIMIT LONG and STOP SHORT below, LIMIT SHORT and STOP LONG above) and the invalidation levels of `WaitingPlanRule.invalidationLevels` on the opposite side. A range fires the levels it reached; each plan concerned is decided once by `WaitingPlanRule.decide` (the table above, D-77 included) and leaves both books; a plan held back by D-77 goes back.
+- The engine returns `PlanOutcome` = `Fill(entry, liquidity, price, executedAt)` or `Invalidation(entry, reason, invalidatedAt)`. A LIMIT fill is MAKER at its price; a STOP fill is TAKER at the stop or at the open on a gap. `MatchingServiceImpl.fill` moves a TAKER price by `SlippageCalculator.takerFill` (`SLIPPAGE_BPS` read per fill, tick of the pair, against the Trader, no cap) and stores price, `fill_liquidity` and `executed_at` through `executeIfActive`; `invalidate` calls `invalidateIfActive` and, when it wins, publishes `TradingPlanInvalidated(planId, userId, reason, invalidatedAt)` for after the commit. The worker's retry list, deadline and watermark hold apply to both outcomes.
+- `TradingPlanRepository.findActiveWaitingEntries` (ACTIVE LIMIT and STOP) feeds the start-up rebuild and the replay start of each pair; `TradingPlanActivated` carries the same fields, so a plan activated while running is tracked the same way.
+- Activation: `PlanValidityRule.takeProfitAlreadyReached` (LIMIT) and `stopLossAlreadyReached` (STOP) run on the request's one read of the last price, beside `stopAlreadyTriggered` and `invalidationPrice`. A LIMIT without a current last price still waits for the engine (BR-33) and is not refused: its take profit is checked whenever the price is known.
+- `openPositions(userId)` of the plan limit still answers 0 until T-048, so `ACTIVE_PLAN_MAX` counts ACTIVE plans only.
+- No migration.
 
 *Activation.*
 - MARKET: the entry deviation check of 7.8 runs (TP-C).
