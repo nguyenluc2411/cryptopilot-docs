@@ -2,6 +2,21 @@
 
 Newest first. Each entry names the `develop` SHA the guide was synced to.
 
+## 2026-10-24 — T-107 plan gates on analysis and Futures data, branch `feat/t-107-analysis-gates`
+
+**Huy — visible change for the web (CR-08 locks, D-60):**
+
+- `GET /analysis/{market}/{symbol}`: new field `componentsLocked: boolean`. On FREE it is `true` and
+  both `components` and `setupScore.components` are `null` (the total score stays); show the
+  component rows locked with the upgrade prompt, not "Insufficient data". Futures on FREE is 403
+  MSG29. PRO and PREMIUM unchanged apart from `componentsLocked: false`. The top-level `components`
+  is kept (not dropped).
+- `GET /market/futures/{symbol}/metrics`: 401 MSG44 without a token, 403 MSG29 on FREE.
+- `GET /market/futures/{symbol}/stats`: still public; `openInterest`, `longShortRatio` and
+  `lastFundingSettlement` are `null` for a Guest or FREE. Send the token on both Futures endpoints.
+- `modules/market.md` updated (common rules, the three endpoints). Not merged yet: until then
+  `develop` keeps answering everything to every Trader.
+
 ## 2026-10-24 — TP-A follow-up, branch `feature/TP-A-plan-validity`
 
 - `modules/trading-plan.md`: `setupScoreAtPlan` is usually null for an activation right after a

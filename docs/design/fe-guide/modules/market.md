@@ -6,14 +6,17 @@ Code prefix: `backend/src/main/java/com/cryptopilot/market/`.
 
 Common rules of `/market/**`:
 
-- Public (Guest). No token needed; a valid token is accepted.
+- Public (Guest). No token needed; a valid token is accepted — and read for the plan on the two
+  Futures endpoints below.
 - `{market}` / `?market=`: `spot` or `futures`, any case. Responses spell it `SPOT` / `FUTURES`.
 - `{symbol}`: any case, e.g. `btcusdt`; responses upper case.
 - A pair that is not enabled on that market (BR-07) → 404 MSG41.
 - A bad parameter (market, tf, limit, range, page) → 400 MSG01 **without** an `errors` map.
-- **D-60 / T-107 gates are not built:** the spec makes Futures metrics and the OI / long-short /
-  settlement blocks of Futures stats PRO+ (`FUTURES_ANALYSIS`). Today they are public. Do not build
-  the UI on "public"; plan the lock (CR-08) and expect 403 MSG29 after T-107.
+- **D-60 plan gates (T-107, branch `feat/t-107-analysis-gates`, not merged yet):**
+  `GET /market/futures/{symbol}/metrics` needs a token (401 MSG44) and a plan with
+  `FUTURES_ANALYSIS` (403 MSG29, PRO and PREMIUM); `GET /market/futures/{symbol}/stats` stays public
+  but answers `openInterest`, `longShortRatio` and `lastFundingSettlement` only to PRO and PREMIUM —
+  `null` for a Guest or FREE. Send the token on both when the user is signed in.
 
 ---
 
@@ -182,8 +185,8 @@ Source: `market/controller/MarketController.java#L88`; `market/dto/response/Spot
 ---
 
 ### GET /market/futures/{symbol}/stats
-Status: IMPLEMENTED (develop)
-Auth: public (spec: blocks after `price` become PRO+ with T-107, D-60)
+Status: IMPLEMENTED (develop); plan gate on branch `feat/t-107-analysis-gates`
+Auth: public; send the token when signed in — the blocks after `price` need `FUTURES_ANALYSIS` (D-60)
 Purpose: Latest mark price, funding, open interest, long/short ratio and last settlement (SCR-11).
 
 Response `200`:
@@ -221,7 +224,11 @@ interface FundingSettlement { fundingTime: string; fundingRate: string; markPric
 |---|---|---|---|
 | 404 | `RESOURCE_NOT_FOUND` | MSG41 | Not enabled on Futures |
 
-FE notes: each block has its own instant and is `null` until stored. Funding countdown: from
+FE notes: each block has its own instant and is `null` until stored. **For a Guest or a FREE Trader
+`openInterest`, `longShortRatio` and `lastFundingSettlement` are always `null`** (D-60): the plan
+does not include them, nothing is wrong with the data. Only SCR-11 shows those blocks, and SCR-11 is
+gated by `GET /analysis/futures/…` (403 MSG29 on FREE), so a screen that got its analysis also gets
+the blocks. Funding countdown: from
 `price.nextFundingTime` (live from the ticker topic), never assume 8 h (BR-11). **No last price and
 no 24h statistics for Futures** (M-09).
 Source: `market/controller/MarketController.java#L101`; `market/dto/response/FuturesStatsResponse.java#L22`; `market/dto/response/FuturesPriceResponse.java#L20`. Spec: SRS 3.3.3, BR-10, BR-11, D-45, D-60.
@@ -229,8 +236,8 @@ Source: `market/controller/MarketController.java#L101`; `market/dto/response/Fut
 ---
 
 ### GET /market/futures/{symbol}/metrics
-Status: IMPLEMENTED (develop)
-Auth: public (spec: PRO+ with T-107, D-60)
+Status: IMPLEMENTED (develop); plan gate on branch `feat/t-107-analysis-gates`
+Auth: trader with `FUTURES_ANALYSIS` (PRO, PREMIUM) — the path is public, the gate is the plan (D-60)
 Purpose: Open interest, long/short ratio and settled funding series over a range (SCR-11 charts).
 
 | Query | Type | Required | Rule |
@@ -266,6 +273,8 @@ interface FuturesMetricsResponse {
 | Status | `code` | MSG | When |
 |---|---|---|---|
 | 400 | `VALIDATION_FAILED` | MSG01 | `to` in future, `from ≥ to`, range > 7 days |
+| 401 | `AUTHENTICATION_REQUIRED` | MSG44 | No token (checked first) |
+| 403 | `PLAN_FEATURE_NOT_INCLUDED` | MSG29 | FREE plan (checked before the range); upgrade prompt |
 | 404 | `RESOURCE_NOT_FOUND` | MSG41 | Not enabled on Futures |
 
 FE notes: series are sparse — do not assume a point every 5 minutes. When `availableFrom` is after
@@ -276,8 +285,8 @@ Source: `market/controller/MarketController.java#L113`; `market/dto/response/Fut
 ---
 
 ### GET /analysis/{market}/{symbol}
-Status: IMPLEMENTED (develop)
-Auth: trader (spec: Futures and components PRO+ with T-107, D-60)
+Status: IMPLEMENTED (develop); plan gates and `componentsLocked` on branch `feat/t-107-analysis-gates`
+Auth: trader; Futures needs `FUTURES_ANALYSIS`, the component scores need `SCORE_COMPONENTS` (D-60)
 Purpose: Latest indicators, support/resistance and setup score of a pair (SCR-10, SCR-11; UC-10, UC-11).
 
 | Param | In | Type | Required | Rule |
@@ -304,6 +313,7 @@ Response `200` (Futures shown; Spot has no `derivatives` and no `dominantSide` k
   },
   "nearestSupport": "62400.00",
   "nearestResistance": "63500.00",
+  "componentsLocked": false,
   "components": { "formulaVersion": "v1", "trend": "75.00", "momentum": "60.00", "volume": "55.00", "level": "40.00", "derivatives": "50.00" },
   "setupScore": {
     "score": 62,
@@ -327,7 +337,8 @@ interface AnalysisResponse {
   indicators: Indicators;         // every value string | null
   nearestSupport: string | null;
   nearestResistance: string | null;
-  components: Components;         // of the requested tf
+  componentsLocked: boolean;      // true = plan lacks SCORE_COMPONENTS (FREE): both component blocks null
+  components: Components | null;  // of the requested tf; null only when componentsLocked
   setupScore: SetupScore;         // read on the PRESET's timeframe, not tf
 }
 interface Indicators {
@@ -346,7 +357,7 @@ interface SetupScore {
   presetVersion: string;
   timeframe: string;             // preset timeframe: 15m / 1h / 4h
   openTime: string | null;
-  components: Components;
+  components: Components | null;  // null only when componentsLocked
   dominantSide?: 'LONG' | 'SHORT' | 'NEUTRAL' | null; // FUTURES only
 }
 ```
@@ -355,6 +366,7 @@ interface SetupScore {
 |---|---|---|---|---|
 | 400 | `VALIDATION_FAILED` | MSG01 | Bad `market` or `tf` | Banner |
 | 401 | `AUTHENTICATION_REQUIRED` | MSG44 | No session (Guests cannot call this) | Login prompt |
+| 403 | `PLAN_FEATURE_NOT_INCLUDED` | MSG29 | `futures` on FREE (checked after `market`/`tf`, before the pair) | Lock + upgrade prompt (CR-08) |
 | 403 | `ACCESS_DENIED` | MSG43 | ADMIN token | — |
 | 404 | `RESOURCE_NOT_FOUND` | MSG41 | Not enabled on that market | "Pair no longer available", back to SCR-09 |
 
@@ -364,6 +376,9 @@ FE notes:
   chart's `tf`. Show preset name + version and the MSG42 disclaimer on the card (D-53, BR-60).
 - Re-fetch when a `closed: true` kline of the same series arrives (no analysis push yet, Q-21).
   Values update about 10 s after the candle close (NSF-05).
-- FREE plan: the spec locks `components` (CR-08) and the whole Futures analysis (MSG29). The server
-  returns them today; hide/lock them on the client by plan once the plan is known (FEQ-02).
+- FREE plan (D-60, CR-08): Spot answers 200 with `componentsLocked: true`, `components: null` and
+  `setupScore.components: null`; the total `score`, `preset`, `presetVersion`, indicators and levels
+  are still there. Show the component rows with a lock icon that opens the upgrade prompt (MSG29) —
+  **do not** show "Insufficient data" for them: read `componentsLocked` before the null rule. Futures
+  answers 403 MSG29 as a whole. PRO and PREMIUM: `componentsLocked: false`, as before.
 Source: `market/controller/AnalysisController.java#L50`; `market/dto/response/AnalysisResponse.java#L24`; `market/dto/response/IndicatorsResponse.java#L24`; `market/dto/response/SpotSetupScoreResponse.java#L19`; `market/dto/response/FuturesSetupScoreResponse.java#L21`; `market/dto/response/SpotComponentsResponse.java#L16`; `market/dto/response/FuturesComponentsResponse.java#L18`. Spec: SRS 3.3.2, 3.3.3, UC-10, UC-11, BR-12…BR-14, D-53, D-60, Q-21.
