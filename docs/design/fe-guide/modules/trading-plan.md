@@ -42,6 +42,7 @@ interface PlanInputs {
   maxEntryDeviationR?: string | null; // TP-A; > 0 and <= ENTRY_DEVIATION_BLOCK_R (0.75)
   analysisTimeframe?: '15m' | '1h' | '4h' | '1d' | null;  // TP-A; default from the trading style
   activate?: boolean | null;          // true = "Save and Activate"
+  confirmDeviation?: boolean | null;  // TP-C; true = the Trader confirmed MSG51; read only with activate: true
 }
 interface CreateTradingPlanRequest extends PlanInputs { pairId: string }
 type UpdateTradingPlanRequest = PlanInputs;   // the pair cannot change
@@ -219,7 +220,8 @@ Status: on `feature/TP-A-plan-validity` (not merged). Spec: BR-33, BR-68, BR-69,
   Futures last price** (the close of the latest 1-minute candle) and answer 503 only when it is not
   current. A plan with neither needs no current price to be saved.
 - **`maxEntryDeviationR`**: the plan's own limit on a worse MARKET entry, in R; only stricter than
-  the system's 0.75. Stored and returned; it is enforced at MARKET activation from TP-C on.
+  the system's 0.75. Stored and returned; enforced at MARKET activation, see "Entry deviation at
+  MARKET activation (TP-C)".
 - **`analysisTimeframe`**: defaults from the Trader's trading style (SCALPING `15m`, DAY `1h`,
   SWING and POSITION `4h`, none `1h`); the Trader may pick any of the four. It is the plan's chart
   timeframe (and the timeframe of the indicators stored at the fill); it does **not** choose the
@@ -275,6 +277,81 @@ NSF-07; D-77, D-78, D-111, D-112. Nothing in the request or response shapes chan
   gets 409 MSG43; reload the plan to show its new status.
 - **Notification.** The Trader's notice of an invalidation (MSG54, with the reason) is T-046; until
   then the web learns it only from the plan's status.
+
+## Entry deviation at MARKET activation (TP-C)
+
+Status: on `feat/tp-c-entry-deviation` (stacked on TP-B, not merged). Spec: BR-69, MSG51, MSG52;
+D-111 M2, D-112 R7. For T-113 (the confirmation dialog).
+
+- **Only MARKET plans**, on Activate and on Save and Activate (`POST /plans`, `PUT /plans/{id}` with
+  `activate: true`). LIMIT and STOP have no activation check; their deviation is recorded at the fill
+  (T-048c).
+- **What is measured.** `deviationR = d × (expectedFill − plannedEntry) / |plannedEntry − stopLoss|`,
+  d = +1 LONG, −1 SHORT; **positive = a worse entry**, negative = a better one. `plannedEntry` is the
+  plan's `plannedEntryPrice`, the unslipped last price of its **last draft save**. `expectedFill` is
+  the current last price (Futures: the Futures last price, never the mark) moved by `SLIPPAGE_BPS`
+  against the Trader, the `expectedFillPrice` the plan is re-sized on. On **Save and Activate** the
+  request is itself the last save, so `plannedEntry` is this request's last price and only the
+  slippage can move the entry (0 bps today: Save and Activate is never asked to confirm).
+- **Bands** (`ENTRY_DEVIATION_CONFIRM_R` 0.25, limit = `maxEntryDeviationR` when set, else
+  `ENTRY_DEVIATION_BLOCK_R` 0.75; both read from the settings on each call):
+  - below 0.25, or negative → activated as before;
+  - 0.25 up to and including the limit → **400 `ENTRY_DEVIATION_CONFIRMATION_REQUIRED` MSG51**,
+    nothing changes; repeat the **same request** with the confirmation;
+  - above the limit, or the expected fill **at or past the take profit** → **409
+    `ENTRY_DEVIATION_REFUSED` MSG52**, also with the confirmation; the plan stays a DRAFT.
+  - A `maxEntryDeviationR` below 0.25 leaves no band to confirm: up to it activates, above it MSG52.
+- **Order of refusals.** MSG16 (inputs no longer pass), MSG18 (BLOCKING warning) and MSG27 (plan
+  limit) come before MSG51, so the dialog never asks to confirm a plan that would then be refused.
+  MSG52 for the take profit replaces the MSG16 on `errors.takeProfit` that a MARKET plan used to get
+  there.
+- **Retry with the confirmation.**
+  - Activate: `POST /plans/{id}/activate?confirmDeviation=true` (query parameter; still no body).
+  - Save and Activate: the same body with `"confirmDeviation": true` added.
+  - The confirmation accepts whatever deviation the retry finds within the band; if the price moved
+    further, the retry can answer MSG52, or proceed with no dialog.
+- **MSG51 body** (RFC 9457 problem detail; every value a decimal string, scale as in the plan
+  snapshot). `messageArgs` = `[deviation, quantity, rr]` for "The price has moved {deviation}R from
+  your plan. New quantity {quantity}, risk/reward {rr}. Activate anyway?". Round for display
+  (deviation and R:R to 2 decimals).
+
+  ```json
+  {
+    "type": "about:blank", "title": "Bad Request", "status": 400,
+    "detail": "the MARKET entry moved 0.50000000R from the plan and needs confirmation",
+    "code": "ENTRY_DEVIATION_CONFIRMATION_REQUIRED", "messageCode": "MSG51", "traceId": "…",
+    "messageArgs": ["0.50000000", "0.033300000000", "1.66666667"],
+    "deviationR": "0.50000000",
+    "maxDeviationR": "0.75000000",
+    "expectedFillPrice": "101000",
+    "positionQuantity": "0.033300000000",
+    "riskRewardRatio": "1.66666667",
+    "netRiskReward": "1.49828071"
+  }
+  ```
+
+  `netRiskReward` is the R:R after fees of TP-0 (show it as "R:R after fees"). The risk amount does
+  not change: the quantity is re-sized so the risk stays the planned one.
+- **MSG52 body.** `messageArgs` = `[deviation, max]` for "The price has moved {deviation}R from your
+  plan, beyond the allowed {max}R or past the take profit. The plan was not activated."
+
+  ```json
+  {
+    "status": 409, "code": "ENTRY_DEVIATION_REFUSED", "messageCode": "MSG52",
+    "messageArgs": ["1.00000000", "0.75000000"],
+    "deviationR": "1.00000000", "maxDeviationR": "0.75000000", "expectedFillPrice": "102000",
+    "takeProfitReached": false
+  }
+  ```
+
+  `takeProfitReached` (boolean) says which half of the sentence applies. Offer Edit (a new draft save
+  takes the new price as the planned entry) or Cancel.
+- **Example** (BTC LONG MARKET saved at 100,000, SL 98,000, TP 106,000, risk 100 USDT, 0 bps, step
+  0.0001): last 100,000 → 0R, activated, quantity 0.05, R:R 3.0; last 101,000 → 0.5R, MSG51 with
+  quantity 0.0333, R:R 1.67, then activated with the flag; last 102,000 → 1.0R, MSG52 (it would be
+  quantity 0.025, R:R 1.0); last ≥ 106,000 → MSG52 with `takeProfitReached: true`. SHORT mirror: SL
+  102,000, TP 94,000, last 99,000 → 0.5R. With `maxEntryDeviationR` 0.5, last 101,200 (0.6R) →
+  MSG52. With 10 bps, last 100,400 buys at 100,500.40 → 0.2502R → MSG51 (at 0 bps: 0.2R, activated).
 
 ---
 
@@ -357,10 +434,12 @@ Response `201`: `TradingPlanResponse` (`status` `DRAFT`, or `ACTIVE` when activa
 | Status | `code` | MSG | When | Show |
 |---|---|---|---|---|
 | 400 | `VALIDATION_FAILED` | MSG01/15/16 | As calculate | Fields |
+| 400 | `ENTRY_DEVIATION_CONFIRMATION_REQUIRED` | MSG51 | TP-C: MARKET with `activate: true` whose expected fill is 0.25R up to the limit from the plan; nothing saved | Dialog; resend with `"confirmDeviation": true` |
 | 403 | `PLAN_FEATURE_NOT_INCLUDED` | MSG29 | FUTURES on FREE | Dialog |
 | 404 | `RESOURCE_NOT_FOUND` | MSG41 | Pair not enabled | Inline |
 | 409 | `TRADING_BLOCKING_WARNING` | MSG18 | `activate: true` with a BLOCKING warning; **nothing is saved** | Banner; offer "Save as Draft" |
 | 409 | `PLAN_LIMIT_REACHED` | MSG27 | `activate: true` and `ACTIVE_PLAN_MAX` reached (FREE: 3); nothing saved | Inline + upgrade |
+| 409 | `ENTRY_DEVIATION_REFUSED` | MSG52 | TP-C: MARKET with `activate: true` beyond the limit or at/past the take profit; nothing saved | Banner; offer "Save as Draft" |
 | 503 | `MARKET_PRICE_UNAVAILABLE` | MSG43 | MARKET, no live last price; `invalidationPrice`, or STOP with `activate: true`, and no live last price (Futures last price from TP-0) | Retry |
 
 FE notes: show MSG14 (draft) or MSG19 (activated). Warnings are stored with the plan and replaced on
@@ -463,11 +542,13 @@ Response `200`: `TradingPlanResponse`.
 | Status | `code` | MSG | When | Show |
 |---|---|---|---|---|
 | 400 | `VALIDATION_FAILED` | MSG01/15/16 | As calculate | Fields |
+| 400 | `ENTRY_DEVIATION_CONFIRMATION_REQUIRED` | MSG51 | TP-C: as `POST /plans`; the draft keeps its earlier values | Dialog; resend with `"confirmDeviation": true` |
 | 403 | `PLAN_FEATURE_NOT_INCLUDED` | MSG29 | FUTURES on FREE | Dialog |
 | 404 | `RESOURCE_NOT_FOUND` | MSG41 | Not the caller's plan, or pair no longer enabled | Inline |
 | 409 | `TRADING_PLAN_STATUS_TRANSITION_INVALID` | MSG43 | Plan is not DRAFT | Reload plan |
 | 409 | `TRADING_BLOCKING_WARNING` | MSG18 | `activate: true` with a BLOCKING warning | Banner |
 | 409 | `PLAN_LIMIT_REACHED` | MSG27 | `activate: true` at the limit | Inline |
+| 409 | `ENTRY_DEVIATION_REFUSED` | MSG52 | TP-C: as `POST /plans`; the draft keeps its earlier values | Banner |
 | 409 | `DATA_CONFLICT` | MSG43 | Changed concurrently | Reload |
 | 503 | `MARKET_PRICE_UNAVAILABLE` | MSG43 | MARKET, no live last price; `invalidationPrice`, or STOP with `activate: true`, and no live last price (Futures last price from TP-0) | Retry |
 
@@ -480,13 +561,16 @@ Status: IMPLEMENTED (develop)
 Auth: trader (Futures: `FUTURES_ANALYSIS`)
 Purpose: DRAFT → ACTIVE after re-checking with the current price and the plan limit (UC-18).
 
-Request: no body.
+Request: no body. Query `confirmDeviation` (boolean, default `false`; TP-C): `true` once the Trader
+confirmed MSG51.
 
 Response `200`: `TradingPlanResponse` (`status: "ACTIVE"`, new snapshot).
 
 | Status | `code` | MSG | When | Show |
 |---|---|---|---|---|
 | 400 | `VALIDATION_FAILED` | MSG01/15/16 | Inputs no longer pass (e.g. MARKET price moved past the stop → `errors.stopLoss` MSG16); a STOP already triggered → `errors.entryPrice` MSG16; the invalidation price now on the wrong side → `errors.invalidationPrice` MSG16; TP-B: a LIMIT whose take profit the last price reached → `errors.takeProfit` MSG16, a STOP whose stop loss it reached → `errors.stopLoss` MSG16; expiry already passed → MSG01 | Fields / banner; offer Edit |
+| 400 | `ENTRY_DEVIATION_CONFIRMATION_REQUIRED` | MSG51 | TP-C: MARKET entry 0.25R up to the limit from the planned entry; body in "Entry deviation at MARKET activation (TP-C)" | Dialog; resend with `?confirmDeviation=true` |
+| 409 | `ENTRY_DEVIATION_REFUSED` | MSG52 | TP-C: MARKET entry beyond the limit, or at/past the take profit; even with the flag | Banner; offer Edit or Cancel |
 | 403 | `PLAN_FEATURE_NOT_INCLUDED` | MSG29 | Futures plan, plan downgraded | Dialog |
 | 404 | `RESOURCE_NOT_FOUND` | MSG41 | Not the caller's, or pair disabled | Inline |
 | 409 | `TRADING_PLAN_STATUS_TRANSITION_INVALID` | MSG43 | Not DRAFT (double click, other tab) | Reload |

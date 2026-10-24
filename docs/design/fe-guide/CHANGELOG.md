@@ -2,6 +2,29 @@
 
 Newest first. Each entry names the `develop` SHA the guide was synced to.
 
+## 2026-10-25 — TP-C entry deviation at MARKET activation, branch `feat/tp-c-entry-deviation`
+
+**Huy — visible change for the web (stacked on TP-B, not merged yet; T-113 depends on it):**
+
+- **MARKET Activate and Save and Activate** now check how far the expected fill moved from the
+  plan's `plannedEntryPrice`, in R (positive = worse). Below 0.25R nothing changes.
+- **New 400 `ENTRY_DEVIATION_CONFIRMATION_REQUIRED` (MSG51)** from 0.25R up to and including the
+  limit (0.75R, or the plan's stricter `maxEntryDeviationR`). The body carries, as decimal strings,
+  `deviationR`, `maxDeviationR`, `expectedFillPrice`, `positionQuantity`, `riskRewardRatio`,
+  `netRiskReward`, and `messageArgs` = `[deviation, quantity, rr]` for the MSG51 sentence: show the
+  dialog without a second call. Nothing is saved or activated.
+- **Retry with the confirmation:** `POST /plans/{id}/activate?confirmDeviation=true`; for Save and
+  Activate (`POST /plans`, `PUT /plans/{id}`), the same body plus `"confirmDeviation": true` (new
+  optional field of `PlanInputs`).
+- **New 409 `ENTRY_DEVIATION_REFUSED` (MSG52)** above the limit, or with the expected fill at or past
+  the take profit (`takeProfitReached: true`), also with the confirmation. Body: `deviationR`,
+  `maxDeviationR`, `expectedFillPrice`, `takeProfitReached`, `messageArgs` = `[deviation, max]`. A
+  MARKET plan past its take profit got 400 MSG16 on `errors.takeProfit` before; it now gets MSG52.
+- MSG16, MSG18 and MSG27 still answer first. LIMIT and STOP plans are not checked.
+- `modules/trading-plan.md`: new section "Entry deviation at MARKET activation (TP-C)" with the two
+  bodies and the BTC example; `PlanInputs.confirmDeviation`; the tables of `POST /plans`,
+  `PUT /plans/{id}` and `POST /plans/{id}/activate`.
+
 ## 2026-10-25 — TP-B STOP trigger and invalidation, branch `feat/tp-b-stop-invalidation`
 
 **Huy — visible change for the web (stacked on TP-0, not merged yet):**
