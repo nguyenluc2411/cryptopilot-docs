@@ -14,7 +14,10 @@ Newest first. Each entry names the `develop` SHA the guide was synced to.
   and slippage but not funding or the liquidation fee. The quantity is unchanged.
 - `POST /plans/calculate`: new `expectedFillPrice` (MARKET only, `null` otherwise): the reference
   price `entryPrice` moved by `SLIPPAGE_BPS` against the Trader, the price the quantity is sized on;
-  equal to `entryPrice` while the setting is 0.
+  equal to `entryPrice` while the setting is 0. The plan detail, the create/update/activate responses
+  and the list rows carry the same pair for a MARKET plan: `entryPrice` = the reference price (the
+  planned entry), `expectedFillPrice` = the price the quantity was sized on; LIMIT and STOP keep
+  `entryPrice` and answer `expectedFillPrice: null`.
 - New warning `HIGH_FEE_SHARE` (WARNING, never blocks): fees and slippage ≥ 20 % of the risk.
   `04-enums.md` updated.
 - Futures: MARKET plans are priced at the Futures last price (was the mark price); a Futures plan

@@ -84,8 +84,9 @@ interface TradingPlanResponse {
   market: 'SPOT' | 'FUTURES';
   direction: 'LONG' | 'SHORT';
   entryType: 'LIMIT' | 'MARKET' | 'STOP';
-  entryPrice: string;
-  plannedEntryPrice: string | null;   // TP-A; entered price (LIMIT, STOP), price of the last save (MARKET)
+  entryPrice: string;                 // MARKET: the reference price (= plannedEntryPrice), as in /plans/calculate
+  expectedFillPrice: string | null;   // TP-0, MARKET only: the price the quantity was sized on; null LIMIT/STOP
+  plannedEntryPrice: string | null;   // TP-A; entered price (LIMIT, STOP), reference price of the last save (MARKET)
   stopLoss: string;
   takeProfit: string;
   capital: string;
@@ -110,7 +111,8 @@ interface TradingPlanResponse {
 interface TradingPlanSummary {
   id: string; pairId: string;
   market: 'SPOT' | 'FUTURES'; direction: 'LONG' | 'SHORT'; entryType: 'LIMIT' | 'MARKET' | 'STOP';
-  entryPrice: string; stopLoss: string; takeProfit: string;
+  entryPrice: string; stopLoss: string; takeProfit: string;   // entryPrice as in the detail
+  expectedFillPrice: string | null; // TP-0, MARKET only; null for LIMIT and STOP
   leverage: number | null;          // null on SPOT
   riskAmount: string; riskRewardRatio: string;
   status: PlanStatus;
@@ -146,9 +148,13 @@ BR-36; D-111 E1/E2/E3/E5, D-112 R6, D-116.
   `SLIPPAGE_BPS` against the Trader (a buy up, a sell down, rounded to the tick against them). The
   quantity is sized on `expectedFillPrice`, and the activation fills there. `SLIPPAGE_BPS` is 0 today,
   so the two are equal; show "Expected fill" next to the price only when they differ. LIMIT and STOP
-  answer `expectedFillPrice: null`. A saved MARKET plan's `entryPrice` (create, detail) is the
-  expected fill, as before the fill it is the price the plan was sized on. A LIMIT filled at activation
-  fills at the last price with slippage, never past its limit.
+  answer `expectedFillPrice: null`. **Both fields mean the same in every response** — calculate,
+  create, update, activate, detail and list: `entryPrice` is the reference price (a saved plan's
+  `plannedEntryPrice`, from its last draft save) and `expectedFillPrice` the price the quantity was
+  sized on. After an activation, `expectedFillPrice` is the price of the activation's recalculation
+  and `entryPrice` stays the planned entry; the difference is the entry deviation (TP-C). A MARKET
+  plan filled before TP-A has no planned entry: both fields then show the fill. A LIMIT filled at
+  activation fills at the last price with slippage, never past its limit.
 - **Futures MARKET** is priced and filled at the Futures last price (before: the mark price). The
   mark price stays for the liquidation price and unrealized P/L.
 - **New warning `HIGH_FEE_SHARE`** (WARNING, never blocks activation): `feeShareOfRisk` at or above
