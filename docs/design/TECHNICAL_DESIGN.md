@@ -543,7 +543,7 @@ Rules:
 
 | Key | Type | TTL | Content |
 |---|---|---|---|
-| `px:{market}:{symbol}` | hash | 5 min | last, bid, ask, mark, index, funding, nextFundingTime, updatedAt |
+| `px:{market}:{symbol}` | hash | 5 min | last, bid, ask, mark, index, funding, nextFundingTime, updatedAt; on futures also lastUpdatedAt (TP-0) |
 | `k1m:{market}:{symbol}` | hash | 5 min | forming 1m candle o/h/l/c, openTime |
 | `rl:{rule}:{subject}:{window}` | string (counter) | one window (1 min) | requests of one client address or account in one window (ADR-014) |
 | `rpl:{market}:{pairId}` | string (holder token) | 90 s, renewed every 30 s | a pair's restart replay is running (D-85); set NX, deleted when the replay ends, left to expire after a crash |
@@ -551,6 +551,8 @@ Rules:
 Redis is a cache: losing it must never lose business data.
 
 Built in T-022: `px:{market}:{symbol}` is written by `PriceCacheServiceImpl` — values gathered in memory from the stream (newest by the exchange's instant), flushed every 250 ms with a Lua script that refuses a value older than the cached `updatedAt`, then `PEXPIRE` 5 min. Reads answer `FOUND`, `EXPIRED` (older than the TTL by source instant, returned with it), `MISSING` or `UNAVAILABLE`. Failures are logged and counted (`cryptopilot.market.price.cache.failures`) and never reach the stream; Redis is excluded from the health check. `k1m:{market}:{symbol}` waits for the 1m streams of T-042.
+
+Futures last price (TP-0, D-111 E2/E3): the close of every futures `kline_1m` update is written to `last` of `px:FUTURES:{symbol}` with its own instant `lastUpdatedAt` (the update's event time) and the same 5-minute TTL, by a second Lua script that compares `lastUpdatedAt`. The mark price stream and the candle stream are two sources whose instants interleave (the captured candle of the tests is 144 ms older than the captured mark price), so one shared `updatedAt` would let a candle refuse a mark price, or keep a mark price current after it stopped. `PriceCacheService.latest` answers the futures mark price group with `last` left out; `latestLast` answers the last price with its own instant and state (on Spot it is `latest`). `MarketApi.currentLastPrice(FUTURES)` reads it; `currentMarkPrice` is unchanged.
 
 ---
 
@@ -808,6 +810,33 @@ Each warning rule is one class implementing `WarningRule#evaluate(PlanCalculatio
 
 Risk profile (D-53, ADR-013): the user's profile (`CONSERVATIVE`, `BALANCED` default, `AGGRESSIVE`) supplies, from configuration, the risk per trade (0.5 / 1 / 2 % of capital), the maximum futures leverage (3 / 5 / 10x) and the maximum total open risk (2 / 4 / 6 % of capital); no profile exceeds the `AGGRESSIVE` values. These replace the fixed thresholds of BR-29 (A-34), including the seeded `WARN_OVERSIZED_POSITION_RISK_PERCENT` = 2 and `WARN_HIGH_LEVERAGE` = 20 (T-037 replaces them and `SeedDataTest` with it; the hard ceiling is the AGGRESSIVE 10x): OVERSIZED_POSITION is raised when the plan's risk % exceeds the profile's risk per trade, HIGH_LEVERAGE when the leverage exceeds the profile's maximum, and the total open risk (the plan's risk amount plus the risk amounts of the Trader's other ACTIVE plans and open positions, over capital) is compared with the profile's maximum and raises TOTAL_OPEN_RISK (WARNING) above it (Q-27; migration V14). The calculation (T-035) takes the parameters as input and exposes the three comparisons; the warnings that report them are T-037's. The BR-30 input ranges and the BR-26 bracket limit are unchanged. The profile never reaches the setup score (7.4).
 
+**Fees and slippage in the risk panel (D-116, BR-29 nine warnings; TP-0).** BR-23 does not change: the quantity is sized on |E − S| only. The panel shows what fees and slippage do to that risk and warns when they are a large share of it. Computed on create, update, `/plans/calculate` and activation, stored in the snapshot (BR-31; V34 columns, null on older plans). Same fee of a fill and same liquidity roles as the simulated fills (7.8), no second fee formula:
+```
+entry role      = TAKER for MARKET and STOP, and for a LIMIT the current last price already reaches; MAKER for a resting LIMIT
+                  (EntryFillRule.expectedLiquidity, the test of EntryFillRule.atActivation; no last price → MAKER)
+entryFee        = rate(entry role) × qty × E                       (E = entry of the calculation; MARKET: last price with slippage)
+slFee           = taker × qty × S
+tpFee           = maker × qty × T
+entrySlip       = qty × |entry fill − ref|   taker entry only: MARKET ref = last price (fill = E); LIMIT ref = last price,
+                  fill = marketableLimitFill (capped at the limit); STOP ref = stop price, fill = takerFill(stop)
+slSlip          = qty × |S − takerFill(S, exit side)|
+estimatedSlippage = entrySlip + slSlip
+extra           = entrySlip, except MARKET: 0 (its E already holds the slippage, so riskAmt and rewardAmt do, D-112 R6)
+lossAtStopLoss  = riskAmt + entryFee + slFee + slSlip + extra
+feeShareOfRisk  = (lossAtStopLoss − riskAmt) / riskAmt
+netRiskReward   = (rewardAmt − entryFee − tpFee − extra) / lossAtStopLoss
+HIGH_FEE_SHARE (WARNING, never blocking) when feeShareOfRisk ≥ FEE_RISK_WARN_RATIO (DECIMAL, seeded 0.20000000, read per calculation)
+```
+Funding and the liquidation clearance fee are not included. Amounts at scale 8 half-even in the snapshot, the share and the ratio at scale 8; the rule compares at full precision. Message (MSG17): "fees and slippage are 24% of your risk" (the share × 100, four decimals at most). Implemented by `trading.calculator.PlanCostCalculator` → `PlanCosts`, `EntryExpectation` (role, reference, `SLIPPAGE_BPS`), `warning.HighFeeShareRule`.
+
+Vectors (seeded rates: Futures maker 0.02 %, taker 0.05 %; Spot 0.1 % both):
+- Futures LONG MARKET, E 100,000, S 99,500, T 101,500, risk 100 USDT, 0 bps: qty 0.2; entry fee 10 (0.05 % of 20,000); SL fee 9.95 (0.05 % of 19,900); loss at SL 119.95; share 0.1995, no warning; TP fee 4.06 (0.02 % of 20,300); net R:R 285.94 / 119.95 = 2.38382659.
+- Threshold: with taker fees on both legs the share is 0.0005 × (2E − d) / d for a stop distance d, whatever the quantity. E 100,250: d = 500 → exactly 0.2 (warns); d = 499.99 → 0.2000040 (warns); d = 500.01 → 0.1999960 (no warning).
+- Spot LONG resting LIMIT, E 100, S 98, T 106, risk 100: qty 50; maker entry fee 5; SL fee 4.9; loss at SL 109.9; TP fee 5.3; net R:R 289.7 / 109.9.
+- The same Spot plan at 10 bps: entry and TP legs unchanged (maker); SL sells at 98 × 0.999 = 97.902 → 97.90, slippage 0.10 × 50 = 5; loss at SL 114.9; net R:R 289.7 / 114.9.
+- Futures LONG MARKET, last 100, S 95, T 110, 10 bps, capital 1,020, risk 1 %: E = 100.10, qty 2, risk 10.2 (holds the entry slippage 0.2); entry fee 0.1001; SL fee 0.095; SL slips to 94.90 (0.2); estimated slippage 0.4; loss at SL 10.5951; TP fee 0.044; net R:R 19.6559 / 10.5951.
+- Futures LONG LIMIT 100 reached by last 99.95, S 95, T 110, 10 bps, risk 10: taker; fill capped at 100, entry slippage 0.05 × 2 = 0.1; loss at SL 10 + 0.1 + 0.095 + 0.2 + 0.1 = 10.495; net R:R 19.756 / 10.495.
+
 References: Tharp 1999 and 2007 (position sizing, R-multiples); Vince 1990 (fixed fractional risk per trade).
 
 ### 7.6 Liquidation price (BR-27, isolated margin, one-way mode)
@@ -871,7 +900,7 @@ Built in T-044 (rules only, not wired; Q-59): `trading.matching.ExitRule` decide
 
 **GY-03 additions (D-111; built by TP-0, TP-B, TP-C and T-048).**
 
-*Last price per market.* Spot: the ticker's last price. Futures: the close of the latest futures `kline_1m` update. That close is the last trade, because Binance publishes mark price klines as a separate stream. Before TP-0 it only reached the matching feed and the alert engine, never the price cache, so `currentLastPrice(FUTURES)` was always empty. TP-0 writes it into the cache's `last` field with the update's event time and the usual TTL. The last price drives MARKET fills, the marketable-LIMIT check at activation and STOP triggers. The mark price drives liquidation and unrealized PnL only (D-84 and A-41, amended).
+*Last price per market.* Spot: the ticker's last price. Futures: the close of the latest futures `kline_1m` update. That close is the last trade, because Binance publishes mark price klines as a separate stream. Before TP-0 it only reached the matching feed and the alert engine, never the price cache, so `currentLastPrice(FUTURES)` was always empty. TP-0 writes it into the cache's `last` field with the update's event time (`lastUpdatedAt`) and the usual TTL (5.6). The last price drives MARKET fills, the marketable-LIMIT check at activation and STOP triggers. The mark price drives liquidation and unrealized PnL only (D-84 and A-41, amended).
 
 *STOP entries (stop-market, BR-33).* The stop price is stored in `entry_price`.
 - A LONG STOP sits in the `AboveBook` and fires when `hi ≥ stop`. A SHORT STOP sits in the `BelowBook` and fires when `lo ≤ stop`.
@@ -893,7 +922,7 @@ Built in T-044 (rules only, not wired; Q-59): `trading.matching.ExitRule` decide
 
 `invalidation_price` must lie on the far side of the current price from the entry, so the price can reach it before the entry. It is checked at save and at activation (MSG16 on the field, D-112). A MARKET plan has none.
 
-*Built in TP-A.* `trading.calculator.PlanValidityRule.invalidationPrice`: above the last price for LIMIT LONG and STOP SHORT, below it for LIMIT SHORT and STOP LONG, equal refused; MSG16 on `invalidationPrice` with the condition and the price in the detail. The current price is the last price, never the mark price, at save (create, edit, Save and Activate) and at Activate (before the count's recalculation). Without a current last price the check cannot run and the request is refused with MSG43; on Futures this holds for every plan with an invalidation price until TP-0 caches the Futures last price. A MARKET plan carrying one is MSG01 on the field (the aggregate's rule; CHECK `ck_trading_plan_invalidation_price`). The status side: `PlanStatus.INVALIDATED` (terminal, only from ACTIVE); `TradingPlan.invalidate(reason, at)` returns false and changes nothing unless the plan is ACTIVE; `TradingPlanRepository.invalidateIfActive(id, at, reason, now)` is the compare-and-set for the engine, like `executeIfActive`. Neither has a caller before TP-B. Schema (V32): `invalidated_at` and `invalidation_reason` are set exactly with INVALIDATED (CHECKs as V15), `ck_trading_plan_activated_at` includes INVALIDATED, `invalidation_price numeric(28,12)`. PlanTab `CANCELLED_EXPIRED` lists INVALIDATED; the list row carries `invalidatedAt` and `invalidationReason`.
+*Built in TP-A.* `trading.calculator.PlanValidityRule.invalidationPrice`: above the last price for LIMIT LONG and STOP SHORT, below it for LIMIT SHORT and STOP LONG, equal refused; MSG16 on `invalidationPrice` with the condition and the price in the detail. The current price is the last price, never the mark price, at save (create, edit, Save and Activate) and at Activate (before the count's recalculation). Without a current last price the check cannot run and the request is refused with MSG43, on both markets since TP-0 caches the Futures last price (the 503 TP-A pinned for every Futures plan with an invalidation price, and for a Futures STOP at activation, is gone). A MARKET plan carrying one is MSG01 on the field (the aggregate's rule; CHECK `ck_trading_plan_invalidation_price`). The status side: `PlanStatus.INVALIDATED` (terminal, only from ACTIVE); `TradingPlan.invalidate(reason, at)` returns false and changes nothing unless the plan is ACTIVE; `TradingPlanRepository.invalidateIfActive(id, at, reason, now)` is the compare-and-set for the engine, like `executeIfActive`. Neither has a caller before TP-B. Schema (V32): `invalidated_at` and `invalidation_reason` are set exactly with INVALIDATED (CHECKs as V15), `ck_trading_plan_activated_at` includes INVALIDATED, `invalidation_price numeric(28,12)`. PlanTab `CANCELLED_EXPIRED` lists INVALIDATED; the list row carries `invalidatedAt` and `invalidationReason`.
 
 Per range `[lo, hi]` with open `o` (o may be unknown) and a plan whose candle passed the D-77 check:
 ```
@@ -914,8 +943,9 @@ The open cannot be past both, because the entry and the invalidation levels lie 
 
 *Activation.*
 - MARKET: the entry deviation check of 7.8 runs (TP-C).
-- A LIMIT the last price already reaches fills at once at the last price, as taker with slippage, and its deviation is ≤ 0.
+- A LIMIT the last price already reaches fills at once at the last price, as taker with slippage capped at its limit (7.8), and its deviation is ≤ 0.
 - A Futures LIMIT now gets that check too, because the Futures last price exists. Before TP-0 it always waited (E3).
+- Built in TP-0: one read of the last price per request (after the Futures entitlement, MSG29) serves the LIMIT's expected liquidity role in the calculation (7.5), the invalidation and STOP checks and the immediate-fill decision; a STOP that is not being activated and has no invalidation price reads none. A Futures MARKET is priced and filled at the Futures last price.
 
 *Excursions (T-048).* For each open position the engine keeps the most adverse and the most favourable price.
 - They start at the fill price and are updated from every range the exit book reads.
@@ -1007,6 +1037,13 @@ ref = last price (MARKET, marketable LIMIT, manual close), stop price (STOP, aft
 not applied to: maker fills (resting LIMIT, TAKE_PROFIT) and liquidation (exit at LP, clearance fee)
 ```
 At MARKET activation the expected fill already includes the slippage, so the quantity is sized on the price paid (D-112 R6). Paper trading (D-86) is not affected.
+
+Built in TP-0:
+- `TradeClose.entryLiquidity` (the plan's `fill_liquidity`) replaces the entry type; `FeeSchedule.fee(role, price, qty)` is the one fee of a fill (price × qty × rate of the role), used by `TradeResultCalculator` and the risk panel (7.5); `ExitRule.liquidity` gives the exit roles (TP maker; SL, MANUAL taker; LIQUIDATION none, clearance fee). `MatchingServiceImpl` fills resting LIMIT entries only, so MAKER there stays right until TP-B adds STOP fills, which must pass their own role.
+- `trading.calculator.SlippageCalculator.takerFill(ref, buy, bps, tick)`: 0 bps returns `ref` untouched, so every T-044, T-045 and 7.8 vector is unchanged. `SLIPPAGE_BPS` is read from `system_setting` on every calculation and every fill, never cached.
+- MARKET: every calculation (save, `/plans/calculate`, activation) prices the entry at the last price moved by the slippage, the expected fill, and the activation fills there (D-112 R6, kept by the team lead 2026-10-24).
+- A LIMIT the last price already reaches at activation (D-112 note, team lead 2026-10-24): `marketableLimitFill` = the last price moved by the slippage, but never past the limit (LONG `min(fill, limit)`, SHORT `max(fill, limit)`); the quantity stays sized on the limit price. Example 10 bps, tick 0.01: LONG LIMIT 100, last 99.95 → 100.05 → capped 100.00; last 99.00 → 99.099 → 99.10. SHORT LIMIT 100, last 100.05 → 99.94995 → 99.94 → capped 100.00; last 101 → 100.899 → 100.89.
+- STOP fills (TP-B) and the stop loss and manual exits (T-046, T-048) apply `SlippageCalculator.takerFill` when their fill paths are built; until then the formula is used by the risk panel only. A take profit and a liquidation never slip.
 Worked examples (Futures, maker 0.02 %, taker 0.05 %, qty 2, tick 0.01):
 - LONG MARKET, last price 100.00, 10 bps: fill = 100.00 × 1.001 = 100.10 (on the tick). Taker fee = 100.10 × 2 × 0.0005 = 0.1001. With 0 bps: fill 100.00, fee 0.1, the entry fee of T-044 case (b), unchanged.
 - SHORT STOP, stop 95.00, no gap, 10 bps: 95.00 × 0.999 = 94.905, rounded down to 94.90. Taker fee = 94.90 × 2 × 0.0005 = 0.0949.

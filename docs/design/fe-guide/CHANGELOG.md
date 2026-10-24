@@ -2,6 +2,24 @@
 
 Newest first. Each entry names the `develop` SHA the guide was synced to.
 
+## 2026-10-24 — TP-0 fees in the risk panel, Futures last price, slippage, branch `feat/tp-0-realism`
+
+**Huy — visible change for the web (stacked on TP-A and T-045, not merged yet):**
+
+- Plan snapshot (`/plans/calculate`, create, update, detail): seven new decimal strings,
+  `estimatedEntryFee`, `estimatedStopLossExitFee`, `estimatedTakeProfitExitFee`,
+  `estimatedSlippage`, `lossAtStopLoss`, `feeShareOfRisk`, `netRiskReward`; `null` on plans saved
+  before. Show **"Real loss at stop loss"** (`lossAtStopLoss`) next to the risk amount and **"R:R
+  after fees"** (`netRiskReward`) next to R:R, with a tooltip saying they include the trading fees
+  and slippage but not funding or the liquidation fee. The quantity is unchanged.
+- New warning `HIGH_FEE_SHARE` (WARNING, never blocks): fees and slippage ≥ 20 % of the risk.
+  `04-enums.md` updated.
+- Futures: MARKET plans are priced at the Futures last price (was the mark price); a Futures plan
+  with an `invalidationPrice` and a Futures STOP activation no longer answer 503 MSG43 while a last
+  price is current.
+- `modules/trading-plan.md`: new section "Fees and slippage in the risk panel (TP-0)", types and
+  examples updated.
+
 ## 2026-10-24 — T-107 plan gates on analysis and Futures data, branch `feat/t-107-analysis-gates`
 
 **Huy — visible change for the web (CR-08 locks, D-60):**

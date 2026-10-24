@@ -224,6 +224,13 @@ erDiagram
     decimal reward_amount "snapshot"
     decimal risk_reward_ratio "snapshot"
     decimal estimated_liquidation_price "snapshot, FUTURES only"
+    decimal estimated_entry_fee "snapshot; expected entry fee by liquidity role (BR-29, BR-36, D-116); null before V34"
+    decimal estimated_stop_loss_exit_fee "snapshot; taker fee at the stop loss"
+    decimal estimated_take_profit_exit_fee "snapshot; maker fee at the take profit"
+    decimal estimated_slippage "snapshot; SLIPPAGE_BPS on the taker legs"
+    decimal loss_at_stop_loss "snapshot; risk amount + fees + slippage at the stop loss"
+    decimal fee_share_of_risk "snapshot; (loss_at_stop_loss - risk_amount) / risk_amount"
+    decimal net_risk_reward_ratio "snapshot; risk/reward after fees"
     varchar plan_status "DRAFT, ACTIVE, EXECUTED, CANCELLED, EXPIRED, INVALIDATED"
     decimal setup_score_at_plan "at activation, latest closed candle of analysis_timeframe (BR-70, D-112)"
     varchar setup_score_preset "preset name and version used at activation (D-112)"
@@ -243,7 +250,7 @@ erDiagram
   TRADING_PLAN_WARNING {
     uuid warning_id PK
     uuid plan_id FK
-    varchar warning_type "LOW_RR, HIGH_LEVERAGE, SL_BEYOND_LIQUIDATION, OVERSIZED_POSITION, INSUFFICIENT_CAPITAL, HIGH_FUNDING_RATE, WIDE_STOP_LOSS, TOTAL_OPEN_RISK"
+    varchar warning_type "LOW_RR, HIGH_LEVERAGE, SL_BEYOND_LIQUIDATION, OVERSIZED_POSITION, INSUFFICIENT_CAPITAL, HIGH_FUNDING_RATE, WIDE_STOP_LOSS, TOTAL_OPEN_RISK, HIGH_FEE_SHARE"
     varchar severity "INFO, WARNING, BLOCKING"
     varchar warning_message
     timestamp created_at

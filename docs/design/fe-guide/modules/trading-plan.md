@@ -17,6 +17,9 @@ Read first:
   and the setup score taken at activation. See "Plan validity (TP-A)" below. A STOP plan can be
   activated but never triggers until the engine handles it (TP-B), so **keep STOP hidden in the web
   until TP-B**; nothing becomes INVALIDATED until TP-B either.
+- **Fees in the risk panel (TP-0, D-116), branch `feat/tp-0-realism`, not on `develop` yet:** the
+  snapshot carries seven fee figures and a ninth warning `HIGH_FEE_SHARE`. See "Fees and slippage in
+  the risk panel (TP-0)" below. Futures MARKET plans are now priced at the Futures **last** price.
 
 ## Shared types
 
@@ -50,6 +53,15 @@ interface PlanSnapshot {
   rewardAmount: string;
   riskRewardRatio: string;
   estimatedLiquidationPrice: string | null;   // FUTURES
+  // TP-0 (D-116): expected costs; null on a plan saved before TP-0. Funding and the liquidation
+  // clearance fee are NOT included.
+  estimatedEntryFee: string | null;           // entry notional x fee rate of the expected role
+  estimatedStopLossExitFee: string | null;    // taker x quantity x stop loss
+  estimatedTakeProfitExitFee: string | null;  // maker x quantity x take profit
+  estimatedSlippage: string | null;           // SLIPPAGE_BPS on the taker legs, in quote currency
+  lossAtStopLoss: string | null;              // "Real loss at stop loss"
+  feeShareOfRisk: string | null;              // (lossAtStopLoss - riskAmount) / riskAmount, e.g. "0.19950000"
+  netRiskReward: string | null;               // "R:R after fees"
 }
 interface PlanWarning {
   type: WarningType;                  // see 04-enums
@@ -107,6 +119,41 @@ interface TradingPlanSummary {
 type InvalidationReason = 'TAKE_PROFIT_REACHED' | 'STOP_LOSS_REACHED' | 'INVALIDATION_PRICE';
 ```
 
+## Fees and slippage in the risk panel (TP-0)
+
+Status: on `feat/tp-0-realism` (stacked on TP-A and T-045, not merged). Spec: BR-23, BR-29, BR-31,
+BR-36; D-111 E1/E2/E3/E5, D-112 R6, D-116.
+
+- **The quantity does not change.** It is still risk budget / |entry − stop loss| (BR-23). The new
+  figures show what fees and slippage add to that risk; nothing is re-sized for them.
+- **Show next to the existing figures** (calculate panel, create/edit, plan detail):
+  - "Real loss at stop loss" = `lossAtStopLoss`, next to "Risk amount" (`riskAmount`);
+  - "R:R after fees" = `netRiskReward`, next to "R:R" (`riskRewardRatio`);
+  - optionally the breakdown `estimatedEntryFee`, `estimatedStopLossExitFee`,
+    `estimatedTakeProfitExitFee`, `estimatedSlippage`, and `feeShareOfRisk` as a percentage.
+  - Tooltip on both: "Includes the trading fees of the entry and of the exit at the stop loss (or
+    the take profit, for R:R after fees) and the configured slippage. Funding and the liquidation
+    fee are not included."
+- **Which fee rate.** By the expected liquidity role: MARKET and STOP entries, and a LIMIT the
+  current last price already reaches, pay **taker**; a LIMIT that rests pays **maker**. The stop
+  loss exit is taker, the take profit exit maker. A LIMIT's role can change between two panel calls
+  when the last price moves across the limit; read the figures from each response, never compute
+  them on the client.
+- **MARKET entry with slippage.** `entryPrice` of a MARKET plan is the current last price moved by
+  `SLIPPAGE_BPS` against the Trader (0 today, so unchanged), and the quantity is sized on it. A LIMIT
+  filled at activation fills at the last price with slippage, never past its limit.
+- **Futures MARKET** is priced and filled at the Futures last price (before: the mark price). The
+  mark price stays for the liquidation price and unrealized P/L.
+- **New warning `HIGH_FEE_SHARE`** (WARNING, never blocks activation): `feeShareOfRisk` at or above
+  `FEE_RISK_WARN_RATIO` (0.20). Suggested text: "Fees and slippage are {feeShareOfRisk × 100}% of
+  your risk". See 04-enums.
+- Plans saved before TP-0 answer `null` for all seven figures; show "—".
+- Example (Futures LONG MARKET, entry 100,000, SL 99,500, TP 101,500, risk 100 USDT):
+  `riskAmount` "100.00000000", `estimatedEntryFee` "10.00000000", `estimatedStopLossExitFee`
+  "9.95000000", `estimatedTakeProfitExitFee` "4.06000000", `estimatedSlippage` "0.00000000",
+  `lossAtStopLoss` "119.95000000", `feeShareOfRisk` "0.19950000" (no warning), `netRiskReward`
+  "2.38382659" (R:R 3.0 before fees).
+
 ## Input rules (request validation, 400 with `errors`)
 
 | Field | Rule → MSG |
@@ -152,10 +199,11 @@ Status: on `feature/TP-A-plan-validity` (not merged). Spec: BR-33, BR-68, BR-69,
   100 → invalidation above 102. Checked at save and again at activation; wrong side → 400
   `errors.invalidationPrice` MSG16. Equal to the last price counts as the wrong side.
 - **Needs a current last price.** The invalidation check and the STOP check at activation read the
-  last price, never the mark price. Without a current one the request answers **503 MSG43**. On
-  Futures the cache has no last price until TP-0, so **every Futures plan with an invalidation
-  price, and every Futures STOP activation, answers 503 MSG43 today**. A plan with neither needs no
-  current price to be saved.
+  last price, never the mark price. Without a current one the request answers **503 MSG43**. Until
+  TP-0 the cache had no Futures last price, so every Futures plan with an invalidation price, and
+  every Futures STOP activation, answered 503 MSG43; **from TP-0 on they are checked against the
+  Futures last price** (the close of the latest 1-minute candle) and answer 503 only when it is not
+  current. A plan with neither needs no current price to be saved.
 - **`maxEntryDeviationR`**: the plan's own limit on a worse MARKET entry, in R; only stricter than
   the system's 0.75. Stored and returned; it is enforced at MARKET activation from TP-C on.
 - **`analysisTimeframe`**: defaults from the Trader's trading style (SCALPING `15m`, DAY `1h`,
@@ -217,7 +265,14 @@ Response `200`:
     "riskAmount": "10.00000000",
     "rewardAmount": "20.00000000",
     "riskRewardRatio": "2.00000000",
-    "estimatedLiquidationPrice": null
+    "estimatedLiquidationPrice": null,
+    "estimatedEntryFee": "0.31000000",
+    "estimatedStopLossExitFee": "0.30000000",
+    "estimatedTakeProfitExitFee": "0.33000000",
+    "estimatedSlippage": "0.00000000",
+    "lossAtStopLoss": "10.61000000",
+    "feeShareOfRisk": "0.06100000",
+    "netRiskReward": "1.82469369"
   },
   "warnings": [],
   "blocksActivation": false
@@ -229,7 +284,7 @@ Response `200`:
 | 400 | `VALIDATION_FAILED` | MSG01/15/16 | Input and calculation rules, and the save's validity checks (a MARKET plan with an `invalidationPrice` is MSG01 on that field, as on create) | Under fields / in panel |
 | 403 | `PLAN_FEATURE_NOT_INCLUDED` | MSG29 | FUTURES on FREE | MSG29 dialog |
 | 404 | `RESOURCE_NOT_FOUND` | MSG41 | Pair not enabled on that market | Inline |
-| 503 | `MARKET_PRICE_UNAVAILABLE` | MSG43 | MARKET entry and no live last price; an `invalidationPrice` and no live last price (always on Futures until TP-0) | "Price unavailable", retry |
+| 503 | `MARKET_PRICE_UNAVAILABLE` | MSG43 | MARKET entry and no live last price; an `invalidationPrice` and no live last price (on Futures: the close of the latest 1-minute candle, from TP-0) | "Price unavailable", retry |
 
 FE notes: SRS asks for panel updates within 300 ms (SCR-17). Debounce input ~200 ms, cancel the
 previous request (`AbortController`), keep the last good panel visible while a request is in flight,
@@ -256,7 +311,7 @@ Response `201`: `TradingPlanResponse` (`status` `DRAFT`, or `ACTIVE` when activa
 | 404 | `RESOURCE_NOT_FOUND` | MSG41 | Pair not enabled | Inline |
 | 409 | `TRADING_BLOCKING_WARNING` | MSG18 | `activate: true` with a BLOCKING warning; **nothing is saved** | Banner; offer "Save as Draft" |
 | 409 | `PLAN_LIMIT_REACHED` | MSG27 | `activate: true` and `ACTIVE_PLAN_MAX` reached (FREE: 3); nothing saved | Inline + upgrade |
-| 503 | `MARKET_PRICE_UNAVAILABLE` | MSG43 | MARKET, no live price; `invalidationPrice`, or STOP with `activate: true`, and no live last price (always on Futures until TP-0) | Retry |
+| 503 | `MARKET_PRICE_UNAVAILABLE` | MSG43 | MARKET, no live last price; `invalidationPrice`, or STOP with `activate: true`, and no live last price (Futures last price from TP-0) | Retry |
 
 FE notes: show MSG14 (draft) or MSG19 (activated). Warnings are stored with the plan and replaced on
 each save. A DRAFT with warnings is allowed.
@@ -364,7 +419,7 @@ Response `200`: `TradingPlanResponse`.
 | 409 | `TRADING_BLOCKING_WARNING` | MSG18 | `activate: true` with a BLOCKING warning | Banner |
 | 409 | `PLAN_LIMIT_REACHED` | MSG27 | `activate: true` at the limit | Inline |
 | 409 | `DATA_CONFLICT` | MSG43 | Changed concurrently | Reload |
-| 503 | `MARKET_PRICE_UNAVAILABLE` | MSG43 | MARKET, no live price; `invalidationPrice`, or STOP with `activate: true`, and no live last price (always on Futures until TP-0) | Retry |
+| 503 | `MARKET_PRICE_UNAVAILABLE` | MSG43 | MARKET, no live last price; `invalidationPrice`, or STOP with `activate: true`, and no live last price (Futures last price from TP-0) | Retry |
 
 Source: `trading/controller/TradingPlanController.java#L124`; `trading/dto/request/UpdateTradingPlanRequest.java#L33`. Spec: SRS 3.5.1, UC-17, BR-32.
 
@@ -387,7 +442,7 @@ Response `200`: `TradingPlanResponse` (`status: "ACTIVE"`, new snapshot).
 | 409 | `TRADING_PLAN_STATUS_TRANSITION_INVALID` | MSG43 | Not DRAFT (double click, other tab) | Reload |
 | 409 | `TRADING_BLOCKING_WARNING` | MSG18 | BLOCKING warning after re-check | Banner |
 | 409 | `PLAN_LIMIT_REACHED` | MSG27 | `ACTIVE_PLAN_MAX` | Inline + upgrade |
-| 503 | `MARKET_PRICE_UNAVAILABLE` | MSG43 | MARKET, no live price; STOP or `invalidationPrice` and no live last price (always on Futures until TP-0) | Retry |
+| 503 | `MARKET_PRICE_UNAVAILABLE` | MSG43 | MARKET, no live last price; STOP or `invalidationPrice` and no live last price (Futures last price from TP-0) | Retry |
 
 FE notes: show MSG19 on success. The response carries `setupScoreAtPlan` (may be null) and
 `setupScorePreset` taken at this activation. Disable the button while in flight. The snapshot can differ from the
