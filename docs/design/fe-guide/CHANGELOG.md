@@ -12,6 +12,9 @@ Newest first. Each entry names the `develop` SHA the guide was synced to.
   before. Show **"Real loss at stop loss"** (`lossAtStopLoss`) next to the risk amount and **"R:R
   after fees"** (`netRiskReward`) next to R:R, with a tooltip saying they include the trading fees
   and slippage but not funding or the liquidation fee. The quantity is unchanged.
+- `POST /plans/calculate`: new `expectedFillPrice` (MARKET only, `null` otherwise): the reference
+  price `entryPrice` moved by `SLIPPAGE_BPS` against the Trader, the price the quantity is sized on;
+  equal to `entryPrice` while the setting is 0.
 - New warning `HIGH_FEE_SHARE` (WARNING, never blocks): fees and slippage ≥ 20 % of the risk.
   `04-enums.md` updated.
 - Futures: MARKET plans are priced at the Futures last price (was the mark price); a Futures plan

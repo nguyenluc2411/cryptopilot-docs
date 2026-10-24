@@ -69,7 +69,9 @@ interface PlanWarning {
   message: string;                    // developer English; build UI text from `type`
 }
 interface PlanCalculationResponse {
-  entryPrice: string;                 // after tick rounding; MARKET: current last price
+  entryPrice: string;                 // after tick rounding; MARKET: current last price (the reference price)
+  expectedFillPrice: string | null;   // TP-0, MARKET only: entryPrice moved by SLIPPAGE_BPS against the Trader;
+                                      // the price the quantity is sized on and fills at; = entryPrice at 0 bps
   capital: string;                    // after defaults
   riskPercent: string;                // after defaults
   snapshot: PlanSnapshot;
@@ -139,9 +141,14 @@ BR-36; D-111 E1/E2/E3/E5, D-112 R6, D-116.
   loss exit is taker, the take profit exit maker. A LIMIT's role can change between two panel calls
   when the last price moves across the limit; read the figures from each response, never compute
   them on the client.
-- **MARKET entry with slippage.** `entryPrice` of a MARKET plan is the current last price moved by
-  `SLIPPAGE_BPS` against the Trader (0 today, so unchanged), and the quantity is sized on it. A LIMIT
-  filled at activation fills at the last price with slippage, never past its limit.
+- **MARKET entry with slippage.** In `POST /plans/calculate`, `entryPrice` of a MARKET plan stays the
+  current last price (the reference price) and `expectedFillPrice` beside it is that price moved by
+  `SLIPPAGE_BPS` against the Trader (a buy up, a sell down, rounded to the tick against them). The
+  quantity is sized on `expectedFillPrice`, and the activation fills there. `SLIPPAGE_BPS` is 0 today,
+  so the two are equal; show "Expected fill" next to the price only when they differ. LIMIT and STOP
+  answer `expectedFillPrice: null`. A saved MARKET plan's `entryPrice` (create, detail) is the
+  expected fill, as before the fill it is the price the plan was sized on. A LIMIT filled at activation
+  fills at the last price with slippage, never past its limit.
 - **Futures MARKET** is priced and filled at the Futures last price (before: the mark price). The
   mark price stays for the liquidation price and unrealized P/L.
 - **New warning `HIGH_FEE_SHARE`** (WARNING, never blocks activation): `feeShareOfRisk` at or above
@@ -255,6 +262,7 @@ Response `200`:
 ```json
 {
   "entryPrice": "62000.00",
+  "expectedFillPrice": null,
   "capital": "1000",
   "riskPercent": "1",
   "snapshot": {
