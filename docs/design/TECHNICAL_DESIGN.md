@@ -90,6 +90,7 @@ Only the backend owns the database (single writer). The AI Service has no databa
 | API docs | springdoc-openapi (release line compatible with Spring Boot 4) | `springdoc-openapi-starter-webmvc-ui` 3.1.1 since T-024 (2026-09-25): the 3.x line is the one for Boot 4, and 3.1.1 is built on Boot 4.1.0; `common.config.OpenApiConfig` describes `BigDecimal` as a string of format `decimal` and declares the `bearerAuth` scheme |
 | Logging | SLF4J + Logback; Spring Boot structured logging (JSON) outside `dev` | Correlation id in MDC |
 | IDs | UUID v7 from `com.fasterxml.uuid:java-uuid-generator` | ADR-009 |
+| Feeds and HTML | Rome 2.1.0 (RSS and Atom), jsoup 1.18.3 (article HTML, CSS selectors) | T-077 (2026-10-25), used by `news.client.RssClient` and T-078's extraction; both run against the real feeds of the seeded sources before they were added; the HTTP side is the JDK `HttpClient`, as for Binance |
 | Boilerplate | Lombok, limited to entities and constructor injection (section 3.4) | DTOs are Java records |
 | Formatting | Spotless with Palantir Java Format | `./mvnw spotless:apply` |
 | Coverage | JaCoCo | Gates in section 11 |
@@ -1142,6 +1143,9 @@ AI quota: `COUNT(ai_message WHERE sender_role = USER AND status IN (PENDING, COM
 - Title normalization: Unicode NFKC, lowercase, remove punctuation, collapse spaces; `title_hash = SHA-256`. Duplicate if same title_hash within 48 h.
 - Coin tagging: one compiled regex per crawl built from coins in the system: names case-insensitive with word boundaries; symbols case-sensitive upper case with word boundaries; symbols shorter than 3 characters require `$` prefix or a name match. Primary coin = first match in the title.
 - Excerpt: strip HTML, decode entities, cut at 500 characters on a word boundary.
+- Source settings (T-077, V35): besides name, feed, interval and active flag, each `news_source` keeps the per-outlet settings a trial crawl showed are needed — `category_filter` (items must carry one of these `<category>` names or domains; one outlet's feed mixes desks), `body_selector` (CSS, comma list, first match wins; NULL keeps to the feed's own description), `excluded_selectors` (removed from the body) and `user_agent` (one outlet's CDN refuses a bot agent). Selectors are parsed with jsoup when saved. Feed addresses are stored normalized as above, so the unique key catches two spellings of one feed.
+- Feed reader (`news.client.RssClient`, T-077): JDK `HttpClient`, connect 10 s, whole exchange ≤ read timeout (30 s, NSF-10), at most 5 MB compressed or decompressed, gzip accepted, at most 5 redirects followed by hand, Rome with doctypes refused (no XXE). Before every request and every redirect the host is resolved and refused if any address is loopback, wildcard, link-local, RFC 1918/4193 private, CGNAT or multicast (`cryptopilot.news.rss.allow-private-addresses`, false outside tests). UC-49's test read of a feed uses the same reader, outside the saving transaction.
+- Due sources (BR-49): `is_active and (last_crawled_at is null or last_crawled_at + crawl_interval_minutes <= now)`, never-read first (`NewsSourceRepository.findDue`, same rule as `NewsSource.isDue`).
 
 ### 7.14 AI request pipeline (NSF-16, BR-50..52)
 

@@ -333,7 +333,7 @@ Source: none. Spec: TD 8.
 | `/admin/leverage-brackets` | UC-46 | T-085 |
 | `/admin/packages` | UC-47 | T-066+ |
 | `/admin/orders` | UC-48 | T-066+ |
-| `/admin/news-sources` | UC-49 | T-077 |
+| `/admin/news-sources` | UC-49 | T-077 — **built 2026-10-25** on `feature/T-077-news-source-model` (local, not merged): `GET`, `POST` (201; feed read first, 400 `NEWS_FEED_UNREADABLE` with `errors.feedUrl` MSG15, 409 `NEWS_SOURCE_ALREADY_REGISTERED`), `GET/PUT/DELETE /{id}` (DELETE 204, 409 `NEWS_SOURCE_IN_USE`), `GET /{id}/crawl-logs?page=&pageSize=` (PageResponse, latest first). Interval < 15 → `errors.crawlIntervalMinutes` MSG15 (BR-49). Response: `sourceId, sourceName, feedUrl, sourceType, crawlIntervalMinutes, active, categoryFilter, bodySelector, excludedSelectors, userAgent, lastCrawledAt, lastCrawl{startedAt,status,articlesFound,articlesInserted}, nextCrawlAt, createdAt, updatedAt`; `status` ∈ SUCCESS, PARTIAL, FAILED |
 | `/admin/ai-configurations` | UC-50 | T-071/T-073 |
 | `/admin/settings` | UC-51 | T-082 |
 | `/admin/audit-log` | UC-52 | T-081 writer done; read API not built |
