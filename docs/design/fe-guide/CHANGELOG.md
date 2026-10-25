@@ -2,6 +2,15 @@
 
 Newest first. Each entry names the `develop` SHA the guide was synced to.
 
+## 2026-10-25 — TP-E built, branch `feat/tp-e-edit-open-levels`
+
+**Huy — the TP-E contract is built as written, with one correction:**
+
+- A 400 of `PATCH /plans/{id}/position-levels` carries the field's code in `errors.<field>` (MSG01,
+  MSG15, MSG16); the top-level `messageCode` is the generic validation code, as on plan entry. Read the
+  field codes, not `messageCode`.
+- Example `position` block added to "Edit the stop loss and take profit of an open position (TP-E)".
+
 ## 2026-10-25 — TP-E edit SL/TP of an open position, branch `feat/tp-e-edit-open-levels`
 
 **Huy — new endpoint for SCR-18 (contract first; not built yet, from `develop` `883e7c6`):**
@@ -19,7 +28,7 @@ Newest first. Each entry names the `develop` SHA the guide was synced to.
 
 ## 2026-10-25 — T-046 manual close contract, branch `feat/t-046-manual-close`
 
-**Huy — new endpoints for SCR-19 (contract fixed by the team lead; built in PR #76, not merged yet):**
+**Huy — new endpoints for SCR-19 (contract fixed by the team lead; stacked on PR #75, not built yet):**
 
 - `GET /plans/{id}/close-estimate` → `CloseEstimate` (current price, estimated exit price with
   slippage, price result, entry fee, estimated exit fee, funding so far, estimated net P/L, `at`).

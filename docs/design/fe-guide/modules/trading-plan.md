@@ -552,15 +552,34 @@ stop is at or past the entry. Moving a stop to breakeven frees the risk budget f
 
 **Errors**
 
-| Status | `messageCode` | When |
+A 400 is a validation answer like plan entry: the code of each refused field is in `errors.<field>`
+(the top-level `messageCode` is the generic validation code, not the field's).
+
+| Status | Code | When |
 |---|---|---|
-| 400 | MSG01 | neither `stopLoss` nor `takeProfit` sent (`errors.stopLoss`) |
-| 400 | MSG15 | a value ≤ 0 or with too many digits (`errors.<field>`) |
-| 400 | MSG16 | wrong side of the current last price, already reached, or (Futures) the stop loss at or past `liquidationPrice` (`errors.<field>`) |
+| 400 | `errors.stopLoss` MSG01 | neither `stopLoss` nor `takeProfit` sent |
+| 400 | `errors.<field>` MSG15 | a value ≤ 0 or with too many digits |
+| 400 | `errors.<field>` MSG16 | wrong side of the current last price, already reached, or (Futures) the stop loss at or past `liquidationPrice` |
 | 401 | MSG44 | no valid session |
 | 404 | — (`NOT_FOUND`) | the plan is not the caller's |
 | 409 | MSG43 | the plan has no OPEN position: not executed, already closed, or closed (by TP, SL, liquidation or a manual close) while the change was being made; nothing changed |
 | 503 | MSG43 | no current last price is cached for the pair |
+
+Status: built on `feat/tp-e-edit-open-levels` (5 commits on `develop` `883e7c6`, local, not pushed).
+Example `position` after `{ "stopLoss": 97.004, "takeProfit": 112 }` on a Futures LONG 2 at 100 (stop 95,
+take profit 110, maker entry fee 0.04, 10 bps slippage):
+
+```json
+"position": {
+  "status": "OPEN", "fillPrice": "100.000000000000", "quantity": "2.000000000000",
+  "stopLoss": "97.000000000000", "takeProfit": "112.000000000000",
+  "originalStopLoss": "95.000000000000", "originalTakeProfit": "110.000000000000",
+  "stopWidened": false, "levelChangeCount": 1,
+  "levelChanges": [{ "changedAt": "2026-10-25T08:02:30Z", "oldStopLoss": "95.000000000000",
+    "oldTakeProfit": "110.000000000000", "newStopLoss": "97.000000000000", "newTakeProfit": "112.000000000000" }],
+  "breakevenPrice": "100.19", "breakevenProvisional": false, "levelWarnings": []
+}
+```
 
 Source: `trading/controller/PositionLevelController.java`,
 `trading/service/impl/PositionLevelServiceImpl.java`, `trading/calculator/BreakevenCalculator.java`.
@@ -895,7 +914,7 @@ Source: `trading/controller/TradingPlanController.java#L154`. Spec: SRS 3.5.3, U
 ---
 
 ### PATCH /plans/{id}/position-levels
-Status: PLANNED (contract fixed, TP-E)
+Status: BUILT on `feat/tp-e-edit-open-levels`, not on `develop` yet (TP-E)
 Auth: trader
 Purpose: Change the stop loss and/or take profit of the caller's OPEN position (D-124, SCR-18).
 
