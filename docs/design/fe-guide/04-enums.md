@@ -127,7 +127,7 @@ Source: `trading/model/enums/Direction.java#L8`.
 |---|---|---|
 | `LIMIT` | Limit | `entryPrice` required; expiry defaults to 7 days |
 | `MARKET` | Market | Entry = current last price; `entryPrice` ignored |
-| `STOP` | Stop (breakout) | TP-A branch. `entryPrice` = stop price, required; expiry defaults to 7 days; triggers from TP-B |
+| `STOP` | Stop (breakout) | `entryPrice` = stop price, required; expiry defaults to 7 days; triggered by the last price from TP-B, fills at the stop or at the candle open on a gap, taker, with slippage |
 
 Source: `trading/model/enums/EntryType.java#L8`.
 
@@ -153,7 +153,8 @@ Source: `trading/model/enums/MarginMode.java#L9`.
 Transitions: `DRAFT → ACTIVE | CANCELLED`; `ACTIVE → EXECUTED | CANCELLED | EXPIRED | INVALIDATED`. Nothing leaves a
 terminal status. `EXECUTED` and `EXPIRED` are set by the matching engine (T-042+), not by the client.
 
-`INVALIDATED` is set by the matching engine from TP-B.
+`INVALIDATED` is set by the matching engine (TP-B branch), see `modules/trading-plan.md` "Engine: STOP trigger and
+invalidation (TP-B)".
 
 Source: `trading/model/enums/PlanStatus.java#L19`. Spec: BR-32, BR-68, D-66, D-111.
 
@@ -204,10 +205,11 @@ wording; show `message` only as a detail if at all.
 | `TOTAL_OPEN_RISK` | WARNING | This plan + other ACTIVE plans above the profile's max open risk | Total open risk above your profile |
 | `WIDE_STOP_LOSS` | INFO | Stop farther than `WARN_WIDE_STOP_LOSS_PERCENT` (10 %) from entry | Wide stop loss |
 | `HIGH_FUNDING_RATE` | WARNING | Funding rate magnitude above `WARN_HIGH_FUNDING_RATE` (0.001) and paid by this side (Futures) | High funding rate for this side |
+| `HIGH_FEE_SHARE` | WARNING | Expected fees and slippage at the stop loss are at least `FEE_RISK_WARN_RATIO` (0.20) of the risk amount (TP-0, D-116; never blocks) | Fees and slippage are {feeShareOfRisk × 100}% of your risk |
 
 Thresholds are system settings; the numbers above are the seed values and can change.
 
-Source: `trading/model/enums/WarningType.java#L9`. Spec: BR-28, BR-29, Q-27.
+Source: `trading/model/enums/WarningType.java#L9`. Spec: BR-28, BR-29 (nine types since D-116), Q-27.
 
 ## Alerts
 

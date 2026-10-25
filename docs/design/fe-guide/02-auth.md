@@ -164,8 +164,8 @@ Spec: SRS 3.1.3, TD 5.3, D-27.
 
 | Entitlement (`Feature`) | FREE | PRO | PREMIUM | Enforced today in |
 |---|---|---|---|---|
-| `FUTURES_ANALYSIS` — Futures analysis, Futures plans, Futures alerts | ✗ | ✔ | ✔ | Plans and alerts (develop). **Not** on `/analysis` or `/market` yet (T-107) |
-| `SCORE_COMPONENTS` — setup score components | ✗ | ✔ | ✔ | Not enforced yet (T-107) |
+| `FUTURES_ANALYSIS` — Futures analysis, Futures plans, Futures alerts | ✗ | ✔ | ✔ | Plans and alerts (develop); `/analysis/futures`, Futures metrics and the metric blocks of Futures stats on branch `feat/t-107-analysis-gates` (T-107, not merged) |
+| `SCORE_COMPONENTS` — setup score components | ✗ | ✔ | ✔ | `componentsLocked` in `GET /analysis`, on branch `feat/t-107-analysis-gates` (T-107, not merged) |
 | `ACTIVE_PLAN_MAX` — ACTIVE plans + open positions | 3 | unlimited | unlimited | Plans (develop) |
 | `WATCHLIST_MAX` | 5 | 50 | 100 | Watchlist (develop) |
 | `ACTIVE_ALERT_MAX` | 3 | 20 | 50 | Alerts (develop) |

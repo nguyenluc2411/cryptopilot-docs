@@ -12,11 +12,20 @@ Read first:
 - No fills yet (matching engine T-042+): an ACTIVE plan, MARKET included, stays ACTIVE. `EXECUTED`,
   `EXPIRED`, the live position block and close-position do not exist yet.
 - Plan responses carry `pairId` but **no symbol** (FEQ-01).
+- **Position of a filled plan (T-048a), branch `feat/t-048a-journal-open`, not on `develop` yet:**
+  `GET /plans/{id}` (and the create / update / activate responses) carry a `position` block once the
+  plan is `EXECUTED`, and list rows carry `positionStatus`. See "Position of an executed plan
+  (T-048a)" below. Closing a position (exits) is T-048b; until then every position stays `OPEN`.
 - **Plan validity (TP-A, D-111, D-112), branch `feature/TP-A-plan-validity`, not on `develop` yet:**
   STOP entry, invalidation price, own entry deviation limit, analysis timeframe, the INVALIDATED status
-  and the setup score taken at activation. See "Plan validity (TP-A)" below. A STOP plan can be
-  activated but never triggers until the engine handles it (TP-B), so **keep STOP hidden in the web
-  until TP-B**; nothing becomes INVALIDATED until TP-B either.
+  and the setup score taken at activation. See "Plan validity (TP-A)" below.
+- **STOP trigger and invalidation (TP-B), branch `feat/tp-b-stop-invalidation`, stacked on TP-0, not
+  on `develop` yet:** the engine triggers STOP entries and invalidates waiting plans, so **STOP can
+  be offered in the web (T-040)** once TP-B is on `develop`. See "Engine: STOP trigger and
+  invalidation (TP-B)" below.
+- **Fees in the risk panel (TP-0, D-116), branch `feat/tp-0-realism`, not on `develop` yet:** the
+  snapshot carries seven fee figures and a ninth warning `HIGH_FEE_SHARE`. See "Fees and slippage in
+  the risk panel (TP-0)" below. Futures MARKET plans are now priced at the Futures **last** price.
 
 ## Shared types
 
@@ -37,6 +46,7 @@ interface PlanInputs {
   maxEntryDeviationR?: string | null; // TP-A; > 0 and <= ENTRY_DEVIATION_BLOCK_R (0.75)
   analysisTimeframe?: '15m' | '1h' | '4h' | '1d' | null;  // TP-A; default from the trading style
   activate?: boolean | null;          // true = "Save and Activate"
+  confirmDeviation?: boolean | null;  // TP-C; true = the Trader confirmed MSG51; read only with activate: true
 }
 interface CreateTradingPlanRequest extends PlanInputs { pairId: string }
 type UpdateTradingPlanRequest = PlanInputs;   // the pair cannot change
@@ -50,6 +60,15 @@ interface PlanSnapshot {
   rewardAmount: string;
   riskRewardRatio: string;
   estimatedLiquidationPrice: string | null;   // FUTURES
+  // TP-0 (D-116): expected costs; null on a plan saved before TP-0. Funding and the liquidation
+  // clearance fee are NOT included.
+  estimatedEntryFee: string | null;           // entry notional x fee rate of the expected role
+  estimatedStopLossExitFee: string | null;    // taker x quantity x stop loss
+  estimatedTakeProfitExitFee: string | null;  // maker x quantity x take profit
+  estimatedSlippage: string | null;           // SLIPPAGE_BPS on the taker legs, in quote currency
+  lossAtStopLoss: string | null;              // "Real loss at stop loss"
+  feeShareOfRisk: string | null;              // (lossAtStopLoss - riskAmount) / riskAmount, e.g. "0.19950000"
+  netRiskReward: string | null;               // "R:R after fees"
 }
 interface PlanWarning {
   type: WarningType;                  // see 04-enums
@@ -57,7 +76,9 @@ interface PlanWarning {
   message: string;                    // developer English; build UI text from `type`
 }
 interface PlanCalculationResponse {
-  entryPrice: string;                 // after tick rounding; MARKET: current last price
+  entryPrice: string;                 // after tick rounding; MARKET: current last price (the reference price)
+  expectedFillPrice: string | null;   // TP-0, MARKET only: entryPrice moved by SLIPPAGE_BPS against the Trader;
+                                      // the price the quantity is sized on and fills at; = entryPrice at 0 bps
   capital: string;                    // after defaults
   riskPercent: string;                // after defaults
   snapshot: PlanSnapshot;
@@ -70,8 +91,9 @@ interface TradingPlanResponse {
   market: 'SPOT' | 'FUTURES';
   direction: 'LONG' | 'SHORT';
   entryType: 'LIMIT' | 'MARKET' | 'STOP';
-  entryPrice: string;
-  plannedEntryPrice: string | null;   // TP-A; entered price (LIMIT, STOP), price of the last save (MARKET)
+  entryPrice: string;                 // MARKET: the reference price (= plannedEntryPrice), as in /plans/calculate
+  expectedFillPrice: string | null;   // TP-0, MARKET only: the price the quantity was sized on; null LIMIT/STOP
+  plannedEntryPrice: string | null;   // TP-A; entered price (LIMIT, STOP), reference price of the last save (MARKET)
   stopLoss: string;
   takeProfit: string;
   capital: string;
@@ -96,7 +118,8 @@ interface TradingPlanResponse {
 interface TradingPlanSummary {
   id: string; pairId: string;
   market: 'SPOT' | 'FUTURES'; direction: 'LONG' | 'SHORT'; entryType: 'LIMIT' | 'MARKET' | 'STOP';
-  entryPrice: string; stopLoss: string; takeProfit: string;
+  entryPrice: string; stopLoss: string; takeProfit: string;   // entryPrice as in the detail
+  expectedFillPrice: string | null; // TP-0, MARKET only; null for LIMIT and STOP
   leverage: number | null;          // null on SPOT
   riskAmount: string; riskRewardRatio: string;
   status: PlanStatus;
@@ -106,6 +129,50 @@ interface TradingPlanSummary {
 }
 type InvalidationReason = 'TAKE_PROFIT_REACHED' | 'STOP_LOSS_REACHED' | 'INVALIDATION_PRICE';
 ```
+
+## Fees and slippage in the risk panel (TP-0)
+
+Status: on `feat/tp-0-realism` (stacked on TP-A and T-045, not merged). Spec: BR-23, BR-29, BR-31,
+BR-36; D-111 E1/E2/E3/E5, D-112 R6, D-116.
+
+- **The quantity does not change.** It is still risk budget / |entry − stop loss| (BR-23). The new
+  figures show what fees and slippage add to that risk; nothing is re-sized for them.
+- **Show next to the existing figures** (calculate panel, create/edit, plan detail):
+  - "Real loss at stop loss" = `lossAtStopLoss`, next to "Risk amount" (`riskAmount`);
+  - "R:R after fees" = `netRiskReward`, next to "R:R" (`riskRewardRatio`);
+  - optionally the breakdown `estimatedEntryFee`, `estimatedStopLossExitFee`,
+    `estimatedTakeProfitExitFee`, `estimatedSlippage`, and `feeShareOfRisk` as a percentage.
+  - Tooltip on both: "Includes the trading fees of the entry and of the exit at the stop loss (or
+    the take profit, for R:R after fees) and the configured slippage. Funding and the liquidation
+    fee are not included."
+- **Which fee rate.** By the expected liquidity role: MARKET and STOP entries, and a LIMIT the
+  current last price already reaches, pay **taker**; a LIMIT that rests pays **maker**. The stop
+  loss exit is taker, the take profit exit maker. A LIMIT's role can change between two panel calls
+  when the last price moves across the limit; read the figures from each response, never compute
+  them on the client.
+- **MARKET entry with slippage.** In `POST /plans/calculate`, `entryPrice` of a MARKET plan stays the
+  current last price (the reference price) and `expectedFillPrice` beside it is that price moved by
+  `SLIPPAGE_BPS` against the Trader (a buy up, a sell down, rounded to the tick against them). The
+  quantity is sized on `expectedFillPrice`, and the activation fills there. `SLIPPAGE_BPS` is 0 today,
+  so the two are equal; show "Expected fill" next to the price only when they differ. LIMIT and STOP
+  answer `expectedFillPrice: null`. **Both fields mean the same in every response** — calculate,
+  create, update, activate, detail and list: `entryPrice` is the reference price (a saved plan's
+  `plannedEntryPrice`, from its last draft save) and `expectedFillPrice` the price the quantity was
+  sized on. After an activation, `expectedFillPrice` is the price of the activation's recalculation
+  and `entryPrice` stays the planned entry; the difference is the entry deviation (TP-C). A MARKET
+  plan filled before TP-A has no planned entry: both fields then show the fill. A LIMIT filled at
+  activation fills at the last price with slippage, never past its limit.
+- **Futures MARKET** is priced and filled at the Futures last price (before: the mark price). The
+  mark price stays for the liquidation price and unrealized P/L.
+- **New warning `HIGH_FEE_SHARE`** (WARNING, never blocks activation): `feeShareOfRisk` at or above
+  `FEE_RISK_WARN_RATIO` (0.20). Suggested text: "Fees and slippage are {feeShareOfRisk × 100}% of
+  your risk". See 04-enums.
+- Plans saved before TP-0 answer `null` for all seven figures; show "—".
+- Example (Futures LONG MARKET, entry 100,000, SL 99,500, TP 101,500, risk 100 USDT):
+  `riskAmount` "100.00000000", `estimatedEntryFee` "10.00000000", `estimatedStopLossExitFee`
+  "9.95000000", `estimatedTakeProfitExitFee` "4.06000000", `estimatedSlippage` "0.00000000",
+  `lossAtStopLoss` "119.95000000", `feeShareOfRisk` "0.19950000" (no warning), `netRiskReward`
+  "2.38382659" (R:R 3.0 before fees).
 
 ## Input rules (request validation, 400 with `errors`)
 
@@ -143,21 +210,22 @@ Status: on `feature/TP-A-plan-validity` (not merged). Spec: BR-33, BR-68, BR-69,
 - **STOP entry.** A stop-market entry for breakouts: `entryPrice` is the stop price. LONG triggers
   when the last price is ≥ the stop, SHORT when ≤. Without an expiry it gets 7 days, as LIMIT.
   Activating (Activate or Save and Activate) a STOP the last price has already reached answers 400
-  `errors.entryPrice` MSG16; it is never turned into MARKET — offer MARKET to the Trader. Until TP-B,
-  an activated STOP stays ACTIVE and never triggers: the engine does not trigger STOP entries yet.
-  **The web keeps STOP hidden until TP-B** (do not offer it in the entry type selector); the API
-  already accepts it, so a STOP plan made through the API alone is still listed and shown.
+  `errors.entryPrice` MSG16; it is never turned into MARKET — offer MARKET to the Trader. How an
+  ACTIVE STOP triggers and fills: "Engine: STOP trigger and invalidation (TP-B)". Offer STOP in the
+  entry type selector once TP-B is on `develop`; before that it is accepted but never triggers.
 - **`invalidationPrice`** (LIMIT and STOP only). It must lie on the far side of the current last
   price from the entry, so the price can reach it before the entry: LONG LIMIT with last 102, entry
   100 → invalidation above 102. Checked at save and again at activation; wrong side → 400
   `errors.invalidationPrice` MSG16. Equal to the last price counts as the wrong side.
 - **Needs a current last price.** The invalidation check and the STOP check at activation read the
-  last price, never the mark price. Without a current one the request answers **503 MSG43**. On
-  Futures the cache has no last price until TP-0, so **every Futures plan with an invalidation
-  price, and every Futures STOP activation, answers 503 MSG43 today**. A plan with neither needs no
-  current price to be saved.
+  last price, never the mark price. Without a current one the request answers **503 MSG43**. Until
+  TP-0 the cache had no Futures last price, so every Futures plan with an invalidation price, and
+  every Futures STOP activation, answered 503 MSG43; **from TP-0 on they are checked against the
+  Futures last price** (the close of the latest 1-minute candle) and answer 503 only when it is not
+  current. A plan with neither needs no current price to be saved.
 - **`maxEntryDeviationR`**: the plan's own limit on a worse MARKET entry, in R; only stricter than
-  the system's 0.75. Stored and returned; it is enforced at MARKET activation from TP-C on.
+  the system's 0.75. Stored and returned; enforced at MARKET activation, see "Entry deviation at
+  MARKET activation (TP-C)".
 - **`analysisTimeframe`**: defaults from the Trader's trading style (SCALPING `15m`, DAY `1h`,
   SWING and POSITION `4h`, none `1h`); the Trader may pick any of the four. It is the plan's chart
   timeframe (and the timeframe of the indicators stored at the fill); it does **not** choose the
@@ -177,7 +245,158 @@ Status: on `feature/TP-A-plan-validity` (not merged). Spec: BR-33, BR-68, BR-69,
   error**: the activation succeeded, the score is not filled in later, show "—"; never compute it on
   the client.
 - **INVALIDATED**: a terminal status, listed in the `CANCELLED_EXPIRED` tab with its badge and
-  `invalidationReason`. It frees an `ACTIVE_PLAN_MAX` slot. Nothing sets it until TP-B.
+  `invalidationReason`. It frees an `ACTIVE_PLAN_MAX` slot. The matching engine sets it (TP-B).
+
+## Engine: STOP trigger and invalidation (TP-B)
+
+Status: on `feat/tp-b-stop-invalidation` (stacked on TP-0, not merged). Spec: BR-33, BR-36, BR-68,
+NSF-07; D-77, D-78, D-111, D-112. Nothing in the request or response shapes changes; plans move to
+`EXECUTED` or `INVALIDATED` on their own, so refetch (or poll) the plan list and detail.
+
+- **STOP trigger.** An ACTIVE STOP waits for the Futures or Spot **last** price (never the mark
+  price): LONG triggers when a price ≥ the stop trades, SHORT when ≤. Equal to the stop counts.
+- **STOP fill price.** It is a stop-market order: it fills at the stop price, or at the **open of
+  the 1-minute candle** when that candle already opened past the stop (a gap: a LONG stop 100 and a
+  candle opening at 101 fills at 101). The price is then moved by `SLIPPAGE_BPS` against the Trader
+  and rounded to the tick; nothing caps it. It always pays the **taker** fee. A STOP fill can
+  therefore be worse than the stop price; say so in the STOP help text ("fills at the stop or
+  worse on a gap").
+- **LIMIT fill price** (unchanged): a resting LIMIT reached by the price fills at its own price, also
+  through a gap, as **maker**, with no slippage.
+- **Fill time.** `executedAt` (and `invalidatedAt`) is the open time of the candle that decided it,
+  not the moment the server noticed; after a server restart the missed candles are replayed with the
+  same rules and give the same result.
+- **Invalidation.** A waiting plan becomes `INVALIDATED` before its entry fills when the price
+  reaches first: a LIMIT's take profit (`TAKE_PROFIT_REACHED`), a STOP's stop loss
+  (`STOP_LOSS_REACHED`), or the plan's `invalidationPrice` (`INVALIDATION_PRICE`). When one candle
+  reaches both the entry and an invalidation level, the candle's open decides if it already lies
+  past one of them; otherwise invalidation wins. A candle that opened before the activation neither
+  fills nor invalidates the plan.
+- **Activation refusals.** Activate and Save and Activate also answer 400 MSG16 on
+  `errors.takeProfit` for a LIMIT whose take profit the last price has already reached, and on
+  `errors.stopLoss` for a STOP whose stop loss it has already reached (at the level counts), so no
+  plan becomes ACTIVE only to be invalidated at once. Fill `{rule}` of MSG16 yourself (M-11), e.g.
+  "take profit must be above the current price".
+- **Races.** A cancel and the engine's fill or invalidation never both happen: the loser of a cancel
+  gets 409 MSG43; reload the plan to show its new status.
+- **Notification.** The Trader's notice of an invalidation (MSG54, with the reason) is T-046; until
+  then the web learns it only from the plan's status.
+
+## Position of an executed plan (T-048a)
+
+Branch `feat/t-048a-journal-open`, not on `develop` yet. When a plan fills (the engine fills a
+resting LIMIT, or a LIMIT / MARKET fills at activation) the journal records its position in the same
+transaction, and the plan responses expose it.
+
+`TradingPlanResponse.position` — `null` until the plan is `EXECUTED`:
+
+```ts
+interface PositionResponse {
+  status: 'OPEN' | 'CLOSED';
+  fillPrice: string;          // actual fill price of the entry (slippage included)
+  quantity: string;           // the snapshot's positionQuantity
+  entryTime: string;          // ISO instant: the 1-minute candle open of an engine fill, else the activation instant
+  entryFee: string;           // fee paid on the entry, by liquidity role (maker / taker)
+  liquidationPrice: string | null;  // Futures: the snapshot's estimatedLiquidationPrice; null on Spot
+  currentPrice: string | null;      // OPEN only: Futures mark price, Spot last price; null when CLOSED or not cached
+  unrealizedPnl: string | null;     // OPEN only: (currentPrice − fillPrice) × quantity, LONG; mirrored for SHORT
+}
+```
+
+```json
+"position": {
+  "status": "OPEN", "fillPrice": "100.000000000000", "quantity": "2.000000000000",
+  "entryTime": "2026-10-25T08:00:00Z", "entryFee": "0.20000000",
+  "liquidationPrice": null, "currentPrice": "103", "unrealizedPnl": "6.00000000"
+}
+```
+
+- The live P/L of SCR-18 is `unrealizedPnl`: unrealized by mark price, **no fees, no funding**
+  (Q-55). Show it with the label "unrealized"; the entry fee is shown on its own.
+- `currentPrice` / `unrealizedPnl` are `null` when the price cache holds no current price (show a
+  dash, not 0) and always `null` once `CLOSED`.
+- `TradingPlanSummaryResponse.positionStatus`: `OPEN` / `CLOSED` on `EXECUTED` rows, else `null`.
+- An open position keeps its `ACTIVE_PLAN_MAX` slot (BR-62): the MSG27 banner counts ACTIVE plans
+  plus open positions. The TOTAL_OPEN_RISK warning (BR-29) also adds the risk of open positions.
+- Exits, close-position and the journal screens come later (T-048b, T-046, T-049).
+
+Source: `trading/dto/response/PositionResponse.java`; `trading/service/impl/TradingPlanServiceImpl.java`
+(`detail`, `list`). Spec: BR-34, BR-62, BR-29, UC-20, SCR-16, SCR-18, Q-55, D-119.
+
+## Entry deviation at MARKET activation (TP-C)
+
+Status: on `feat/tp-c-entry-deviation` (stacked on TP-B, not merged). Spec: BR-69, MSG51, MSG52;
+D-111 M2, D-112 R7. For T-113 (the confirmation dialog).
+
+- **Only MARKET plans**, on Activate and on Save and Activate (`POST /plans`, `PUT /plans/{id}` with
+  `activate: true`). LIMIT and STOP have no activation check; their deviation is recorded at the fill
+  (T-048c).
+- **What is measured.** `deviationR = d × (expectedFill − plannedEntry) / |plannedEntry − stopLoss|`,
+  d = +1 LONG, −1 SHORT; **positive = a worse entry**, negative = a better one. `plannedEntry` is the
+  plan's `plannedEntryPrice`, the unslipped last price of its **last draft save**. `expectedFill` is
+  the current last price (Futures: the Futures last price, never the mark) moved by `SLIPPAGE_BPS`
+  against the Trader, the `expectedFillPrice` the plan is re-sized on. On **Save and Activate** the
+  request is itself the last save, so `plannedEntry` is this request's last price and only the
+  slippage can move the entry (0 bps today: Save and Activate is never asked to confirm).
+- **Bands** (`ENTRY_DEVIATION_CONFIRM_R` 0.25, limit = `maxEntryDeviationR` when set, else
+  `ENTRY_DEVIATION_BLOCK_R` 0.75; both read from the settings on each call):
+  - below 0.25, or negative → activated as before;
+  - 0.25 up to and including the limit → **400 `ENTRY_DEVIATION_CONFIRMATION_REQUIRED` MSG51**,
+    nothing changes; repeat the **same request** with the confirmation;
+  - above the limit, or the expected fill **at or past the take profit** → **409
+    `ENTRY_DEVIATION_REFUSED` MSG52**, also with the confirmation; the plan stays a DRAFT.
+  - A `maxEntryDeviationR` below 0.25 leaves no band to confirm: up to it activates, above it MSG52.
+- **Order of refusals.** MSG16 (inputs no longer pass), MSG18 (BLOCKING warning) and MSG27 (plan
+  limit) come before MSG51, so the dialog never asks to confirm a plan that would then be refused.
+  MSG52 for the take profit replaces the MSG16 on `errors.takeProfit` that a MARKET plan used to get
+  there.
+- **Retry with the confirmation.**
+  - Activate: `POST /plans/{id}/activate?confirmDeviation=true` (query parameter; still no body).
+  - Save and Activate: the same body with `"confirmDeviation": true` added.
+  - The confirmation accepts whatever deviation the retry finds within the band; if the price moved
+    further, the retry can answer MSG52, or proceed with no dialog.
+- **MSG51 body** (RFC 9457 problem detail; every value a decimal string, scale as in the plan
+  snapshot). `messageArgs` = `[deviation, quantity, rr]` for "The price has moved {deviation}R from
+  your plan. New quantity {quantity}, risk/reward {rr}. Activate anyway?". Round for display
+  (deviation and R:R to 2 decimals).
+
+  ```json
+  {
+    "type": "about:blank", "title": "Bad Request", "status": 400,
+    "detail": "the MARKET entry moved 0.50000000R from the plan and needs confirmation",
+    "code": "ENTRY_DEVIATION_CONFIRMATION_REQUIRED", "messageCode": "MSG51", "traceId": "…",
+    "messageArgs": ["0.50000000", "0.033300000000", "1.66666667"],
+    "deviationR": "0.50000000",
+    "maxDeviationR": "0.75000000",
+    "expectedFillPrice": "101000",
+    "positionQuantity": "0.033300000000",
+    "riskRewardRatio": "1.66666667",
+    "netRiskReward": "1.49828071"
+  }
+  ```
+
+  `netRiskReward` is the R:R after fees of TP-0 (show it as "R:R after fees"). The risk amount does
+  not change: the quantity is re-sized so the risk stays the planned one.
+- **MSG52 body.** `messageArgs` = `[deviation, max]` for "The price has moved {deviation}R from your
+  plan, beyond the allowed {max}R or past the take profit. The plan was not activated."
+
+  ```json
+  {
+    "status": 409, "code": "ENTRY_DEVIATION_REFUSED", "messageCode": "MSG52",
+    "messageArgs": ["1.00000000", "0.75000000"],
+    "deviationR": "1.00000000", "maxDeviationR": "0.75000000", "expectedFillPrice": "102000",
+    "takeProfitReached": false
+  }
+  ```
+
+  `takeProfitReached` (boolean) says which half of the sentence applies. Offer Edit (a new draft save
+  takes the new price as the planned entry) or Cancel.
+- **Example** (BTC LONG MARKET saved at 100,000, SL 98,000, TP 106,000, risk 100 USDT, 0 bps, step
+  0.0001): last 100,000 → 0R, activated, quantity 0.05, R:R 3.0; last 101,000 → 0.5R, MSG51 with
+  quantity 0.0333, R:R 1.67, then activated with the flag; last 102,000 → 1.0R, MSG52 (it would be
+  quantity 0.025, R:R 1.0); last ≥ 106,000 → MSG52 with `takeProfitReached: true`. SHORT mirror: SL
+  102,000, TP 94,000, last 99,000 → 0.5R. With `maxEntryDeviationR` 0.5, last 101,200 (0.6R) →
+  MSG52. With 10 bps, last 100,400 buys at 100,500.40 → 0.2502R → MSG51 (at 0 bps: 0.2R, activated).
 
 ---
 
@@ -207,6 +426,7 @@ Response `200`:
 ```json
 {
   "entryPrice": "62000.00",
+  "expectedFillPrice": null,
   "capital": "1000",
   "riskPercent": "1",
   "snapshot": {
@@ -217,7 +437,14 @@ Response `200`:
     "riskAmount": "10.00000000",
     "rewardAmount": "20.00000000",
     "riskRewardRatio": "2.00000000",
-    "estimatedLiquidationPrice": null
+    "estimatedLiquidationPrice": null,
+    "estimatedEntryFee": "0.31000000",
+    "estimatedStopLossExitFee": "0.30000000",
+    "estimatedTakeProfitExitFee": "0.33000000",
+    "estimatedSlippage": "0.00000000",
+    "lossAtStopLoss": "10.61000000",
+    "feeShareOfRisk": "0.06100000",
+    "netRiskReward": "1.82469369"
   },
   "warnings": [],
   "blocksActivation": false
@@ -229,7 +456,7 @@ Response `200`:
 | 400 | `VALIDATION_FAILED` | MSG01/15/16 | Input and calculation rules, and the save's validity checks (a MARKET plan with an `invalidationPrice` is MSG01 on that field, as on create) | Under fields / in panel |
 | 403 | `PLAN_FEATURE_NOT_INCLUDED` | MSG29 | FUTURES on FREE | MSG29 dialog |
 | 404 | `RESOURCE_NOT_FOUND` | MSG41 | Pair not enabled on that market | Inline |
-| 503 | `MARKET_PRICE_UNAVAILABLE` | MSG43 | MARKET entry and no live last price; an `invalidationPrice` and no live last price (always on Futures until TP-0) | "Price unavailable", retry |
+| 503 | `MARKET_PRICE_UNAVAILABLE` | MSG43 | MARKET entry and no live last price; an `invalidationPrice` and no live last price (on Futures: the close of the latest 1-minute candle, from TP-0) | "Price unavailable", retry |
 
 FE notes: SRS asks for panel updates within 300 ms (SCR-17). Debounce input ~200 ms, cancel the
 previous request (`AbortController`), keep the last good panel visible while a request is in flight,
@@ -252,11 +479,13 @@ Response `201`: `TradingPlanResponse` (`status` `DRAFT`, or `ACTIVE` when activa
 | Status | `code` | MSG | When | Show |
 |---|---|---|---|---|
 | 400 | `VALIDATION_FAILED` | MSG01/15/16 | As calculate | Fields |
+| 400 | `ENTRY_DEVIATION_CONFIRMATION_REQUIRED` | MSG51 | TP-C: MARKET with `activate: true` whose expected fill is 0.25R up to the limit from the plan; nothing saved | Dialog; resend with `"confirmDeviation": true` |
 | 403 | `PLAN_FEATURE_NOT_INCLUDED` | MSG29 | FUTURES on FREE | Dialog |
 | 404 | `RESOURCE_NOT_FOUND` | MSG41 | Pair not enabled | Inline |
 | 409 | `TRADING_BLOCKING_WARNING` | MSG18 | `activate: true` with a BLOCKING warning; **nothing is saved** | Banner; offer "Save as Draft" |
 | 409 | `PLAN_LIMIT_REACHED` | MSG27 | `activate: true` and `ACTIVE_PLAN_MAX` reached (FREE: 3); nothing saved | Inline + upgrade |
-| 503 | `MARKET_PRICE_UNAVAILABLE` | MSG43 | MARKET, no live price; `invalidationPrice`, or STOP with `activate: true`, and no live last price (always on Futures until TP-0) | Retry |
+| 409 | `ENTRY_DEVIATION_REFUSED` | MSG52 | TP-C: MARKET with `activate: true` beyond the limit or at/past the take profit; nothing saved | Banner; offer "Save as Draft" |
+| 503 | `MARKET_PRICE_UNAVAILABLE` | MSG43 | MARKET, no live last price; `invalidationPrice`, or STOP with `activate: true`, and no live last price (Futures last price from TP-0) | Retry |
 
 FE notes: show MSG14 (draft) or MSG19 (activated). Warnings are stored with the plan and replaced on
 each save. A DRAFT with warnings is allowed.
@@ -291,7 +520,8 @@ Response `200`: `PageResponse<TradingPlanSummary>`.
       "entryPrice": "62000.00", "stopLoss": "60000.00", "takeProfit": "66000.00",
       "leverage": null, "riskAmount": "10.00000000", "riskRewardRatio": "2.00000000",
       "status": "DRAFT",
-      "createdAt": "2026-10-03T02:20:00Z", "activatedAt": null, "expiresAt": "2026-10-10T02:20:00Z"
+      "createdAt": "2026-10-03T02:20:00Z", "activatedAt": null, "expiresAt": "2026-10-10T02:20:00Z",
+      "positionStatus": null
     }
   ],
   "page": 1, "pageSize": 20, "total": 1
@@ -302,8 +532,9 @@ Response `200`: `PageResponse<TradingPlanSummary>`.
 |---|---|---|---|
 | 400 | `VALIDATION_FAILED` | MSG01/MSG15 | Bad enum, UUID, instant, paging |
 
-FE notes: no symbol in rows — resolve `pairId` from data you already hold (FEQ-01). Position status
-and P/L of executed plans (SRS 3.5.2) are not in the row yet (T-042+). Keep the tab in the URL.
+FE notes: no symbol in rows — resolve `pairId` from data you already hold (FEQ-01). `positionStatus`
+(T-048a): `OPEN` or `CLOSED` on an `EXECUTED` row, `null` on every other status — show it in the
+Executed tab. The live P/L is not in the row (read the detail). Keep the tab in the URL.
 Source: `trading/controller/TradingPlanController.java#L90`; `trading/dto/response/TradingPlanSummaryResponse.java#L32`. Spec: SRS 3.5.2, UC-20, CR-04, D-73.
 
 ---
@@ -332,7 +563,8 @@ Response `200`: `TradingPlanResponse`.
   },
   "warnings": [],
   "blocksActivation": false,
-  "statusHistory": [ { "status": "DRAFT", "at": "2026-10-03T02:20:00Z" } ]
+  "statusHistory": [ { "status": "DRAFT", "at": "2026-10-03T02:20:00Z" } ],
+  "position": null
 }
 ```
 
@@ -340,8 +572,9 @@ Response `200`: `TradingPlanResponse`.
 |---|---|---|---|
 | 404 | `RESOURCE_NOT_FOUND` | MSG41 | Unknown id or another user's plan (never 403) |
 
-FE notes: show Edit only when `editable`. Activate for DRAFT; Cancel for DRAFT and ACTIVE. The live
-position block (SRS 3.5.3) waits for T-042+ (and the planned `/user/queue/positions`).
+FE notes: show Edit only when `editable`. Activate for DRAFT; Cancel for DRAFT and ACTIVE. The
+position block (SRS 3.5.3, T-041) is `position`, see "Position of an executed plan (T-048a)"; it is
+read on request (refetch to refresh the P/L; no push yet).
 Source: `trading/controller/TradingPlanController.java#L109`; `trading/dto/response/StatusChangeResponse.java#L14`; `trading/dto/response/PlanWarningResponse.java#L15`. Spec: SRS 3.5.3, D-67.
 
 ---
@@ -358,13 +591,15 @@ Response `200`: `TradingPlanResponse`.
 | Status | `code` | MSG | When | Show |
 |---|---|---|---|---|
 | 400 | `VALIDATION_FAILED` | MSG01/15/16 | As calculate | Fields |
+| 400 | `ENTRY_DEVIATION_CONFIRMATION_REQUIRED` | MSG51 | TP-C: as `POST /plans`; the draft keeps its earlier values | Dialog; resend with `"confirmDeviation": true` |
 | 403 | `PLAN_FEATURE_NOT_INCLUDED` | MSG29 | FUTURES on FREE | Dialog |
 | 404 | `RESOURCE_NOT_FOUND` | MSG41 | Not the caller's plan, or pair no longer enabled | Inline |
 | 409 | `TRADING_PLAN_STATUS_TRANSITION_INVALID` | MSG43 | Plan is not DRAFT | Reload plan |
 | 409 | `TRADING_BLOCKING_WARNING` | MSG18 | `activate: true` with a BLOCKING warning | Banner |
 | 409 | `PLAN_LIMIT_REACHED` | MSG27 | `activate: true` at the limit | Inline |
+| 409 | `ENTRY_DEVIATION_REFUSED` | MSG52 | TP-C: as `POST /plans`; the draft keeps its earlier values | Banner |
 | 409 | `DATA_CONFLICT` | MSG43 | Changed concurrently | Reload |
-| 503 | `MARKET_PRICE_UNAVAILABLE` | MSG43 | MARKET, no live price; `invalidationPrice`, or STOP with `activate: true`, and no live last price (always on Futures until TP-0) | Retry |
+| 503 | `MARKET_PRICE_UNAVAILABLE` | MSG43 | MARKET, no live last price; `invalidationPrice`, or STOP with `activate: true`, and no live last price (Futures last price from TP-0) | Retry |
 
 Source: `trading/controller/TradingPlanController.java#L124`; `trading/dto/request/UpdateTradingPlanRequest.java#L33`. Spec: SRS 3.5.1, UC-17, BR-32.
 
@@ -375,19 +610,22 @@ Status: IMPLEMENTED (develop)
 Auth: trader (Futures: `FUTURES_ANALYSIS`)
 Purpose: DRAFT → ACTIVE after re-checking with the current price and the plan limit (UC-18).
 
-Request: no body.
+Request: no body. Query `confirmDeviation` (boolean, default `false`; TP-C): `true` once the Trader
+confirmed MSG51.
 
 Response `200`: `TradingPlanResponse` (`status: "ACTIVE"`, new snapshot).
 
 | Status | `code` | MSG | When | Show |
 |---|---|---|---|---|
-| 400 | `VALIDATION_FAILED` | MSG01/15/16 | Inputs no longer pass (e.g. MARKET price moved past the stop → `errors.stopLoss` MSG16); a STOP already triggered → `errors.entryPrice` MSG16; the invalidation price now on the wrong side → `errors.invalidationPrice` MSG16; expiry already passed → MSG01 | Fields / banner; offer Edit |
+| 400 | `VALIDATION_FAILED` | MSG01/15/16 | Inputs no longer pass (e.g. MARKET price moved past the stop → `errors.stopLoss` MSG16); a STOP already triggered → `errors.entryPrice` MSG16; the invalidation price now on the wrong side → `errors.invalidationPrice` MSG16; TP-B: a LIMIT whose take profit the last price reached → `errors.takeProfit` MSG16, a STOP whose stop loss it reached → `errors.stopLoss` MSG16; expiry already passed → MSG01 | Fields / banner; offer Edit |
+| 400 | `ENTRY_DEVIATION_CONFIRMATION_REQUIRED` | MSG51 | TP-C: MARKET entry 0.25R up to the limit from the planned entry; body in "Entry deviation at MARKET activation (TP-C)" | Dialog; resend with `?confirmDeviation=true` |
+| 409 | `ENTRY_DEVIATION_REFUSED` | MSG52 | TP-C: MARKET entry beyond the limit, or at/past the take profit; even with the flag | Banner; offer Edit or Cancel |
 | 403 | `PLAN_FEATURE_NOT_INCLUDED` | MSG29 | Futures plan, plan downgraded | Dialog |
 | 404 | `RESOURCE_NOT_FOUND` | MSG41 | Not the caller's, or pair disabled | Inline |
 | 409 | `TRADING_PLAN_STATUS_TRANSITION_INVALID` | MSG43 | Not DRAFT (double click, other tab) | Reload |
 | 409 | `TRADING_BLOCKING_WARNING` | MSG18 | BLOCKING warning after re-check | Banner |
 | 409 | `PLAN_LIMIT_REACHED` | MSG27 | `ACTIVE_PLAN_MAX` | Inline + upgrade |
-| 503 | `MARKET_PRICE_UNAVAILABLE` | MSG43 | MARKET, no live price; STOP or `invalidationPrice` and no live last price (always on Futures until TP-0) | Retry |
+| 503 | `MARKET_PRICE_UNAVAILABLE` | MSG43 | MARKET, no live last price; STOP or `invalidationPrice` and no live last price (Futures last price from TP-0) | Retry |
 
 FE notes: show MSG19 on success. The response carries `setupScoreAtPlan` (may be null) and
 `setupScorePreset` taken at this activation. Disable the button while in flight. The snapshot can differ from the

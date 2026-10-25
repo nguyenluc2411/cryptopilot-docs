@@ -150,7 +150,7 @@ Module rules:
 2. A module calls another module only through that module's **public API**: the classes placed directly in the module's root package (e.g. `com.cryptopilot.user.UserApi`, `UserSummary`) and the events in its `event` package. Everything else in a module (`controller`, `service`, `repository`, `entity`, `dto`, …) is internal. Spring Modulith's `ApplicationModules.verify()` fails the build on a violation.
 3. Synchronous reads/commands across modules use the other module's `XxxApi`; reactions use events (`@ApplicationModuleListener`), which are persisted by the event publication registry (outbox).
 4. No cyclic dependencies between modules (verified by Spring Modulith).
-5. `trading` records executions through `journal.JournalApi` (the journal module owns the table).
+5. `trading` records executions through its own port `trading.TradeJournal`, which `journal` implements (`journal.service.impl.PersistentTradeJournal`); `journal` depends on `trading`'s public API and `trading` never depends on `journal` (D-119, amends the earlier `journal.JournalApi` direction). The journal module owns the table; `JournalOwnershipTest` proves no other module writes it.
 6. Moderation screens are served by `community` (admin endpoints under `/api/v1/admin/...` inside `community.controller`), because moderation changes community tables.
 
 ---
@@ -324,12 +324,11 @@ backend/
     │   │   │   └── event/         PlanExecuted, PositionClosed
     │   │   │
     │   │   ├── journal/                              # journal records, reviews, manual trades, performance
-    │   │   │   ├── JournalApi.java
     │   │   │   ├── controller/    JournalController, PerformanceController
-    │   │   │   ├── service/       JournalService, PerformanceService
+    │   │   │   ├── service/       JournalService, PerformanceService; impl/ PersistentTradeJournal (implements trading.TradeJournal, T-048a)
     │   │   │   ├── repository/    TradingJournalRepository, PerformanceQueryRepository
     │   │   │   ├── entity/        TradingJournal
-    │   │   │   ├── model/enums/   TradeSource, TradeStatus
+    │   │   │   ├── model/         PlanPosition; enums/ TradeSource (the position status is trading.model.enums.PositionStatus)
     │   │   │   ├── dto/
     │   │   │   └── calculator/    PnlCalculator, PerformanceMetrics
     │   │   │
@@ -397,8 +396,10 @@ backend/
     │   └── resources/
     │       ├── application.yml          # shared defaults, no secrets
     │       ├── application-dev.yml      # local development
-    │       ├── application-prod.yml     # staging / demo
-    │       └── db/migration/            # V1__baseline_schema.sql, V2__timescale.sql, V3__reference_data.sql …
+    │       ├── application-prod.yml     # staging / production
+    │       ├── application-demo.yml     # added on staging (prod,demo): Flyway also applies db/demo (DEMO-01, D-120)
+    │       ├── db/migration/            # V1__baseline_schema.sql, V2__timescale.sql, V3__reference_data.sql …
+    │       └── db/demo/                 # demo accounts, repeatable migrations; dev and demo profiles only
     │
     └── test/
         ├── java/com/cryptopilot/
@@ -423,7 +424,7 @@ backend/
 | Talks to an external system | `client/` | `BinanceRestClient`, `VnPayGateway` |
 | Runs on a schedule, loops on a stream, or reacts to an event | `job/` | `PlanExpiryJob`, `AlertEngineWorker` |
 | Is announced to other modules | `event/` (record) | `PositionClosed` |
-| Is needed by another module | root package `XxxApi` | `JournalApi.recordExecution(...)` |
+| Is needed by another module | root package `XxxApi`, or a port the needing module declares in its own root (D-119) | `MarketApi.tradablePair(...)`; `trading.TradeJournal` (implemented by `journal`) |
 | Is used by every module and has no business logic | `common/` | `BusinessException`, `BaseEntity` |
 
 Other folders of the repository:
@@ -544,7 +545,7 @@ Rules:
 
 | Key | Type | TTL | Content |
 |---|---|---|---|
-| `px:{market}:{symbol}` | hash | 5 min | last, bid, ask, mark, index, funding, nextFundingTime, updatedAt |
+| `px:{market}:{symbol}` | hash | 5 min | last, bid, ask, mark, index, funding, nextFundingTime, updatedAt; on futures also lastUpdatedAt (TP-0) |
 | `k1m:{market}:{symbol}` | hash | 5 min | forming 1m candle o/h/l/c, openTime |
 | `rl:{rule}:{subject}:{window}` | string (counter) | one window (1 min) | requests of one client address or account in one window (ADR-014) |
 | `rpl:{market}:{pairId}` | string (holder token) | 90 s, renewed every 30 s | a pair's restart replay is running (D-85); set NX, deleted when the replay ends, left to expire after a crash |
@@ -552,6 +553,8 @@ Rules:
 Redis is a cache: losing it must never lose business data.
 
 Built in T-022: `px:{market}:{symbol}` is written by `PriceCacheServiceImpl` — values gathered in memory from the stream (newest by the exchange's instant), flushed every 250 ms with a Lua script that refuses a value older than the cached `updatedAt`, then `PEXPIRE` 5 min. Reads answer `FOUND`, `EXPIRED` (older than the TTL by source instant, returned with it), `MISSING` or `UNAVAILABLE`. Failures are logged and counted (`cryptopilot.market.price.cache.failures`) and never reach the stream; Redis is excluded from the health check. `k1m:{market}:{symbol}` waits for the 1m streams of T-042.
+
+Futures last price (TP-0, D-111 E2/E3): the close of every futures `kline_1m` update is written to `last` of `px:FUTURES:{symbol}` with its own instant `lastUpdatedAt` (the update's event time) and the same 5-minute TTL, by a second Lua script that compares `lastUpdatedAt`. The mark price stream and the candle stream are two sources whose instants interleave (the captured candle of the tests is 144 ms older than the captured mark price), so one shared `updatedAt` would let a candle refuse a mark price, or keep a mark price current after it stopped. `PriceCacheService.latest` answers the futures mark price group with `last` left out; `latestLast` answers the last price with its own instant and state (on Spot it is `latest`). `MarketApi.currentLastPrice(FUTURES)` reads it; `currentMarkPrice` is unchanged.
 
 ---
 
@@ -809,6 +812,33 @@ Each warning rule is one class implementing `WarningRule#evaluate(PlanCalculatio
 
 Risk profile (D-53, ADR-013): the user's profile (`CONSERVATIVE`, `BALANCED` default, `AGGRESSIVE`) supplies, from configuration, the risk per trade (0.5 / 1 / 2 % of capital), the maximum futures leverage (3 / 5 / 10x) and the maximum total open risk (2 / 4 / 6 % of capital); no profile exceeds the `AGGRESSIVE` values. These replace the fixed thresholds of BR-29 (A-34), including the seeded `WARN_OVERSIZED_POSITION_RISK_PERCENT` = 2 and `WARN_HIGH_LEVERAGE` = 20 (T-037 replaces them and `SeedDataTest` with it; the hard ceiling is the AGGRESSIVE 10x): OVERSIZED_POSITION is raised when the plan's risk % exceeds the profile's risk per trade, HIGH_LEVERAGE when the leverage exceeds the profile's maximum, and the total open risk (the plan's risk amount plus the risk amounts of the Trader's other ACTIVE plans and open positions, over capital) is compared with the profile's maximum and raises TOTAL_OPEN_RISK (WARNING) above it (Q-27; migration V14). The calculation (T-035) takes the parameters as input and exposes the three comparisons; the warnings that report them are T-037's. The BR-30 input ranges and the BR-26 bracket limit are unchanged. The profile never reaches the setup score (7.4).
 
+**Fees and slippage in the risk panel (D-116, BR-29 nine warnings; TP-0).** BR-23 does not change: the quantity is sized on |E − S| only. The panel shows what fees and slippage do to that risk and warns when they are a large share of it. Computed on create, update, `/plans/calculate` and activation, stored in the snapshot (BR-31; V34 columns, null on older plans). Same fee of a fill and same liquidity roles as the simulated fills (7.8), no second fee formula:
+```
+entry role      = TAKER for MARKET and STOP, and for a LIMIT the current last price already reaches; MAKER for a resting LIMIT
+                  (EntryFillRule.expectedLiquidity, the test of EntryFillRule.atActivation; no last price → MAKER)
+entryFee        = rate(entry role) × qty × E                       (E = entry of the calculation; MARKET: last price with slippage)
+slFee           = taker × qty × S
+tpFee           = maker × qty × T
+entrySlip       = qty × |entry fill − ref|   taker entry only: MARKET ref = last price (fill = E); LIMIT ref = last price,
+                  fill = marketableLimitFill (capped at the limit); STOP ref = stop price, fill = takerFill(stop)
+slSlip          = qty × |S − takerFill(S, exit side)|
+estimatedSlippage = entrySlip + slSlip
+extra           = entrySlip, except MARKET: 0 (its E already holds the slippage, so riskAmt and rewardAmt do, D-112 R6)
+lossAtStopLoss  = riskAmt + entryFee + slFee + slSlip + extra
+feeShareOfRisk  = (lossAtStopLoss − riskAmt) / riskAmt
+netRiskReward   = (rewardAmt − entryFee − tpFee − extra) / lossAtStopLoss
+HIGH_FEE_SHARE (WARNING, never blocking) when feeShareOfRisk ≥ FEE_RISK_WARN_RATIO (DECIMAL, seeded 0.20000000, read per calculation)
+```
+Funding and the liquidation clearance fee are not included. Amounts at scale 8 half-even in the snapshot, the share and the ratio at scale 8; the rule compares at full precision. Message (MSG17): "fees and slippage are 24% of your risk" (the share × 100, four decimals at most). Implemented by `trading.calculator.PlanCostCalculator` → `PlanCosts`, `EntryExpectation` (role, reference, `SLIPPAGE_BPS`), `warning.HighFeeShareRule`.
+
+Vectors (seeded rates: Futures maker 0.02 %, taker 0.05 %; Spot 0.1 % both):
+- Futures LONG MARKET, E 100,000, S 99,500, T 101,500, risk 100 USDT, 0 bps: qty 0.2; entry fee 10 (0.05 % of 20,000); SL fee 9.95 (0.05 % of 19,900); loss at SL 119.95; share 0.1995, no warning; TP fee 4.06 (0.02 % of 20,300); net R:R 285.94 / 119.95 = 2.38382659.
+- Threshold: with taker fees on both legs the share is 0.0005 × (2E − d) / d for a stop distance d, whatever the quantity. E 100,250: d = 500 → exactly 0.2 (warns); d = 499.99 → 0.2000040 (warns); d = 500.01 → 0.1999960 (no warning).
+- Spot LONG resting LIMIT, E 100, S 98, T 106, risk 100: qty 50; maker entry fee 5; SL fee 4.9; loss at SL 109.9; TP fee 5.3; net R:R 289.7 / 109.9.
+- The same Spot plan at 10 bps: entry and TP legs unchanged (maker); SL sells at 98 × 0.999 = 97.902 → 97.90, slippage 0.10 × 50 = 5; loss at SL 114.9; net R:R 289.7 / 114.9.
+- Futures LONG MARKET, last 100, S 95, T 110, 10 bps, capital 1,020, risk 1 %: E = 100.10, qty 2, risk 10.2 (holds the entry slippage 0.2); entry fee 0.1001; SL fee 0.095; SL slips to 94.90 (0.2); estimated slippage 0.4; loss at SL 10.5951; TP fee 0.044; net R:R 19.6559 / 10.5951.
+- Futures LONG LIMIT 100 reached by last 99.95, S 95, T 110, 10 bps, risk 10: taker; fill capped at 100, entry slippage 0.05 × 2 = 0.1; loss at SL 10 + 0.1 + 0.095 + 0.2 + 0.1 = 10.495; net R:R 19.756 / 10.495.
+
 References: Tharp 1999 and 2007 (position sizing, R-multiples); Vince 1990 (fixed fractional risk per trade).
 
 ### 7.6 Liquidation price (BR-27, isolated margin, one-way mode)
@@ -857,7 +887,7 @@ Built in T-042 (PR #46): `trading.matching.{PriceLevelBook, MatchingEngine}` (pu
 Built in T-043 (PR #47 rules, PR #48 feed and replay):
 - **Fill rules (BR-33).** `trading.matching.EntryFillRule`. LIMIT LONG fills at low ≤ entry, SHORT at high ≥ entry (both inclusive), at the entry price, also through a gap. At activation, MARKET, or a LIMIT the current last price already reaches, is EXECUTED in the activating transaction at the last price and never enters the books. A LIMIT without a current last price waits.
 - **D-77.** `TrackedEntry.activatedAt`; a range whose candle opened before `activated_at` does not fill the plan, and the entry stays.
-- **D-78.** A fill from a range is recorded at the candle's open time (`PriceRange.from`). The engine returns `Fill(planId, price, executedAt)`, and `MatchingService.fill(Fill)` is the compare-and-set. The journal record of BR-34 is T-048.
+- **D-78.** A fill from a range is recorded at the candle's open time (`PriceRange.from`). The engine returns `Fill(planId, price, executedAt)`, and `MatchingService.fill(Fill)` is the compare-and-set. The journal record of BR-34 is opened in the same transaction by `PositionOpener` → `trading.TradeJournal.openSimulatedTrade` (T-048a, D-119): source SIMULATED, status OPEN, the fill price and time, the snapshot quantity, `entry_liquidity` = `fill_liquidity`, `entry_fee_amount` (V35) = `FeeSchedule.fee(role, fill, qty)` rounded to 8 decimals, and the plan's stop loss and take profit as the current levels; nothing is written when the compare-and-set returns 0, and `UNIQUE (plan_id)` refuses a second record. A fill at activation stores the plan first (`saveAndFlush`) and then opens the record.
 - **Fill price.** `trading_plan.fill_price` (V18), set exactly when EXECUTED (CHECK `ck_trading_plan_fill_price`): the entry price for a candle fill, the last price for a fill at activation. T-048 reads it. `activated_at` and `executed_at` are truncated to microseconds before they are stored or compared, as the column keeps them.
 - **Queue (section 10).** Pending updates of a pair merge only within one candle, so there is one pending range per minute. A pair's pending ranges are read as soon as none of its ranges is left in the channel, after any command, with at most one `Flush` per pair in the channel.
 - **Retries and stop.** A failing fill waits in the retry list with an exponential back-off and jitter (`retry.initial-delay` 1 s, `max-delay` 30 s, `jitter-percent` 20) and is tried on the pair's next range once due. At `retry.deadline` (10 min after the first failure) it is given up with one ERROR, the plan stays ACTIVE, and the pair's watermark is held until a restart, which replays the candle that reached the plan. A pair holding more than `pending-warn-threshold` (60) pending ranges is warned about once per backlog. `stop()` flags each partition, interrupts and joins the consumers within `stop-timeout` (10 s). Each start builds new partitions and refuses to run beside a consumer still alive.
@@ -872,7 +902,7 @@ Built in T-044 (rules only, not wired; Q-59): `trading.matching.ExitRule` decide
 
 **GY-03 additions (D-111; built by TP-0, TP-B, TP-C and T-048).**
 
-*Last price per market.* Spot: the ticker's last price. Futures: the close of the latest futures `kline_1m` update. That close is the last trade, because Binance publishes mark price klines as a separate stream. Before TP-0 it only reached the matching feed and the alert engine, never the price cache, so `currentLastPrice(FUTURES)` was always empty. TP-0 writes it into the cache's `last` field with the update's event time and the usual TTL. The last price drives MARKET fills, the marketable-LIMIT check at activation and STOP triggers. The mark price drives liquidation and unrealized PnL only (D-84 and A-41, amended).
+*Last price per market.* Spot: the ticker's last price. Futures: the close of the latest futures `kline_1m` update. That close is the last trade, because Binance publishes mark price klines as a separate stream. Before TP-0 it only reached the matching feed and the alert engine, never the price cache, so `currentLastPrice(FUTURES)` was always empty. TP-0 writes it into the cache's `last` field with the update's event time (`lastUpdatedAt`) and the usual TTL (5.6). The last price drives MARKET fills, the marketable-LIMIT check at activation and STOP triggers. The mark price drives liquidation and unrealized PnL only (D-84 and A-41, amended).
 
 *STOP entries (stop-market, BR-33).* The stop price is stored in `entry_price`.
 - A LONG STOP sits in the `AboveBook` and fires when `hi ≥ stop`. A SHORT STOP sits in the `BelowBook` and fires when `lo ≤ stop`.
@@ -881,7 +911,7 @@ Built in T-044 (rules only, not wired; Q-59): `trading.matching.ExitRule` decide
 - There is no stop-limit.
 - STOP waits like LIMIT (books, D-77, D-78, replay) and takes the LIMIT expiry default.
 - An activation (Activate or Save and Activate) whose stop the last price has already reached (LONG last ≥ stop, SHORT last ≤ stop) is refused with MSG16 on `entryPrice`. It is never converted to MARKET; the Trader may choose MARKET, which runs the deviation check of 7.8 (D-112).
-- Built in TP-A: STOP is saved (stop price required, MSG01 on `entryPrice`; CHECK `ck_trading_plan_limit_has_entry_price` covers LIMIT and STOP), takes the 7-day default expiry and is activated; activation never fills a STOP (`EntryFillRule.atActivation` is not asked) and publishes `TradingPlanActivated` with `entryType` STOP, which the worker ignores, as `findActiveLimitEntries` leaves STOP out. Until TP-B an ACTIVE STOP waits and can only be cancelled or expire.
+- Built in TP-A: STOP is saved (stop price required, MSG01 on `entryPrice`; CHECK `ck_trading_plan_limit_has_entry_price` covers LIMIT and STOP), takes the 7-day default expiry and is activated; activation never fills a STOP (`EntryFillRule.atActivation` is not asked) and publishes `TradingPlanActivated` with `entryType` STOP, which the worker ignored before TP-B. An ACTIVE STOP activated then never entered the books; the start-up rebuild of TP-B loads it with the other waiting plans.
 
 *Invalidation (BR-68).* A waiting plan (LIMIT or STOP) has up to two invalidation levels. Each sits on the side of the book opposite its entry:
 
@@ -894,7 +924,7 @@ Built in T-044 (rules only, not wired; Q-59): `trading.matching.ExitRule` decide
 
 `invalidation_price` must lie on the far side of the current price from the entry, so the price can reach it before the entry. It is checked at save and at activation (MSG16 on the field, D-112). A MARKET plan has none.
 
-*Built in TP-A.* `trading.calculator.PlanValidityRule.invalidationPrice`: above the last price for LIMIT LONG and STOP SHORT, below it for LIMIT SHORT and STOP LONG, equal refused; MSG16 on `invalidationPrice` with the condition and the price in the detail. The current price is the last price, never the mark price, at save (create, edit, Save and Activate) and at Activate (before the count's recalculation). Without a current last price the check cannot run and the request is refused with MSG43; on Futures this holds for every plan with an invalidation price until TP-0 caches the Futures last price. A MARKET plan carrying one is MSG01 on the field (the aggregate's rule; CHECK `ck_trading_plan_invalidation_price`). The status side: `PlanStatus.INVALIDATED` (terminal, only from ACTIVE); `TradingPlan.invalidate(reason, at)` returns false and changes nothing unless the plan is ACTIVE; `TradingPlanRepository.invalidateIfActive(id, at, reason, now)` is the compare-and-set for the engine, like `executeIfActive`. Neither has a caller before TP-B. Schema (V32): `invalidated_at` and `invalidation_reason` are set exactly with INVALIDATED (CHECKs as V15), `ck_trading_plan_activated_at` includes INVALIDATED, `invalidation_price numeric(28,12)`. PlanTab `CANCELLED_EXPIRED` lists INVALIDATED; the list row carries `invalidatedAt` and `invalidationReason`.
+*Built in TP-A.* `trading.calculator.PlanValidityRule.invalidationPrice`: above the last price for LIMIT LONG and STOP SHORT, below it for LIMIT SHORT and STOP LONG, equal refused; MSG16 on `invalidationPrice` with the condition and the price in the detail. The current price is the last price, never the mark price, at save (create, edit, Save and Activate) and at Activate (before the count's recalculation). Without a current last price the check cannot run and the request is refused with MSG43, on both markets since TP-0 caches the Futures last price (the 503 TP-A pinned for every Futures plan with an invalidation price, and for a Futures STOP at activation, is gone). A MARKET plan carrying one is MSG01 on the field (the aggregate's rule; CHECK `ck_trading_plan_invalidation_price`). The status side: `PlanStatus.INVALIDATED` (terminal, only from ACTIVE); `TradingPlan.invalidate(reason, at)` returns false and changes nothing unless the plan is ACTIVE; `TradingPlanRepository.invalidateIfActive(id, at, reason, now)` is the compare-and-set for the engine, like `executeIfActive`. Neither has a caller before TP-B. Schema (V32): `invalidated_at` and `invalidation_reason` are set exactly with INVALIDATED (CHECKs as V15), `ck_trading_plan_activated_at` includes INVALIDATED, `invalidation_price numeric(28,12)`. PlanTab `CANCELLED_EXPIRED` lists INVALIDATED; the list row carries `invalidatedAt` and `invalidationReason`.
 
 Per range `[lo, hi]` with open `o` (o may be unknown) and a plan whose candle passed the D-77 check:
 ```
@@ -913,16 +943,26 @@ The open cannot be past both, because the entry and the invalidation levels lie 
 - `ACTIVE_PLAN_MAX` counts ACTIVE plans only (TP-A, BR-62). An INVALIDATED or EXPIRED plan frees its slot with no extra step.
 - At activation the last price (never the mark price) is checked against the invalidation levels with the same inclusive bounds: a LIMIT whose TP, a STOP whose SL, or a LIMIT or STOP whose `invalidation_price` the last price has already reached is refused with MSG16 on that field, so no plan becomes ACTIVE only to be invalidated at once (D-112).
 
+*Built in TP-B.*
+- `PriceRange` carries the candle open (`null` when the source gives none); `MinuteKlineFeed` passes the `kline_1m` open, and a merged range keeps the open of its earliest candle.
+- `TrackedEntry` holds the owner, entry type, SL, TP and `invalidation_price`. `MatchingEngine` places the entry on `EntryFillRule.entrySide` (LIMIT LONG and STOP SHORT below, LIMIT SHORT and STOP LONG above) and the invalidation levels of `WaitingPlanRule.invalidationLevels` on the opposite side. A range fires the levels it reached; each plan concerned is decided once by `WaitingPlanRule.decide` (the table above, D-77 included) and leaves both books; a plan held back by D-77 goes back.
+- The engine returns `PlanOutcome` = `Fill(entry, liquidity, price, executedAt)` or `Invalidation(entry, reason, invalidatedAt)`. A LIMIT fill is MAKER at its price; a STOP fill is TAKER at the stop or at the open on a gap. `MatchingServiceImpl.fill` moves a TAKER price by `SlippageCalculator.takerFill` (`SLIPPAGE_BPS` read per fill, tick of the pair, against the Trader, no cap) and stores price, `fill_liquidity` and `executed_at` through `executeIfActive`; `invalidate` calls `invalidateIfActive` and, when it wins, publishes `TradingPlanInvalidated(planId, userId, reason, invalidatedAt)` for after the commit. The worker's retry list, deadline and watermark hold apply to both outcomes.
+- `TradingPlanRepository.findActiveWaitingEntries` (ACTIVE LIMIT and STOP) feeds the start-up rebuild and the replay start of each pair; `TradingPlanActivated` carries the same fields, so a plan activated while running is tracked the same way.
+- Activation: `PlanValidityRule.takeProfitAlreadyReached` (LIMIT) and `stopLossAlreadyReached` (STOP) run on the request's one read of the last price, beside `stopAlreadyTriggered` and `invalidationPrice`. A LIMIT without a current last price still waits for the engine (BR-33) and is not refused: its take profit is checked whenever the price is known.
+- `openPositions(userId)` of the plan limit still answers 0 until T-048, so `ACTIVE_PLAN_MAX` counts ACTIVE plans only.
+- No migration.
+
 *Activation.*
 - MARKET: the entry deviation check of 7.8 runs (TP-C).
-- A LIMIT the last price already reaches fills at once at the last price, as taker with slippage, and its deviation is ≤ 0.
+- A LIMIT the last price already reaches fills at once at the last price, as taker with slippage capped at its limit (7.8), and its deviation is ≤ 0.
 - A Futures LIMIT now gets that check too, because the Futures last price exists. Before TP-0 it always waited (E3).
+- Built in TP-0: one read of the last price per request (after the Futures entitlement, MSG29) serves the LIMIT's expected liquidity role in the calculation (7.5), the invalidation and STOP checks and the immediate-fill decision; a STOP that is not being activated and has no invalidation price reads none. A Futures MARKET is priced and filled at the Futures last price.
 
 *Excursions (T-048).* For each open position the engine keeps the most adverse and the most favourable price.
 - They start at the fill price and are updated from every range the exit book reads.
 - The entry candle contributes only its adverse extreme to the most adverse price and nothing to the most favourable price, because the order inside the minute is unknown (E6). This holds also when the fill was at the candle's open (D-112 R5).
 - The exit candle is clamped at the exit price.
-- The engine passes the extremes to `journal.JournalApi`, which writes them when they move on a closed candle and at close. The restart replay covers downtime.
+- The engine passes the extremes to the journal through `trading.TradeJournal` (D-119), which writes them when they move on a closed candle and at close. The restart replay covers downtime.
 
 **Simulation assumptions** (stated, so every result can be explained; D-111 E6):
 1. Prices are 1-minute candles: open, high, low, and close as the last price. The order of prices inside a minute is unknown, so every rule about two levels in one candle is a pessimistic choice:
@@ -1008,6 +1048,13 @@ ref = last price (MARKET, marketable LIMIT, manual close), stop price (STOP, aft
 not applied to: maker fills (resting LIMIT, TAKE_PROFIT) and liquidation (exit at LP, clearance fee)
 ```
 At MARKET activation the expected fill already includes the slippage, so the quantity is sized on the price paid (D-112 R6). Paper trading (D-86) is not affected.
+
+Built in TP-0:
+- `TradeClose.entryLiquidity` (the plan's `fill_liquidity`) replaces the entry type; `FeeSchedule.fee(role, price, qty)` is the one fee of a fill (price × qty × rate of the role), used by `TradeResultCalculator` and the risk panel (7.5); `ExitRule.liquidity` gives the exit roles (TP maker; SL, MANUAL taker; LIQUIDATION none, clearance fee). `MatchingServiceImpl` fills resting LIMIT entries only, so MAKER there stays right until TP-B adds STOP fills, which must pass their own role.
+- `trading.calculator.SlippageCalculator.takerFill(ref, buy, bps, tick)`: 0 bps returns `ref` untouched, so every T-044, T-045 and 7.8 vector is unchanged. `SLIPPAGE_BPS` is read from `system_setting` on every calculation and every fill, never cached.
+- MARKET: every calculation (save, `/plans/calculate`, activation) prices the entry at the last price moved by the slippage, the expected fill, and the activation fills there (D-112 R6, kept by the team lead 2026-10-24). `/plans/calculate` answers the reference price as `entryPrice` and the expected fill beside it as `expectedFillPrice` (MARKET only, null for LIMIT and STOP; equal at 0 bps); the stored plan's `entry_price` is the expected fill and its `planned_entry_price` the reference price (D-111 M2). Every plan response (detail, list, create, update, activate) maps the same pair for MARKET: `entryPrice` = `planned_entry_price`, `expectedFillPrice` = `entry_price`; LIMIT and STOP `expectedFillPrice` null.
+- A LIMIT the last price already reaches at activation (D-112 note, team lead 2026-10-24): `marketableLimitFill` = the last price moved by the slippage, but never past the limit (LONG `min(fill, limit)`, SHORT `max(fill, limit)`); the quantity stays sized on the limit price. Example 10 bps, tick 0.01: LONG LIMIT 100, last 99.95 → 100.05 → capped 100.00; last 99.00 → 99.099 → 99.10. SHORT LIMIT 100, last 100.05 → 99.94995 → 99.94 → capped 100.00; last 101 → 100.899 → 100.89.
+- STOP fills (TP-B) and the stop loss and manual exits (T-046, T-048) apply `SlippageCalculator.takerFill` when their fill paths are built; until then the formula is used by the risk panel only. A take profit and a liquidation never slip.
 Worked examples (Futures, maker 0.02 %, taker 0.05 %, qty 2, tick 0.01):
 - LONG MARKET, last price 100.00, 10 bps: fill = 100.00 × 1.001 = 100.10 (on the tick). Taker fee = 100.10 × 2 × 0.0005 = 0.1001. With 0 bps: fill 100.00, fee 0.1, the entry fee of T-044 case (b), unchanged.
 - SHORT STOP, stop 95.00, no gap, 10 bps: 95.00 × 0.999 = 94.905, rounded down to 94.90. Taker fee = 94.90 × 2 × 0.0005 = 0.0949.
@@ -1030,6 +1077,13 @@ When the override is below `ENTRY_DEVIATION_CONFIRM_R` there is no confirm band.
 - STOP gap: > 0, recorded and never refused.
 
 Stored by TP-A (V32): `trading_plan.planned_entry_price numeric(28,12)`, set on every save from the calculated entry (the entered price rounded to the tick for LIMIT and STOP, the last price of the save for MARKET) and kept by activation, which moves only `entry_price`. V32 backfills it from `entry_price` for LIMIT plans and for MARKET plans not yet EXECUTED (their `entry_price` is still the price of the last save); an EXECUTED MARKET plan keeps null, as its `entry_price` is the fill. `max_entry_deviation_r numeric(12,8)`, CHECK > 0; the upper bound is the setting, so `PlanValidityRule.maxEntryDeviation` checks it at save (MSG15 on `maxEntryDeviationR`), and Bean Validation refuses 0 and negatives (MSG15). Settings seeded by V32: `ENTRY_DEVIATION_CONFIRM_R` 0.25000000 and `ENTRY_DEVIATION_BLOCK_R` 0.75000000 (DECIMAL, at the scale of the column), `SETUP_SCORE_DROP_WARN` 15 and `SLIPPAGE_BPS` 0 (INT). The deviation check at activation is TP-C.
+
+Built in TP-C:
+- `trading.calculator.EntryDeviationCalculator`: `deviationR` (rounded half-even to 8 decimals, the scale of the journal column; the bands compare that value) and `atMarketActivation` → `EntryDeviation` (deviation, limit, `takeProfitReached`, verdict PROCEED / CONFIRM / REFUSE). The take profit check comes first: an expected fill at or past it is REFUSE whatever its deviation.
+- Planned entry: Activate uses the stored `planned_entry_price`; Save and Activate (create or update with `activate: true`) saves first, so its planned entry is that request's own reference price and only the slippage can move it. The expected fill is the calculation's MARKET entry (the one last-price read of the request, moved by `SLIPPAGE_BPS`). Both thresholds are read from the settings once per request.
+- Order: MSG52 is decided before the sizing, so a MARKET fill past the TP answers MSG52 instead of the sizing's MSG16 on `takeProfit`; MSG51 after the aggregate's checks (`TradingPlan.requireActivatable`: inputs, MSG18 BLOCKING, expiry) and the MSG27 count, and before anything changes.
+- `ErrorCode.ENTRY_DEVIATION_CONFIRMATION_REQUIRED` 400 MSG51 (as MSG48 and MSG26, D-65) and `ENTRY_DEVIATION_REFUSED` 409 MSG52 (as MSG18). `BusinessException.problemProperties()` adds RFC 9457 extension members; `trading.exception.EntryDeviationException` sets, as decimal texts, `deviationR`, `maxDeviationR`, `expectedFillPrice` and, for MSG51, `positionQuantity`, `riskRewardRatio`, `netRiskReward` (the snapshot's scale), for MSG52 `takeProfitReached`; `messageArgs` MSG51 `[deviation, quantity, rr]`, MSG52 `[deviation, max]`.
+- Confirmation: `POST /plans/{id}/activate?confirmDeviation=true`; `confirmDeviation` in the body of create and update (read only with `activate: true`).
 
 Worked example LONG (BTC example from the team lead's summary of 2026-10-07): BTC entry 100,000, SL 98,000, TP 106,000, risk 100 USDT, step 0.0001; |planned − SL| = 2,000.
 - fill 100,000: deviation = (100,000 − 100,000) / 2,000 = 0 → activate. qty = 100 / 2,000 = 0.05. RR = 6,000 / 2,000 = 3.0.
@@ -1215,8 +1269,8 @@ Endpoint catalogue (summary):
 |---|---|
 | auth | POST /auth/register, /auth/verify-email, /auth/resend-verification, /auth/login, /auth/refresh, /auth/logout, /auth/forgot-password, /auth/reset-password; PUT /me/password |
 | user | GET/PUT /me/profile; PUT /me/notification-preferences; POST /me/devices (one `INSERT ... ON CONFLICT (fcm_token) DO UPDATE`, D-34); DELETE /me/devices/{deviceId}. `POST /auth/logout` also accepts an optional `fcmToken`, and that device of the session's account is deactivated with the session (SRS 3.2.5) |
-| market | Built in T-024 (D-49), all public reads: GET /market/pairs?market=&page=&pageSize=; GET /market/{market}/{symbol}/candles?tf=&limit=&from=&to= (limit ≤ 1000, range ≤ 1000 candles, oldest first, page backwards with `to`); GET /market/spot/{symbol}/stats and GET /market/futures/{symbol}/stats (one block per source, each with its instant); GET /market/futures/{symbol}/metrics?from=&to= (range ≤ 7 days; sparse series + `availableFrom`). Limits in `cryptopilot.market.api.*`. **D-60 (T-107):** `futures/{symbol}/metrics` and the open interest, long/short and settlement blocks of `futures/{symbol}/stats` need `FUTURES_ANALYSIS`; the rest stays public |
-| market (analysis) | GET /analysis/{market}/{symbol}?tf= (latest indicators, S/R, setup score). Built in T-029, Trader only: `tf` ∈ BR-08, default 1h when absent (SRS 3.3.2), an empty or other value MSG01; MSG41 as D-49. Body: the latest `technical_indicator` row of `tf` (`openTime`, `calculatedAt`, `indicators`, `nearestSupport`, `nearestResistance`, `components`) and `setupScore` read under the caller's preset on the preset's timeframe (`score`, `preset`, `presetVersion`, `timeframe`, `openTime`, `components`, and on Futures only `dominantSide`). Values not computable are `null`, present in the body; Spot bodies have no `derivatives` and no `dominantSide` key |
+| market | Built in T-024 (D-49), all public reads: GET /market/pairs?market=&page=&pageSize=; GET /market/{market}/{symbol}/candles?tf=&limit=&from=&to= (limit ≤ 1000, range ≤ 1000 candles, oldest first, page backwards with `to`); GET /market/spot/{symbol}/stats and GET /market/futures/{symbol}/stats (one block per source, each with its instant); GET /market/futures/{symbol}/metrics?from=&to= (range ≤ 7 days; sparse series + `availableFrom`). Limits in `cryptopilot.market.api.*`. **D-60 (T-107):** `futures/{symbol}/metrics` and the open interest, long/short and settlement blocks of `futures/{symbol}/stats` need `FUTURES_ANALYSIS`; the rest stays public. Built: the path stays under the public `GET /market/**` rule and the service reads the plan of the token when one is sent; metrics answer 401 MSG44 without a token and 403 MSG29 without the feature, before the range is validated; stats answer those three blocks as `null` to a Guest or a plan without the feature |
+| market (analysis) | GET /analysis/{market}/{symbol}?tf= (latest indicators, S/R, setup score). Built in T-029, Trader only: `tf` ∈ BR-08, default 1h when absent (SRS 3.3.2), an empty or other value MSG01; MSG41 as D-49. Body: the latest `technical_indicator` row of `tf` (`openTime`, `calculatedAt`, `indicators`, `nearestSupport`, `nearestResistance`, `components`) and `setupScore` read under the caller's preset on the preset's timeframe (`score`, `preset`, `presetVersion`, `timeframe`, `openTime`, `components`, and on Futures only `dominantSide`). Values not computable are `null`, present in the body; Spot bodies have no `derivatives` and no `dominantSide` key. **T-107 (D-60):** `futures` needs `FUTURES_ANALYSIS` (403 MSG29, checked after `market`/`tf`, before the pair); the body carries `componentsLocked` (boolean), and without `SCORE_COMPONENTS` both `components` and `setupScore.components` are `null` with `componentsLocked = true` — the top-level `components` is kept, not dropped, and the total score is answered on every plan (CR-08) |
 | watchlist | GET/POST /watchlist; PATCH/DELETE /watchlist/{id}; GET/POST /alerts; PUT/DELETE /alerts/{id}; POST /alerts/{id}/pause, /resume. Built in T-053 (D-75), Trader only: `GET /watchlist` → `{ items, limit }` (whole list, not paged, `sortOrder` then `addedAt`; `limit` = `WATCHLIST_MAX`, null when unlimited); `POST /watchlist` `{ pairId, label?, note? }` → 201 (404 MSG41 unknown or unlisted pair, 409 MSG45 already watched, 409 MSG27 limit); `PATCH /watchlist/{id}` `{ label?, note?, sortOrder? }` (null = unchanged, empty = cleared); `DELETE /watchlist/{id}?confirm=&expectedAlertCount=` → 204, or 400 MSG26 (symbol, alert count) when the row has alerts and `confirm` is not true, or when `expectedAlertCount` (optional, the {n} the Trader confirmed) differs from the count under the D-63 lock — nothing is removed (D-76). Another Trader's row answers 404. Alerts built in T-054 (D-76): `GET /alerts?status=&type=&page=&pageSize=` (newest first, 20 per page, CR-04); `POST /alerts` `{ pairId, market, type, indicator?, timeframe?, condition, threshold? (null for MACD_CROSS / EMA_CROSS), triggerMode, cooldownMinutes?, notifyEmail?, notifyPush?, expiresAt? }` → 201 ACTIVE, a pair not yet watched is added to the watchlist in the same transaction (BR-16); `PUT /alerts/{id}` (same body without `pairId`; a TRIGGERED or EXPIRED alert becomes ACTIVE); `POST /alerts/{id}/pause`, `/resume`; `DELETE /alerts/{id}` → 204. 400 MSG01/MSG15 per field, 403 MSG29 (INDICATOR_ALERT, FUTURES_ANALYSIS, EXTERNAL_ALERT_CHANNELS), 404 MSG41 (not the caller's, or the pair not enabled on the market), 409 MSG27 (ACTIVE_ALERT_MAX or WATCHLIST_MAX, under the D-63 lock), 409 MSG43 `ALERT_STATUS_TRANSITION_INVALID` |
 | trading | POST /plans/calculate (no persistence); GET/POST /plans; GET/PUT /plans/{id}; POST /plans/{id}/activate, /cancel, /close-position |
 | journal | GET /journal; GET/PUT /journal/{id}; POST /journal/manual; DELETE /journal/{id} (MANUAL only); GET /performance |
@@ -1330,7 +1384,7 @@ Since T-025: `tools/golden/generate_indicator_fixture.py` writes `btcusdt-1h-tal
 - Branches: `main` (protected, release), `develop` (integration), `feature/T-xxx-short-name`. Pull request required; at least one reviewer; CI green.
 - Commits: Conventional Commits (`feat(trading): …`, `fix(billing): …`, `test(market): …`, `docs: …`, `chore: …`), footer `Refs: T-xxx`. No AI attribution or co-author trailers.
 - Backend pipeline (`.github/workflows/ci.yml`, job `build-and-test`, Temurin 21, since T-009 / PR #7): `./mvnw -B -ntp verify` on pull requests into `develop`/`main` and pushes to `develop` — compile (warnings fail the build), Spotless check, unit + architecture + integration tests (Testcontainers on the runner's Docker, test database pinned to `max_connections=300`), JaCoCo gates; reports uploaded as artifacts. **Still to come (rest of T-009):** Docker image build and push (main/develop) and a coverage-drop gate. Make `build-and-test` a required check on `develop` and `main`.
-- Environments: `dev` (`deploy/docker-compose.dev.yml` for PostgreSQL and Redis; backend from the IDE with profile `dev`), `staging` = demo VPS (`deploy/docker-compose.yml`, profile `prod`). Payment gateways in sandbox mode for all environments.
+- Environments: `dev` (`deploy/docker-compose.dev.yml` for PostgreSQL and Redis; backend from the IDE with profile `dev`), `staging` = demo VPS (`deploy/docker-compose.yml`, profiles `prod,demo`: the demo accounts by Flyway, then `deploy/demo/load-wf01.ps1` loads the demo pairs, leverage brackets and plans through the API; `deploy/README.md`, D-120). Production runs `prod` alone and never reaches `db/demo`. Payment gateways in sandbox mode for all environments.
 - Configuration via environment variables (`deploy/.env.example` lists all keys, never real values), bound to `@ConfigurationProperties`: DB, Redis, JWT key, Binance base URLs, AI service URL and shared secret (LLM key in the AI Service only), VNPay, MoMo, SMTP, FCM service account path, Cloudinary.
 
 ---

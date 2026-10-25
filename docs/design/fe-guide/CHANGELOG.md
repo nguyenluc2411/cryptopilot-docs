@@ -2,6 +2,101 @@
 
 Newest first. Each entry names the `develop` SHA the guide was synced to.
 
+## 2026-10-25 — T-048a position of an executed plan, branch `feat/t-048a-journal-open`
+
+**Huy — visible change for the web (from `develop` `dccfc6c`, not merged yet; T-041 uses it):**
+
+- **`GET /plans/{id}`** (and the create / update / activate / cancel responses) carry a new
+  `position` block once the plan is `EXECUTED`: `status` (`OPEN` / `CLOSED`), `fillPrice`,
+  `quantity`, `entryTime`, `entryFee`, `liquidationPrice` (Futures, from the snapshot),
+  `currentPrice` and `unrealizedPnl` (OPEN only: Futures mark price, Spot last price, no fees, Q-55).
+  `null` before the fill. This is the SCR-18 live position block.
+- **`GET /plans`** rows carry `positionStatus`: `OPEN` / `CLOSED` on `EXECUTED` rows, `null`
+  otherwise (the Executed tab of SCR-16).
+- An open position now keeps its `ACTIVE_PLAN_MAX` slot (MSG27) and adds its risk to the
+  TOTAL_OPEN_RISK warning. Before, an EXECUTED plan freed its slot.
+- No exits yet (T-048b): positions stay `OPEN`.
+- `modules/trading-plan.md`: new section "Position of an executed plan (T-048a)"; `GET /plans` and
+  `GET /plans/{id}` examples and notes.
+
+## 2026-10-25 — TP-C entry deviation at MARKET activation, branch `feat/tp-c-entry-deviation`
+
+**Huy — visible change for the web (stacked on TP-B, not merged yet; T-113 depends on it):**
+
+- **MARKET Activate and Save and Activate** now check how far the expected fill moved from the
+  plan's `plannedEntryPrice`, in R (positive = worse). Below 0.25R nothing changes.
+- **New 400 `ENTRY_DEVIATION_CONFIRMATION_REQUIRED` (MSG51)** from 0.25R up to and including the
+  limit (0.75R, or the plan's stricter `maxEntryDeviationR`). The body carries, as decimal strings,
+  `deviationR`, `maxDeviationR`, `expectedFillPrice`, `positionQuantity`, `riskRewardRatio`,
+  `netRiskReward`, and `messageArgs` = `[deviation, quantity, rr]` for the MSG51 sentence: show the
+  dialog without a second call. Nothing is saved or activated.
+- **Retry with the confirmation:** `POST /plans/{id}/activate?confirmDeviation=true`; for Save and
+  Activate (`POST /plans`, `PUT /plans/{id}`), the same body plus `"confirmDeviation": true` (new
+  optional field of `PlanInputs`).
+- **New 409 `ENTRY_DEVIATION_REFUSED` (MSG52)** above the limit, or with the expected fill at or past
+  the take profit (`takeProfitReached: true`), also with the confirmation. Body: `deviationR`,
+  `maxDeviationR`, `expectedFillPrice`, `takeProfitReached`, `messageArgs` = `[deviation, max]`. A
+  MARKET plan past its take profit got 400 MSG16 on `errors.takeProfit` before; it now gets MSG52.
+- MSG16, MSG18 and MSG27 still answer first. LIMIT and STOP plans are not checked.
+- `modules/trading-plan.md`: new section "Entry deviation at MARKET activation (TP-C)" with the two
+  bodies and the BTC example; `PlanInputs.confirmDeviation`; the tables of `POST /plans`,
+  `PUT /plans/{id}` and `POST /plans/{id}/activate`.
+
+## 2026-10-25 — TP-B STOP trigger and invalidation, branch `feat/tp-b-stop-invalidation`
+
+**Huy — visible change for the web (stacked on TP-0, not merged yet):**
+
+- **STOP can be shown in the web (T-040)** once TP-B is on `develop`: the engine triggers an ACTIVE
+  STOP when the last price reaches the stop (LONG ≥, SHORT ≤) and fills it at the stop, or at the
+  1-minute candle's open on a gap, moved by `SLIPPAGE_BPS` against the Trader, as taker. A resting
+  LIMIT still fills at its own price, as maker.
+- Plans now become `INVALIDATED` on their own (`TAKE_PROFIT_REACHED` for LIMIT, `STOP_LOSS_REACHED`
+  for STOP, `INVALIDATION_PRICE`), and `EXECUTED` for STOP; refetch the list and detail. The
+  notification MSG54 is T-046.
+- Activate and Save and Activate: new 400 MSG16 on `errors.takeProfit` (LIMIT, take profit already
+  reached by the last price) and `errors.stopLoss` (STOP, stop loss already reached).
+- `modules/trading-plan.md`: new section "Engine: STOP trigger and invalidation (TP-B)", activate
+  errors updated; `04-enums.md`: `STOP` and `INVALIDATED` notes.
+
+## 2026-10-24 — TP-0 fees in the risk panel, Futures last price, slippage, branch `feat/tp-0-realism`
+
+**Huy — visible change for the web (stacked on TP-A and T-045, not merged yet):**
+
+- Plan snapshot (`/plans/calculate`, create, update, detail): seven new decimal strings,
+  `estimatedEntryFee`, `estimatedStopLossExitFee`, `estimatedTakeProfitExitFee`,
+  `estimatedSlippage`, `lossAtStopLoss`, `feeShareOfRisk`, `netRiskReward`; `null` on plans saved
+  before. Show **"Real loss at stop loss"** (`lossAtStopLoss`) next to the risk amount and **"R:R
+  after fees"** (`netRiskReward`) next to R:R, with a tooltip saying they include the trading fees
+  and slippage but not funding or the liquidation fee. The quantity is unchanged.
+- `POST /plans/calculate`: new `expectedFillPrice` (MARKET only, `null` otherwise): the reference
+  price `entryPrice` moved by `SLIPPAGE_BPS` against the Trader, the price the quantity is sized on;
+  equal to `entryPrice` while the setting is 0. The plan detail, the create/update/activate responses
+  and the list rows carry the same pair for a MARKET plan: `entryPrice` = the reference price (the
+  planned entry), `expectedFillPrice` = the price the quantity was sized on; LIMIT and STOP keep
+  `entryPrice` and answer `expectedFillPrice: null`.
+- New warning `HIGH_FEE_SHARE` (WARNING, never blocks): fees and slippage ≥ 20 % of the risk.
+  `04-enums.md` updated.
+- Futures: MARKET plans are priced at the Futures last price (was the mark price); a Futures plan
+  with an `invalidationPrice` and a Futures STOP activation no longer answer 503 MSG43 while a last
+  price is current.
+- `modules/trading-plan.md`: new section "Fees and slippage in the risk panel (TP-0)", types and
+  examples updated.
+
+## 2026-10-24 — T-107 plan gates on analysis and Futures data, branch `feat/t-107-analysis-gates`
+
+**Huy — visible change for the web (CR-08 locks, D-60):**
+
+- `GET /analysis/{market}/{symbol}`: new field `componentsLocked: boolean`. On FREE it is `true` and
+  both `components` and `setupScore.components` are `null` (the total score stays); show the
+  component rows locked with the upgrade prompt, not "Insufficient data". Futures on FREE is 403
+  MSG29. PRO and PREMIUM unchanged apart from `componentsLocked: false`. The top-level `components`
+  is kept (not dropped).
+- `GET /market/futures/{symbol}/metrics`: 401 MSG44 without a token, 403 MSG29 on FREE.
+- `GET /market/futures/{symbol}/stats`: still public; `openInterest`, `longShortRatio` and
+  `lastFundingSettlement` are `null` for a Guest or FREE. Send the token on both Futures endpoints.
+- `modules/market.md` updated (common rules, the three endpoints). Not merged yet: until then
+  `develop` keeps answering everything to every Trader.
+
 ## 2026-10-24 — TP-A follow-up, branch `feature/TP-A-plan-validity`
 
 - `modules/trading-plan.md`: `setupScoreAtPlan` is usually null for an activation right after a
