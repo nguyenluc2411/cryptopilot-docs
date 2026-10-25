@@ -19,7 +19,7 @@ Newest first. Each entry names the `develop` SHA the guide was synced to.
 
 ## 2026-10-25 — T-046 manual close contract, branch `feat/t-046-manual-close`
 
-**Huy — new endpoints for SCR-19 (contract fixed by the team lead; stacked on PR #75, not built yet):**
+**Huy — new endpoints for SCR-19 (contract fixed by the team lead; built in PR #76, not merged yet):**
 
 - `GET /plans/{id}/close-estimate` → `CloseEstimate` (current price, estimated exit price with
   slippage, price result, entry fee, estimated exit fee, funding so far, estimated net P/L, `at`).
