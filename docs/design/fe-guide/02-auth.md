@@ -172,7 +172,7 @@ Spec: SRS 3.1.3, TD 5.3, D-27.
 | `INDICATOR_ALERT` | ✗ | ✔ | ✔ | Alerts (develop) |
 | `EXTERNAL_ALERT_CHANNELS` — email/push for alerts | ✗ | ✔ | ✔ | Alerts (develop) |
 | `ADVANCED_PERFORMANCE` | ✗ | ✔ | ✔ | Planned (T-051) |
-| `NEWS_AI_INSIGHT` | ✗ | ✔ | ✔ | Planned (T-079) |
+| `NEWS_AI_INSIGHT` | — | — | — | **Not used** (D-117): news summary and sentiment are shown on every plan; do not gate or list it as a paid benefit |
 | `AI_CHAT_DAILY` — questions per day | 0 | 30 | 100 | Planned (T-075) |
 | `AI_PERFORMANCE_CONTEXT` | ✗ | ✗ | ✔ | Planned (T-075) |
 | `VIDEO_POST` | ✗ | ✗ | ✔ | Planned (T-062) |
