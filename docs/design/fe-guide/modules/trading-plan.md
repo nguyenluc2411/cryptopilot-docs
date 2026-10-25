@@ -9,8 +9,10 @@ Read first:
 - **Futures plans cannot be sized in any environment today.** No leverage brackets are stored (they
   need the admin screen, T-085), so every `market: "FUTURES"` calculate/create/activate answers 400
   `errors.leverage` MSG15 (D-70). FREE users get 403 MSG29 first.
-- No fills yet (matching engine T-042+): an ACTIVE plan, MARKET included, stays ACTIVE. `EXECUTED`,
-  `EXPIRED`, the live position block and close-position do not exist yet.
+- **Plans fill.** A MARKET plan, and a LIMIT the price already reached, fill at activation; the
+  engine fills a resting LIMIT and triggers a STOP (TP-B) later. A filled plan is `EXECUTED` and,
+  with T-048a, carries a `position` block (below). Still missing: `EXPIRED` (no expiry job yet,
+  so an ACTIVE plan past `expiresAt` stays ACTIVE) and closing a position (SCR-19, T-048b).
 - Plan responses carry `pairId` but **no symbol** (FEQ-01).
 - **Position of a filled plan (T-048a), branch `feat/t-048a-journal-open`, not on `develop` yet:**
   `GET /plans/{id}` (and the create / update / activate responses) carry a `position` block once the
@@ -285,8 +287,10 @@ NSF-07; D-77, D-78, D-111, D-112. Nothing in the request or response shapes chan
 ## Position of an executed plan (T-048a)
 
 Branch `feat/t-048a-journal-open`, not on `develop` yet. When a plan fills (the engine fills a
-resting LIMIT, or a LIMIT / MARKET fills at activation) the journal records its position in the same
-transaction, and the plan responses expose it.
+resting LIMIT or triggers a STOP, or a LIMIT / MARKET fills at activation) the journal records its
+position in the same transaction, and the plan responses expose it. A plan that was `EXECUTED`
+before T-048a has no position: `position` and `positionStatus` are `null` (D-118 note; local
+databases are reset, nothing is backfilled).
 
 `TradingPlanResponse.position` — `null` until the plan is `EXECUTED`:
 
