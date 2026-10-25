@@ -224,6 +224,13 @@ erDiagram
     decimal reward_amount "snapshot"
     decimal risk_reward_ratio "snapshot"
     decimal estimated_liquidation_price "snapshot, FUTURES only"
+    decimal estimated_entry_fee "snapshot; expected entry fee by liquidity role (BR-29, BR-36, D-116); null before V34"
+    decimal estimated_stop_loss_exit_fee "snapshot; taker fee at the stop loss"
+    decimal estimated_take_profit_exit_fee "snapshot; maker fee at the take profit"
+    decimal estimated_slippage "snapshot; SLIPPAGE_BPS on the taker legs"
+    decimal loss_at_stop_loss "snapshot; risk amount + fees + slippage at the stop loss"
+    decimal fee_share_of_risk "snapshot; (loss_at_stop_loss - risk_amount) / risk_amount"
+    decimal net_risk_reward_ratio "snapshot; risk/reward after fees"
     varchar plan_status "DRAFT, ACTIVE, EXECUTED, CANCELLED, EXPIRED, INVALIDATED"
     decimal setup_score_at_plan "at activation, latest closed candle of analysis_timeframe (BR-70, D-112)"
     varchar setup_score_preset "preset name and version used at activation (D-112)"
@@ -243,7 +250,7 @@ erDiagram
   TRADING_PLAN_WARNING {
     uuid warning_id PK
     uuid plan_id FK
-    varchar warning_type "LOW_RR, HIGH_LEVERAGE, SL_BEYOND_LIQUIDATION, OVERSIZED_POSITION, INSUFFICIENT_CAPITAL, HIGH_FUNDING_RATE, WIDE_STOP_LOSS, TOTAL_OPEN_RISK"
+    varchar warning_type "LOW_RR, HIGH_LEVERAGE, SL_BEYOND_LIQUIDATION, OVERSIZED_POSITION, INSUFFICIENT_CAPITAL, HIGH_FUNDING_RATE, WIDE_STOP_LOSS, TOTAL_OPEN_RISK, HIGH_FEE_SHARE"
     varchar severity "INFO, WARNING, BLOCKING"
     varchar warning_message
     timestamp created_at
@@ -289,6 +296,82 @@ erDiagram
     varchar chart_image_url
     timestamp created_at
     timestamp updated_at
+  }
+
+  %% ================= PAPER TRADING (simulated exchange, owned by the Trader since V34, D-117) =================
+  WALLET_BALANCE {
+    uuid balance_id PK
+    uuid user_id FK
+    varchar wallet_type "SPOT, FUTURES"
+    uuid coin_id FK
+    decimal free_amount
+    decimal locked_amount
+    decimal cost_basis_amount "Spot average cost in USDT (TR-13)"
+    timestamp created_at
+    timestamp updated_at
+  }
+  WALLET_LEDGER_ENTRY {
+    uuid entry_id PK
+    uuid user_id FK
+    varchar wallet_type "SPOT, FUTURES"
+    uuid coin_id FK
+    varchar entry_type "INITIAL_GRANT, TRADE, FEE, REALIZED_PNL, FUNDING_FEE, TRANSFER, LIQUIDATION_FEE"
+    decimal amount "signed; the balance is the sum of its entries"
+    decimal balance_after_amount
+    varchar ref_type "ORDER, FILL, TRANSFER, USER"
+    uuid ref_id "a transfer's two entries share its id"
+    varchar client_transfer_id "TRANSFER only; unique per Trader on the debit"
+    timestamp created_at
+  }
+  ORDER_LIST {
+    uuid list_id PK
+    uuid user_id FK
+    uuid pair_id FK
+    varchar market_type "SPOT, FUTURES"
+    varchar list_type "OCO, OTO, OTOCO"
+    varchar list_status "EXECUTING, ALL_DONE, REJECTED"
+    varchar list_client_order_id "unique per Trader"
+    timestamp created_at
+  }
+  TRADE_ORDER {
+    uuid order_id PK
+    uuid user_id FK
+    uuid pair_id FK
+    uuid list_id FK "null outside a group"
+    uuid plan_id FK "the plan it carries out; null for an order placed on the trading screen"
+    varchar market_type "SPOT, FUTURES"
+    varchar client_order_id "unique per Trader"
+    varchar side "BUY, SELL"
+    varchar order_type
+    varchar order_status "NEW, PENDING_NEW, PARTIALLY_FILLED, FILLED, CANCELED, EXPIRED, REJECTED"
+    decimal limit_price
+    decimal stop_price
+    decimal orig_quantity
+    decimal executed_quantity
+    timestamp activated_at
+    timestamp closed_at
+    timestamp created_at
+  }
+  ORDER_FILL {
+    uuid fill_id PK
+    uuid order_id FK
+    uuid user_id FK
+    uuid pair_id FK
+    decimal fill_price
+    decimal fill_quantity
+    decimal fee_amount
+    uuid fee_coin_id FK
+    varchar liquidity "MAKER, TAKER"
+    varchar fill_source "LIVE, REPLAY"
+    timestamp traded_at
+  }
+  EQUITY_SNAPSHOT {
+    uuid snapshot_id PK
+    uuid user_id FK
+    date snapshot_date "unique per Trader"
+    decimal spot_equity_amount
+    decimal futures_equity_amount
+    decimal total_equity_amount
   }
 
   %% ================= AI =================
@@ -531,6 +614,18 @@ erDiagram
   USER ||--o{ TRADING_JOURNAL : writes
   CRYPTO_PAIR ||--o{ TRADING_JOURNAL : "traded on"
   TRADING_STRATEGY |o--o{ TRADING_JOURNAL : categorizes
+
+  USER ||--o{ WALLET_BALANCE : holds
+  COIN ||--o{ WALLET_BALANCE : "held as"
+  USER ||--o{ WALLET_LEDGER_ENTRY : "is credited and debited"
+  COIN ||--o{ WALLET_LEDGER_ENTRY : moves
+  USER ||--o{ ORDER_LIST : groups
+  USER ||--o{ TRADE_ORDER : places
+  CRYPTO_PAIR ||--o{ TRADE_ORDER : "traded on"
+  ORDER_LIST |o--o{ TRADE_ORDER : contains
+  TRADING_PLAN |o--o{ TRADE_ORDER : "carried out by"
+  TRADE_ORDER ||--o{ ORDER_FILL : "filled by"
+  USER ||--o{ EQUITY_SNAPSHOT : "valued daily"
 
   USER ||--o{ AI_CONVERSATION : starts
   CRYPTO_PAIR |o--o{ AI_CONVERSATION : "context of"
