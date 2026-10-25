@@ -451,14 +451,14 @@ erDiagram
     varchar url_hash UK
     varchar title_hash
     text excerpt
-    varchar ai_title "translated headline, D-118"
+    varchar ai_title "translated headline, D-123"
     text ai_summary
     varchar sentiment_label "BULLISH, NEUTRAL, BEARISH"
     timestamp published_at
     timestamp collected_at
-    timestamp hidden_at "hidden by an administrator, D-119"
+    timestamp hidden_at "hidden by an administrator, D-124"
     uuid hidden_by FK
-    int summary_attempts "D-119"
+    int summary_attempts "D-124"
     varchar summary_error
     timestamp summary_attempted_at
   }
