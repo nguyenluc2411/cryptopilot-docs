@@ -21,7 +21,11 @@ Read first:
 - **Position of a filled plan (T-048a), branch `feat/t-048a-journal-open`, not on `develop` yet:**
   `GET /plans/{id}` (and the create / update / activate responses) carry a `position` block once the
   plan is `EXECUTED`, and list rows carry `positionStatus`. See "Position of an executed plan
-  (T-048a)" below. Closing a position (exits) is T-048b; until then every position stays `OPEN`.
+  (T-048a)" below.
+- **Exits (T-048b), branch `feat/t-048b-journal-exits`, not on `develop` yet:** the engine closes a
+  position by its take profit, stop loss or liquidation; the `position` block then carries the exit,
+  realized, fees, funding, net and `provisional`, and the change is pushed on `/user/queue/positions`.
+  See "Exits of a position (T-048b)" below.
 - **Plan validity (TP-A, D-111, D-112), branch `feature/TP-A-plan-validity`, not on `develop` yet:**
   STOP entry, invalidation price, own entry deviation limit, analysis timeframe, the INVALIDATED status
   and the setup score taken at activation. See "Plan validity (TP-A)" below.
@@ -327,9 +331,18 @@ interface PositionResponse {
   quantity: string;           // the snapshot's positionQuantity
   entryTime: string;          // ISO instant: the 1-minute candle open of an engine fill, else the activation instant
   entryFee: string;           // fee paid on the entry, by liquidity role (maker / taker)
-  liquidationPrice: string | null;  // Futures: the snapshot's estimatedLiquidationPrice; null on Spot
+  liquidationPrice: string | null;  // Futures: at the fill price (T-048b; was the snapshot's estimate); null on Spot
   currentPrice: string | null;      // OPEN only: Futures mark price, Spot last price; null when CLOSED or not cached
   unrealizedPnl: string | null;     // OPEN only: (currentPrice − fillPrice) × quantity, LONG; mirrored for SHORT
+  // T-048b, CLOSED only (null while OPEN):
+  exitPrice: string | null;         // exit fill: TP at its price, SL after slippage, liquidation at liquidationPrice
+  exitTime: string | null;          // ISO instant: open of the 1-minute candle (last or mark price) that decided it
+  closeReason: 'TAKE_PROFIT' | 'STOP_LOSS' | 'LIQUIDATION' | null;   // MANUAL comes with T-046
+  realizedPnl: string | null;       // price result only, no fees, no funding (BR-35)
+  feeAmount: string | null;         // entry fee + exit fee; a liquidation: entry fee + clearance fee (BR-36)
+  fundingFeeAmount: string | null;  // Futures: signed funding known so far, + received / − paid; null on Spot
+  netPnl: string | null;            // realizedPnl − feeAmount + fundingFeeAmount (BR-38)
+  provisional: boolean;             // true: a funding settlement is still missing, netPnl may change; false while OPEN
 }
 ```
 
@@ -348,10 +361,59 @@ interface PositionResponse {
 - `TradingPlanSummaryResponse.positionStatus`: `OPEN` / `CLOSED` on `EXECUTED` rows, else `null`.
 - An open position keeps its `ACTIVE_PLAN_MAX` slot (BR-62): the MSG27 banner counts ACTIVE plans
   plus open positions. The TOTAL_OPEN_RISK warning (BR-29) also adds the risk of open positions.
-- Exits, close-position and the journal screens come later (T-048b, T-046, T-049).
+- Close-position and the journal screens come later (T-046, T-049).
 
 Source: `trading/dto/response/PositionResponse.java`; `trading/service/impl/TradingPlanServiceImpl.java`
 (`detail`, `list`). Spec: BR-34, BR-62, BR-29, UC-20, SCR-16, SCR-18, Q-55, D-119.
+
+## Exits of a position (T-048b)
+
+Branch `feat/t-048b-journal-exits`, not on `develop` yet. The engine closes an OPEN position on its
+own; the Trader does nothing. The plan stays `EXECUTED`; its `position.status` becomes `CLOSED`.
+
+| Exit | Price source | Fills at | Fee |
+|---|---|---|---|
+| Take profit | last price (1-minute candles) | the take profit, also when the candle opened beyond it | maker |
+| Stop loss | last price | the stop, or the candle open when it opened beyond it, then moved by `SLIPPAGE_BPS` against the Trader | taker |
+| Liquidation (Futures) | **mark** price | `liquidationPrice`, always | clearance fee instead of the taker fee |
+
+- **New activation refusal:** a plan whose stop loss the current last price has already reached
+  (LONG last ≤ SL, SHORT last ≥ SL) is refused with 400 MSG16 on `stopLoss`, for LIMIT, STOP and
+  MARKET, on Activate and on Save and Activate. Futures checks the last price, never the mark. Show it
+  on the stop loss field.
+- One candle reaching both levels: the level its open is already at or beyond decides; otherwise the
+  stop loss wins (Q-61, BR-35).
+- The candle in which the entry filled can only stop the position out, never take profit (the order
+  inside the minute is unknown). A LIMIT that filled at activation already beyond its stop loss exits
+  at once at its entry price.
+- A CLOSED example (T-044 case (c), a liquidation):
+
+```json
+"position": {
+  "status": "CLOSED", "fillPrice": "100.000000000000", "quantity": "2.000000000000",
+  "entryTime": "2026-10-25T08:01:00Z", "entryFee": "0.04000000", "liquidationPrice": "90.370000000000",
+  "currentPrice": null, "unrealizedPnl": null,
+  "exitPrice": "90.370000000000", "exitTime": "2026-10-25T08:02:00Z", "closeReason": "LIQUIDATION",
+  "realizedPnl": "-19.26000000", "feeAmount": "0.76296000", "fundingFeeAmount": "0.00000000",
+  "netPnl": "-20.02296000", "provisional": false
+}
+```
+
+- Show realized, fees, funding and net separately (D-97). **Net is the P/L to headline**; it is the
+  `{pnl}` of MSG23 / MSG24.
+- `provisional: true` means a funding settlement of the position was not stored yet when it closed.
+  Show the net with a "provisional" tag; the backend recomputes it once the settlement arrives (every
+  10 minutes) and the next read shows the final value. A close is never delayed by this.
+- A closed position frees its `ACTIVE_PLAN_MAX` slot (MSG27) and leaves the TOTAL_OPEN_RISK warning.
+- The Trader gets a notification: MSG23 "{pair} position closed by take profit|stop loss at {price}.
+  P/L: {net}." or MSG24 "{pair} position was liquidated at {price}. Loss: {net}." (`type` PLAN,
+  `referenceType` PLAN, `referenceId` = the plan id).
+- Push: `/user/queue/positions` sends a `PositionUpdate` when a position closes (see
+  `05-realtime.md`); re-read `GET /plans/{id}` for the full block.
+
+Source: `trading/matching/ExitRule.java`, `trading/service/impl/PositionCloser.java`,
+`trading/job/PositionUserFeed.java`, `trading/dto/response/PositionUpdateResponse.java`. Spec: BR-35,
+BR-36, BR-37, BR-38, UC-20, SCR-18, MSG23, MSG24, D-97, Q-56, Q-57, Q-59, Q-61.
 
 ## Entry deviation at MARKET activation (TP-C)
 

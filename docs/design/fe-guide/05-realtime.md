@@ -26,6 +26,8 @@ Spec: TD 9, D-51, ADR-005.
 | `/topic/ticker.{MARKET}.{SYMBOL}` | One pair's latest ticker | At most 1 message/s per destination (coalesced, latest wins) |
 | `/topic/kline.{MARKET}.{SYMBOL}.{tf}` | Candle updates of one series, forming and closed | Pushed every 1 s; all candles that changed in that second, oldest first. A closed candle is never coalesced away |
 | `/topic/overview.{MARKET}` | Latest ticker of every pair of the market seen since the backend started | Every 2 s |
+| `/user/queue/positions` | `PositionUpdate`: one of the caller's positions closed (T-048b, branch `feat/t-048b-journal-exits`) | When it happens |
+| `/user/queue/notifications` | Each new notification of the caller (SCR-15); admitted since T-048b (Q-75) | When it happens |
 
 - `{MARKET}` is `SPOT` or `FUTURES` in upper case; `{SYMBOL}` upper case (`BTCUSDT`); `{tf}` is
   `15m`, `1h`, `4h` or `1d`.
@@ -41,8 +43,6 @@ Source: `backend/src/main/java/com/cryptopilot/market/service/impl/MarketBroadca
 
 | Destination | Purpose | Needs |
 |---|---|---|
-| `/user/queue/notifications` | Notification centre push (SCR-15) | Bearer on CONNECT (not built), T-056/T-059 |
-| `/user/queue/positions` | Live position updates (SCR-18) | T-042+ |
 | `/user/queue/ai` | AI answer ready | T-073 |
 | Analysis push per series | NSF-05 "pushed to clients viewing the pair" | **Q-21 open** — destination, payload and auth undecided. Re-read `GET /analysis` on each closed kline instead |
 
@@ -113,6 +113,31 @@ when it is newer. Draw `closed: false` as provisional (SRS 3.3.2). The REST cand
 closed candles only, so the forming bar comes only from this topic.
 
 Source: `backend/src/main/java/com/cryptopilot/market/dto/response/KlineUpdateResponse.java#L26`.
+
+### Position update — `/user/queue/positions` (T-048b)
+
+Needs a CONNECT with the Bearer token; a guest, or `/user/{id}/queue/...`, is refused with an ERROR
+frame. Sent after the close commits; a lost push is not resent, so re-read `GET /plans/{id}` on
+reconnect.
+
+```ts
+interface PositionUpdate {
+  positionId: string;      // journal record id
+  planId: string;
+  market: 'SPOT' | 'FUTURES';
+  symbol: string | null;
+  status: 'CLOSED';
+  closeReason: 'TAKE_PROFIT' | 'STOP_LOSS' | 'LIQUIDATION';
+  exitPrice: string;
+  exitTime: string;        // ISO instant
+  realizedPnl: string;
+  feeAmount: string;
+  netPnl: string;
+  provisional: boolean;    // funding incomplete: netPnl may still change
+}
+```
+
+Source: `backend/src/main/java/com/cryptopilot/trading/dto/response/PositionUpdateResponse.java`.
 
 ### Overview — `/topic/overview.*`
 

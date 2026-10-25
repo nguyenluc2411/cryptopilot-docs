@@ -2,6 +2,27 @@
 
 Newest first. Each entry names the `develop` SHA the guide was synced to.
 
+## 2026-10-25 — T-048b exits of a position, branch `feat/t-048b-journal-exits`
+
+**Huy — visible change for the web (from `develop` `9076ca9`, not merged yet; T-041, T-047, T-059):**
+
+- **Positions close by themselves now**: take profit, stop loss, and on Futures liquidation by the
+  mark price. `position.status` becomes `CLOSED`; the plan stays `EXECUTED`.
+- **New fields in `position`** (CLOSED only, `null` while OPEN): `exitPrice`, `exitTime`,
+  `closeReason`, `realizedPnl`, `feeAmount`, `fundingFeeAmount`, `netPnl`, and `provisional` (boolean,
+  `false` while OPEN). Show realized, fees, funding and net separately; tag net as provisional when
+  `provisional` is true.
+- `position.liquidationPrice` is now the position's own, computed at the fill price (it was the
+  snapshot's estimate, which can differ after slippage or a gap).
+- **New push** `/user/queue/positions` (`PositionUpdate`) when a position closes, and
+  `/user/queue/notifications` is now admitted (Q-75): the bell can subscribe instead of polling.
+- **New activation refusal:** a stop loss the last price has already reached is 400 MSG16 on
+  `stopLoss` for LIMIT, STOP and MARKET (Activate and Save and Activate).
+- **Notifications** MSG23 / MSG24 with the net P/L.
+- A closed position frees its `ACTIVE_PLAN_MAX` slot and leaves TOTAL_OPEN_RISK.
+- `modules/trading-plan.md`: new section "Exits of a position (T-048b)"; `PositionResponse` type.
+  `05-realtime.md`: the two user queues and the `PositionUpdate` payload.
+
 ## 2026-10-25 — TP-D account capital, branch `feat/tp-d-account-capital`
 
 **Huy — BREAKING change for the web (from `develop` `5f29dc6`, not merged yet):**
