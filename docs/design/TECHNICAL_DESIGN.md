@@ -395,8 +395,10 @@ backend/
     │   └── resources/
     │       ├── application.yml          # shared defaults, no secrets
     │       ├── application-dev.yml      # local development
-    │       ├── application-prod.yml     # staging / demo
-    │       └── db/migration/            # V1__baseline_schema.sql, V2__timescale.sql, V3__reference_data.sql …
+    │       ├── application-prod.yml     # staging / production
+    │       ├── application-demo.yml     # added on staging (prod,demo): Flyway also applies db/demo (DEMO-01, D-120)
+    │       ├── db/migration/            # V1__baseline_schema.sql, V2__timescale.sql, V3__reference_data.sql …
+    │       └── db/demo/                 # demo accounts, repeatable migrations; dev and demo profiles only
     │
     └── test/
         ├── java/com/cryptopilot/
@@ -1375,7 +1377,7 @@ Since T-025: `tools/golden/generate_indicator_fixture.py` writes `btcusdt-1h-tal
 - Branches: `main` (protected, release), `develop` (integration), `feature/T-xxx-short-name`. Pull request required; at least one reviewer; CI green.
 - Commits: Conventional Commits (`feat(trading): …`, `fix(billing): …`, `test(market): …`, `docs: …`, `chore: …`), footer `Refs: T-xxx`. No AI attribution or co-author trailers.
 - Backend pipeline (`.github/workflows/ci.yml`, job `build-and-test`, Temurin 21, since T-009 / PR #7): `./mvnw -B -ntp verify` on pull requests into `develop`/`main` and pushes to `develop` — compile (warnings fail the build), Spotless check, unit + architecture + integration tests (Testcontainers on the runner's Docker, test database pinned to `max_connections=300`), JaCoCo gates; reports uploaded as artifacts. **Still to come (rest of T-009):** Docker image build and push (main/develop) and a coverage-drop gate. Make `build-and-test` a required check on `develop` and `main`.
-- Environments: `dev` (`deploy/docker-compose.dev.yml` for PostgreSQL and Redis; backend from the IDE with profile `dev`), `staging` = demo VPS (`deploy/docker-compose.yml`, profile `prod`). Payment gateways in sandbox mode for all environments.
+- Environments: `dev` (`deploy/docker-compose.dev.yml` for PostgreSQL and Redis; backend from the IDE with profile `dev`), `staging` = demo VPS (`deploy/docker-compose.yml`, profiles `prod,demo`: the demo accounts by Flyway, then `deploy/demo/load-wf01.ps1` loads the demo pairs, leverage brackets and plans through the API; `deploy/README.md`, D-120). Production runs `prod` alone and never reaches `db/demo`. Payment gateways in sandbox mode for all environments.
 - Configuration via environment variables (`deploy/.env.example` lists all keys, never real values), bound to `@ConfigurationProperties`: DB, Redis, JWT key, Binance base URLs, AI service URL and shared secret (LLM key in the AI Service only), VNPay, MoMo, SMTP, FCM service account path, Cloudinary.
 
 ---
