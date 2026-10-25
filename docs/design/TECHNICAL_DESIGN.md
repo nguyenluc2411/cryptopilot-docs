@@ -149,7 +149,7 @@ Module rules:
 2. A module calls another module only through that module's **public API**: the classes placed directly in the module's root package (e.g. `com.cryptopilot.user.UserApi`, `UserSummary`) and the events in its `event` package. Everything else in a module (`controller`, `service`, `repository`, `entity`, `dto`, …) is internal. Spring Modulith's `ApplicationModules.verify()` fails the build on a violation.
 3. Synchronous reads/commands across modules use the other module's `XxxApi`; reactions use events (`@ApplicationModuleListener`), which are persisted by the event publication registry (outbox).
 4. No cyclic dependencies between modules (verified by Spring Modulith).
-5. `trading` records executions through `journal.JournalApi` (the journal module owns the table).
+5. `trading` records executions through its own port `trading.TradeJournal`, which `journal` implements (`journal.service.impl.PersistentTradeJournal`); `journal` depends on `trading`'s public API and `trading` never depends on `journal` (D-119, amends the earlier `journal.JournalApi` direction). The journal module owns the table; `JournalOwnershipTest` proves no other module writes it.
 6. Moderation screens are served by `community` (admin endpoints under `/api/v1/admin/...` inside `community.controller`), because moderation changes community tables.
 
 ---
@@ -323,12 +323,11 @@ backend/
     │   │   │   └── event/         PlanExecuted, PositionClosed
     │   │   │
     │   │   ├── journal/                              # journal records, reviews, manual trades, performance
-    │   │   │   ├── JournalApi.java
     │   │   │   ├── controller/    JournalController, PerformanceController
-    │   │   │   ├── service/       JournalService, PerformanceService
+    │   │   │   ├── service/       JournalService, PerformanceService; impl/ PersistentTradeJournal (implements trading.TradeJournal, T-048a)
     │   │   │   ├── repository/    TradingJournalRepository, PerformanceQueryRepository
     │   │   │   ├── entity/        TradingJournal
-    │   │   │   ├── model/enums/   TradeSource, TradeStatus
+    │   │   │   ├── model/         PlanPosition; enums/ TradeSource (the position status is trading.model.enums.PositionStatus)
     │   │   │   ├── dto/
     │   │   │   └── calculator/    PnlCalculator, PerformanceMetrics
     │   │   │
@@ -422,7 +421,7 @@ backend/
 | Talks to an external system | `client/` | `BinanceRestClient`, `VnPayGateway` |
 | Runs on a schedule, loops on a stream, or reacts to an event | `job/` | `PlanExpiryJob`, `AlertEngineWorker` |
 | Is announced to other modules | `event/` (record) | `PositionClosed` |
-| Is needed by another module | root package `XxxApi` | `JournalApi.recordExecution(...)` |
+| Is needed by another module | root package `XxxApi`, or a port the needing module declares in its own root (D-119) | `MarketApi.tradablePair(...)`; `trading.TradeJournal` (implemented by `journal`) |
 | Is used by every module and has no business logic | `common/` | `BusinessException`, `BaseEntity` |
 
 Other folders of the repository:
@@ -885,7 +884,7 @@ Built in T-042 (PR #46): `trading.matching.{PriceLevelBook, MatchingEngine}` (pu
 Built in T-043 (PR #47 rules, PR #48 feed and replay):
 - **Fill rules (BR-33).** `trading.matching.EntryFillRule`. LIMIT LONG fills at low ≤ entry, SHORT at high ≥ entry (both inclusive), at the entry price, also through a gap. At activation, MARKET, or a LIMIT the current last price already reaches, is EXECUTED in the activating transaction at the last price and never enters the books. A LIMIT without a current last price waits.
 - **D-77.** `TrackedEntry.activatedAt`; a range whose candle opened before `activated_at` does not fill the plan, and the entry stays.
-- **D-78.** A fill from a range is recorded at the candle's open time (`PriceRange.from`). The engine returns `Fill(planId, price, executedAt)`, and `MatchingService.fill(Fill)` is the compare-and-set. The journal record of BR-34 is T-048.
+- **D-78.** A fill from a range is recorded at the candle's open time (`PriceRange.from`). The engine returns `Fill(planId, price, executedAt)`, and `MatchingService.fill(Fill)` is the compare-and-set. The journal record of BR-34 is opened in the same transaction by `PositionOpener` → `trading.TradeJournal.openSimulatedTrade` (T-048a, D-119): source SIMULATED, status OPEN, the fill price and time, the snapshot quantity, `entry_liquidity` = `fill_liquidity`, `entry_fee_amount` (V35) = `FeeSchedule.fee(role, fill, qty)` rounded to 8 decimals, and the plan's stop loss and take profit as the current levels; nothing is written when the compare-and-set returns 0, and `UNIQUE (plan_id)` refuses a second record. A fill at activation stores the plan first (`saveAndFlush`) and then opens the record.
 - **Fill price.** `trading_plan.fill_price` (V18), set exactly when EXECUTED (CHECK `ck_trading_plan_fill_price`): the entry price for a candle fill, the last price for a fill at activation. T-048 reads it. `activated_at` and `executed_at` are truncated to microseconds before they are stored or compared, as the column keeps them.
 - **Queue (section 10).** Pending updates of a pair merge only within one candle, so there is one pending range per minute. A pair's pending ranges are read as soon as none of its ranges is left in the channel, after any command, with at most one `Flush` per pair in the channel.
 - **Retries and stop.** A failing fill waits in the retry list with an exponential back-off and jitter (`retry.initial-delay` 1 s, `max-delay` 30 s, `jitter-percent` 20) and is tried on the pair's next range once due. At `retry.deadline` (10 min after the first failure) it is given up with one ERROR, the plan stays ACTIVE, and the pair's watermark is held until a restart, which replays the candle that reached the plan. A pair holding more than `pending-warn-threshold` (60) pending ranges is warned about once per backlog. `stop()` flags each partition, interrupts and joins the consumers within `stop-timeout` (10 s). Each start builds new partitions and refuses to run beside a consumer still alive.
@@ -960,7 +959,7 @@ The open cannot be past both, because the entry and the invalidation levels lie 
 - They start at the fill price and are updated from every range the exit book reads.
 - The entry candle contributes only its adverse extreme to the most adverse price and nothing to the most favourable price, because the order inside the minute is unknown (E6). This holds also when the fill was at the candle's open (D-112 R5).
 - The exit candle is clamped at the exit price.
-- The engine passes the extremes to `journal.JournalApi`, which writes them when they move on a closed candle and at close. The restart replay covers downtime.
+- The engine passes the extremes to the journal through `trading.TradeJournal` (D-119), which writes them when they move on a closed candle and at close. The restart replay covers downtime.
 
 **Simulation assumptions** (stated, so every result can be explained; D-111 E6):
 1. Prices are 1-minute candles: open, high, low, and close as the last price. The order of prices inside a minute is unknown, so every rule about two levels in one candle is a pessimistic choice:

@@ -2,6 +2,23 @@
 
 Newest first. Each entry names the `develop` SHA the guide was synced to.
 
+## 2026-10-25 — T-048a position of an executed plan, branch `feat/t-048a-journal-open`
+
+**Huy — visible change for the web (from `develop` `dccfc6c`, not merged yet; T-041 uses it):**
+
+- **`GET /plans/{id}`** (and the create / update / activate / cancel responses) carry a new
+  `position` block once the plan is `EXECUTED`: `status` (`OPEN` / `CLOSED`), `fillPrice`,
+  `quantity`, `entryTime`, `entryFee`, `liquidationPrice` (Futures, from the snapshot),
+  `currentPrice` and `unrealizedPnl` (OPEN only: Futures mark price, Spot last price, no fees, Q-55).
+  `null` before the fill. This is the SCR-18 live position block.
+- **`GET /plans`** rows carry `positionStatus`: `OPEN` / `CLOSED` on `EXECUTED` rows, `null`
+  otherwise (the Executed tab of SCR-16).
+- An open position now keeps its `ACTIVE_PLAN_MAX` slot (MSG27) and adds its risk to the
+  TOTAL_OPEN_RISK warning. Before, an EXECUTED plan freed its slot.
+- No exits yet (T-048b): positions stay `OPEN`.
+- `modules/trading-plan.md`: new section "Position of an executed plan (T-048a)"; `GET /plans` and
+  `GET /plans/{id}` examples and notes.
+
 ## 2026-10-25 — TP-C entry deviation at MARKET activation, branch `feat/tp-c-entry-deviation`
 
 **Huy — visible change for the web (stacked on TP-B, not merged yet; T-113 depends on it):**

@@ -12,6 +12,10 @@ Read first:
 - No fills yet (matching engine T-042+): an ACTIVE plan, MARKET included, stays ACTIVE. `EXECUTED`,
   `EXPIRED`, the live position block and close-position do not exist yet.
 - Plan responses carry `pairId` but **no symbol** (FEQ-01).
+- **Position of a filled plan (T-048a), branch `feat/t-048a-journal-open`, not on `develop` yet:**
+  `GET /plans/{id}` (and the create / update / activate responses) carry a `position` block once the
+  plan is `EXECUTED`, and list rows carry `positionStatus`. See "Position of an executed plan
+  (T-048a)" below. Closing a position (exits) is T-048b; until then every position stays `OPEN`.
 - **Plan validity (TP-A, D-111, D-112), branch `feature/TP-A-plan-validity`, not on `develop` yet:**
   STOP entry, invalidation price, own entry deviation limit, analysis timeframe, the INVALIDATED status
   and the setup score taken at activation. See "Plan validity (TP-A)" below.
@@ -278,6 +282,47 @@ NSF-07; D-77, D-78, D-111, D-112. Nothing in the request or response shapes chan
 - **Notification.** The Trader's notice of an invalidation (MSG54, with the reason) is T-046; until
   then the web learns it only from the plan's status.
 
+## Position of an executed plan (T-048a)
+
+Branch `feat/t-048a-journal-open`, not on `develop` yet. When a plan fills (the engine fills a
+resting LIMIT, or a LIMIT / MARKET fills at activation) the journal records its position in the same
+transaction, and the plan responses expose it.
+
+`TradingPlanResponse.position` — `null` until the plan is `EXECUTED`:
+
+```ts
+interface PositionResponse {
+  status: 'OPEN' | 'CLOSED';
+  fillPrice: string;          // actual fill price of the entry (slippage included)
+  quantity: string;           // the snapshot's positionQuantity
+  entryTime: string;          // ISO instant: the 1-minute candle open of an engine fill, else the activation instant
+  entryFee: string;           // fee paid on the entry, by liquidity role (maker / taker)
+  liquidationPrice: string | null;  // Futures: the snapshot's estimatedLiquidationPrice; null on Spot
+  currentPrice: string | null;      // OPEN only: Futures mark price, Spot last price; null when CLOSED or not cached
+  unrealizedPnl: string | null;     // OPEN only: (currentPrice − fillPrice) × quantity, LONG; mirrored for SHORT
+}
+```
+
+```json
+"position": {
+  "status": "OPEN", "fillPrice": "100.000000000000", "quantity": "2.000000000000",
+  "entryTime": "2026-10-25T08:00:00Z", "entryFee": "0.20000000",
+  "liquidationPrice": null, "currentPrice": "103", "unrealizedPnl": "6.00000000"
+}
+```
+
+- The live P/L of SCR-18 is `unrealizedPnl`: unrealized by mark price, **no fees, no funding**
+  (Q-55). Show it with the label "unrealized"; the entry fee is shown on its own.
+- `currentPrice` / `unrealizedPnl` are `null` when the price cache holds no current price (show a
+  dash, not 0) and always `null` once `CLOSED`.
+- `TradingPlanSummaryResponse.positionStatus`: `OPEN` / `CLOSED` on `EXECUTED` rows, else `null`.
+- An open position keeps its `ACTIVE_PLAN_MAX` slot (BR-62): the MSG27 banner counts ACTIVE plans
+  plus open positions. The TOTAL_OPEN_RISK warning (BR-29) also adds the risk of open positions.
+- Exits, close-position and the journal screens come later (T-048b, T-046, T-049).
+
+Source: `trading/dto/response/PositionResponse.java`; `trading/service/impl/TradingPlanServiceImpl.java`
+(`detail`, `list`). Spec: BR-34, BR-62, BR-29, UC-20, SCR-16, SCR-18, Q-55, D-119.
+
 ## Entry deviation at MARKET activation (TP-C)
 
 Status: on `feat/tp-c-entry-deviation` (stacked on TP-B, not merged). Spec: BR-69, MSG51, MSG52;
@@ -475,7 +520,8 @@ Response `200`: `PageResponse<TradingPlanSummary>`.
       "entryPrice": "62000.00", "stopLoss": "60000.00", "takeProfit": "66000.00",
       "leverage": null, "riskAmount": "10.00000000", "riskRewardRatio": "2.00000000",
       "status": "DRAFT",
-      "createdAt": "2026-10-03T02:20:00Z", "activatedAt": null, "expiresAt": "2026-10-10T02:20:00Z"
+      "createdAt": "2026-10-03T02:20:00Z", "activatedAt": null, "expiresAt": "2026-10-10T02:20:00Z",
+      "positionStatus": null
     }
   ],
   "page": 1, "pageSize": 20, "total": 1
@@ -486,8 +532,9 @@ Response `200`: `PageResponse<TradingPlanSummary>`.
 |---|---|---|---|
 | 400 | `VALIDATION_FAILED` | MSG01/MSG15 | Bad enum, UUID, instant, paging |
 
-FE notes: no symbol in rows — resolve `pairId` from data you already hold (FEQ-01). Position status
-and P/L of executed plans (SRS 3.5.2) are not in the row yet (T-042+). Keep the tab in the URL.
+FE notes: no symbol in rows — resolve `pairId` from data you already hold (FEQ-01). `positionStatus`
+(T-048a): `OPEN` or `CLOSED` on an `EXECUTED` row, `null` on every other status — show it in the
+Executed tab. The live P/L is not in the row (read the detail). Keep the tab in the URL.
 Source: `trading/controller/TradingPlanController.java#L90`; `trading/dto/response/TradingPlanSummaryResponse.java#L32`. Spec: SRS 3.5.2, UC-20, CR-04, D-73.
 
 ---
@@ -516,7 +563,8 @@ Response `200`: `TradingPlanResponse`.
   },
   "warnings": [],
   "blocksActivation": false,
-  "statusHistory": [ { "status": "DRAFT", "at": "2026-10-03T02:20:00Z" } ]
+  "statusHistory": [ { "status": "DRAFT", "at": "2026-10-03T02:20:00Z" } ],
+  "position": null
 }
 ```
 
@@ -524,8 +572,9 @@ Response `200`: `TradingPlanResponse`.
 |---|---|---|---|
 | 404 | `RESOURCE_NOT_FOUND` | MSG41 | Unknown id or another user's plan (never 403) |
 
-FE notes: show Edit only when `editable`. Activate for DRAFT; Cancel for DRAFT and ACTIVE. The live
-position block (SRS 3.5.3) waits for T-042+ (and the planned `/user/queue/positions`).
+FE notes: show Edit only when `editable`. Activate for DRAFT; Cancel for DRAFT and ACTIVE. The
+position block (SRS 3.5.3, T-041) is `position`, see "Position of an executed plan (T-048a)"; it is
+read on request (refetch to refresh the P/L; no push yet).
 Source: `trading/controller/TradingPlanController.java#L109`; `trading/dto/response/StatusChangeResponse.java#L14`; `trading/dto/response/PlanWarningResponse.java#L15`. Spec: SRS 3.5.3, D-67.
 
 ---
