@@ -534,8 +534,8 @@ Plan and estimates: `docs/design/paper-trading-plan.md`, section 17. Owner to be
 | T-077 | News source model and crawl log | BE2 | T-005 | UC-49, BR-49 | Interval ≥ 15 minutes enforced | DONE (2026-10-25, `feature/T-077-news-source-model` `8eb6698`, local; PR to open) |
 | T-078 | NSF-10 crawl, URL normalization, deduplication, coin tagging | BE2 | T-077 | NSF-10, BR-48 | Duplicate URL and duplicate title within 48h skipped; lower-case symbol false positives avoided | DONE (2026-10-25, `feature/T-078-news-crawl` `be68609`, `eeb56ee`, stacked on T-077, local) |
 | T-079 | NSF-11 summarization and sentiment through the AI Service | BE2 | T-078, T-072, T-104, T-007 | NSF-11, BR-62 (`NEWS_AI_INSIGHT`, D-58) | Only rows without a summary are sent; failures retried next run | DONE (2026-10-25, `feature/T-079-news-summary` `20b4c66`, `17dc62d`, stacked on T-078, local; PR to open). No entitlement gate on news (D-122) |
-| T-080 | News API and web feed | FE | T-079 | UC-34, SCR-28, D-122 | Filters by coin, sentiment and period; 24h sentiment summary; same content for every plan (D-122) | DONE — API 2026-10-25 (`feature/T-080-news-api` `cdfefd7`, stacked on T-079, local); web SCR-28 2026-10-25 (`cryptopilot-frontend` `feature/T-080-news-feed` `8adfaaa` from `develop` `12122da`, local, not pushed) |
-| T-080b | News administration: crawl now, hide/restore articles, summary attempts and re-summarize | BE2 | T-080 | UC-49, NSF-10, NSF-11, BR-57, D-124 | Crawl now refused within 1 min (MSG50); hidden articles out of feed and summary bar, audited; job stops after 3 attempts; admin re-summarize | DONE (2026-10-25, `feature/T-080b-news-admin` `43ff01a`, stacked on T-080, local); console screens 2026-10-25 (`cryptopilot-frontend` `feature/T-087-news-admin` `a2815be` from `develop` `12122da`, local) |
+| T-080 | News API and web feed | FE | T-079 | UC-34, SCR-28, D-122 | Filters by coin, sentiment and period; 24h sentiment summary; same content for every plan (D-122) | DONE — API 2026-10-25 (`feature/T-080-news-api` `cdfefd7`, stacked on T-079, local); web SCR-28 2026-10-25 (`cryptopilot-frontend` `feature/T-080-news-feed` `3a59a0d` from `develop` `12122da`, local, not pushed) |
+| T-080b | News administration: crawl now, hide/restore articles, summary attempts and re-summarize | BE2 | T-080 | UC-49, NSF-10, NSF-11, BR-57, D-124 | Crawl now refused within 1 min (MSG50); hidden articles out of feed and summary bar, audited; job stops after 3 attempts; admin re-summarize | DONE (2026-10-25, `feature/T-080b-news-admin` `43ff01a`, stacked on T-080, local); console screens 2026-10-25 (`cryptopilot-frontend` `feature/T-087-news-admin` `8ab3c1f` from `develop` `12122da`, local) |
 
 ### P13 — Administration (Sprint 10)
 
@@ -706,7 +706,7 @@ Newest first. One block per working session, format in `CLAUDE.md` section 8.
 - Decisions: route screen id `D-124` for the article console (no SRS screen); toasts have no warning tone, so a partial crawl and a refused summary use `info`
 - Open questions: none
 - Next: push and open the PRs (backend T-077 → T-080b stacked; frontend `feature/T-080-news-feed`, `feature/T-087-news-admin` from `develop`) when the owner asks; UC-50 task to raise with the team lead
-- Commits: `a2815be` feat(admin): add the news sources and news articles consoles
+- Commits: `8ab3c1f` feat(admin): add the news sources and news articles consoles
 
 ### 2026-10-25 – T-080 News feed web (SCR-28)
 - Result: DONE (`cryptopilot-frontend` branch `feature/T-080-news-feed` from `develop` `12122da`, local, not pushed)
@@ -717,7 +717,7 @@ Newest first. One block per working session, format in `CLAUDE.md` section 8.
 - Decisions: none (no Figma frame for SCR-28: layout follows SCR-24 / SCR-15)
 - Open questions: none
 - Next: admin news screens (SCR-41 sources with crawl-now confirmation, news article page; T-080b API) on a second branch; UC-50 task to raise with the team lead
-- Commits: `8adfaaa` feat(news): add the news feed screen and connect the news API
+- Commits: `3a59a0d` feat(news): add the news feed screen and connect the news API
 
 ### 2026-10-25 – T-080b News administration: crawl now, hide articles, summary attempts
 - Result: DONE (local branch `feature/T-080b-news-admin`, stacked on `feature/T-080-news-api`, not pushed)
