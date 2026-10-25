@@ -462,6 +462,109 @@ flag, true while a funding settlement is missing).
 
 Source: `trading/controller/TradingPlanController.java`, `trading/dto/response/CloseEstimateResponse.java`.
 
+## Edit the stop loss and take profit of an open position (TP-E)
+
+Branch `feat/tp-e-edit-open-levels`, not on `develop` yet. Decision D-124 (team lead, 2026-10-23):
+a Trader may move the stop loss and the take profit of an OPEN position. Partial closing stays out
+(D-11). Build "Edit SL/TP" on SCR-18 on this contract. Spec: UC-21, BR-22, BR-28, BR-29, BR-42, D-124.
+
+**Request** — `PATCH /api/v1/plans/{id}/position-levels` (`id` = the plan id, as for close-position):
+
+```ts
+interface ChangePositionLevelsRequest {
+  stopLoss?: string | null;    // new stop loss; absent or null keeps the current one
+  takeProfit?: string | null;  // new take profit; absent or null keeps the current one
+}
+```
+
+- At least one of the two → otherwise 400 MSG01 on `stopLoss`.
+- Each value > 0, ≤ 16 integer / 12 decimal digits → MSG15; rounded to the pair's tick (half-up)
+  before every check, as on plan entry.
+- Checked against the **current last price** (Futures: the last price, never the mark price), MSG16
+  on the field:
+  - LONG: `stopLoss < lastPrice < takeProfit`; SHORT: `takeProfit < lastPrice < stopLoss`;
+  - a level the last price has already reached is refused, never executed at once;
+  - Futures: the stop loss must stay before `position.liquidationPrice` (LONG above it, SHORT below
+    it). This one is blocking, as on plan entry (BR-28).
+- Only the fields sent are checked; a value equal to the current level changes nothing.
+
+**Response** — 200 `TradingPlanResponse`, with `position` updated. New fields of `PositionResponse`
+(on every read of the plan, OPEN and CLOSED):
+
+```ts
+interface PositionResponse {
+  // ... T-048a / T-048b / T-046 fields unchanged ...
+  stopLoss: string | null;            // the CURRENT stop loss (the exits use this one)
+  takeProfit: string | null;          // the CURRENT take profit
+  originalStopLoss: string | null;    // the levels at the fill; never change (= the plan's stopLoss / takeProfit)
+  originalTakeProfit: string | null;
+  stopWidened: boolean;               // true once a stop loss was moved further from the entry than the original
+  levelChangeCount: number;           // how many changes were made
+  levelChanges: LevelChange[];        // every change, oldest first; [] when none
+  breakevenPrice: string | null;      // OPEN only, see "Move SL to breakeven"; null when CLOSED
+  breakevenProvisional: boolean;      // true: a funding settlement may be missing from it (Futures)
+  levelWarnings: PlanWarningResponse[];  // only in the PATCH response, see "Warnings"; [] on every other read
+}
+
+interface LevelChange {
+  changedAt: string;                  // ISO instant of the change
+  oldStopLoss: string | null;  oldTakeProfit: string | null;
+  newStopLoss: string | null;  newTakeProfit: string | null;
+}
+```
+
+**When a new level acts.** The exits use the new levels from the next 1-minute candle (a candle that
+opened at or after `changedAt`); the rest of the minute in which the change was made is still decided
+by the previous levels, so a replay after downtime gives the same exit as live processing (the same
+rule as a plan activated in the middle of a minute). Say so in the edit dialog ("applies from the next
+minute"). Exit pricing does not change: a stop loss exits as a taker with slippage, a take profit at
+its own price as a maker.
+
+**Result in R.** The realized R of the journal keeps the ORIGINAL planned risk (BR-42): moving a stop
+does not change the risk the trade is measured against, so a widened stop that is then hit shows a loss
+larger than −1R. Show `stopWidened` on SCR-18 and in the journal ("stop moved away"), and the history
+from `levelChanges`; the AI review uses the same data.
+
+**Move SL to breakeven.** A stop loss at the entry price still loses the fees. `breakevenPrice` is the
+stop price at which the net P/L is zero: the entry fee paid, the taker exit fee and the slippage of the
+stop, and on Futures the funding so far. It is on the tick and rounded against the Trader (LONG up,
+SHORT down). The shortcut button sends `{ "stopLoss": breakevenPrice }`, **never the bare entry
+price**; tooltip: "Moves the stop to the price that covers the entry fee, the exit fee and slippage
+(and funding so far), so a stop-out ends at about zero net P/L." Tag it "provisional" when
+`breakevenProvisional` is true. The button can only succeed once the last price is beyond
+`breakevenPrice` (LONG above, SHORT below); otherwise the request answers MSG16 on `stopLoss`, so
+disable it until then.
+
+**Warnings** (`position.levelWarnings`, non-blocking, shown like MSG17): when the change widens the
+stop loss (further from the entry than the current one) and the new risk breaks a limit of the risk
+profile:
+
+| `type` | When |
+|---|---|
+| `OVERSIZED_POSITION` | the position's risk at the new stop / profile capital > the profile's risk per trade |
+| `TOTAL_OPEN_RISK` | the open risk with the new stop / profile capital > the profile's maximum total open risk |
+
+The change is saved anyway (whether it should be refused is an open question for the team lead).
+
+**Open risk.** TOTAL_OPEN_RISK (the risk panel warning, BR-29) now counts an open position at its
+CURRENT risk: quantity × |entry − current stop loss| when the stop is on the losing side, 0 once the
+stop is at or past the entry. Moving a stop to breakeven frees the risk budget for new plans.
+
+**Errors**
+
+| Status | `messageCode` | When |
+|---|---|---|
+| 400 | MSG01 | neither `stopLoss` nor `takeProfit` sent (`errors.stopLoss`) |
+| 400 | MSG15 | a value ≤ 0 or with too many digits (`errors.<field>`) |
+| 400 | MSG16 | wrong side of the current last price, already reached, or (Futures) the stop loss at or past `liquidationPrice` (`errors.<field>`) |
+| 401 | MSG44 | no valid session |
+| 404 | — (`NOT_FOUND`) | the plan is not the caller's |
+| 409 | MSG43 | the plan has no OPEN position: not executed, already closed, or closed (by TP, SL, liquidation or a manual close) while the change was being made; nothing changed |
+| 503 | MSG43 | no current last price is cached for the pair |
+
+Source: `trading/controller/PositionLevelController.java`,
+`trading/service/impl/PositionLevelServiceImpl.java`, `trading/calculator/BreakevenCalculator.java`.
+
 ## Entry deviation at MARKET activation (TP-C)
 
 Status: on `feat/tp-c-entry-deviation` (stacked on TP-B, not merged). Spec: BR-69, MSG51, MSG52;
@@ -790,6 +893,14 @@ Response `200`: `TradingPlanResponse` (`status: "CANCELLED"`).
 Source: `trading/controller/TradingPlanController.java#L154`. Spec: SRS 3.5.3, UC-19.
 
 ---
+
+### PATCH /plans/{id}/position-levels
+Status: PLANNED (contract fixed, TP-E)
+Auth: trader
+Purpose: Change the stop loss and/or take profit of the caller's OPEN position (D-124, SCR-18).
+
+See "Edit the stop loss and take profit of an open position (TP-E)" above.
+Source: `trading/controller/PositionLevelController.java`. Spec: UC-21, BR-22, BR-28, BR-29, D-124.
 
 ### POST /plans/{id}/close-position
 Status: PLANNED (spec only)

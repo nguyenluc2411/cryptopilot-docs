@@ -2,6 +2,21 @@
 
 Newest first. Each entry names the `develop` SHA the guide was synced to.
 
+## 2026-10-25 — TP-E edit SL/TP of an open position, branch `feat/tp-e-edit-open-levels`
+
+**Huy — new endpoint for SCR-18 (contract first; not built yet, from `develop` `883e7c6`):**
+
+- `PATCH /plans/{id}/position-levels` with `{ stopLoss?, takeProfit? }` → `TradingPlanResponse` with the
+  updated `position`. Errors: 400 MSG01/MSG15/MSG16 on the field, 404, 409 MSG43 (no OPEN position),
+  503 MSG43 (no current price).
+- New `position` fields: `stopLoss`, `takeProfit` (current), `originalStopLoss`, `originalTakeProfit`,
+  `stopWidened`, `levelChangeCount`, `levelChanges[]`, `breakevenPrice`, `breakevenProvisional`,
+  `levelWarnings[]` (PATCH response only).
+- SCR-18: "Edit SL/TP" on an OPEN position; "Move SL to breakeven" sends `breakevenPrice`, never the
+  entry price, with a tooltip that it covers the fees. New levels act from the next 1-minute candle.
+- TOTAL_OPEN_RISK counts an open position at its current stop loss (0 at or past the entry).
+- `modules/trading-plan.md`: new section "Edit the stop loss and take profit of an open position (TP-E)".
+
 ## 2026-10-25 — T-046 manual close contract, branch `feat/t-046-manual-close`
 
 **Huy — new endpoints for SCR-19 (contract fixed by the team lead; stacked on PR #75, not built yet):**
