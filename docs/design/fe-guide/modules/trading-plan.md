@@ -504,6 +504,7 @@ interface PositionResponse {
   breakevenPrice: string | null;      // OPEN only, see "Move SL to breakeven"; null when CLOSED
   breakevenProvisional: boolean;      // true: a funding settlement may be missing from it (Futures)
   levelWarnings: PlanWarningResponse[];  // only in the PATCH response, see "Warnings"; [] on every other read
+  levelsEffectiveFrom: string | null;    // ISO instant: open of the first 1m candle the current levels act on; null if never changed
 }
 
 interface LevelChange {
@@ -513,11 +514,12 @@ interface LevelChange {
 }
 ```
 
-**When a new level acts.** The exits use the new levels from the next 1-minute candle (a candle that
-opened at or after `changedAt`); the rest of the minute in which the change was made is still decided
-by the previous levels, so a replay after downtime gives the same exit as live processing (the same
-rule as a plan activated in the middle of a minute). Say so in the edit dialog ("applies from the next
-minute"). Exit pricing does not change: a stop loss exits as a taker with slippage, a take profit at
+**When a new level acts (approved, Q-80).** The exits use the new levels from the next 1-minute
+candle (a candle that opened at or after `changedAt`); the rest of the minute in which the change was
+made is still decided by the previous levels, so a replay after downtime gives the same exit as live
+processing (the same rule as a plan activated in the middle of a minute). Show
+`position.levelsEffectiveFrom` after a save: "New levels apply from HH:mm" (local time of that
+instant). Until then the previous levels can still close the position. Exit pricing does not change: a stop loss exits as a taker with slippage, a take profit at
 its own price as a maker.
 
 **Result in R.** The realized R of the journal keeps the ORIGINAL planned risk (BR-42): moving a stop
@@ -544,7 +546,8 @@ profile:
 | `OVERSIZED_POSITION` | the position's risk at the new stop / profile capital > the profile's risk per trade |
 | `TOTAL_OPEN_RISK` | the open risk with the new stop / profile capital > the profile's maximum total open risk |
 
-The change is saved anyway (whether it should be refused is an open question for the team lead).
+The change is saved anyway: these stay warnings (team lead, Q-79). Only a Futures stop loss at or past
+`liquidationPrice` is refused (MSG16).
 
 **Open risk.** TOTAL_OPEN_RISK (the risk panel warning, BR-29) now counts an open position at its
 CURRENT risk: quantity × |entry − current stop loss| when the stop is on the losing side, 0 once the
@@ -565,7 +568,7 @@ A 400 is a validation answer like plan entry: the code of each refused field is 
 | 409 | MSG43 | the plan has no OPEN position: not executed, already closed, or closed (by TP, SL, liquidation or a manual close) while the change was being made; nothing changed |
 | 503 | MSG43 | no current last price is cached for the pair |
 
-Status: built on `feat/tp-e-edit-open-levels` (5 commits on `develop` `883e7c6`, local, not pushed).
+Status: built, **PR #77** into `develop` (`feat/tp-e-edit-open-levels` on `008efac`), not merged yet.
 Example `position` after `{ "stopLoss": 97.004, "takeProfit": 112 }` on a Futures LONG 2 at 100 (stop 95,
 take profit 110, maker entry fee 0.04, 10 bps slippage):
 
@@ -577,7 +580,8 @@ take profit 110, maker entry fee 0.04, 10 bps slippage):
   "stopWidened": false, "levelChangeCount": 1,
   "levelChanges": [{ "changedAt": "2026-10-25T08:02:30Z", "oldStopLoss": "95.000000000000",
     "oldTakeProfit": "110.000000000000", "newStopLoss": "97.000000000000", "newTakeProfit": "112.000000000000" }],
-  "breakevenPrice": "100.19", "breakevenProvisional": false, "levelWarnings": []
+  "breakevenPrice": "100.19", "breakevenProvisional": false, "levelWarnings": [],
+  "levelsEffectiveFrom": "2026-10-25T08:03:00Z"
 }
 ```
 
@@ -914,7 +918,7 @@ Source: `trading/controller/TradingPlanController.java#L154`. Spec: SRS 3.5.3, U
 ---
 
 ### PATCH /plans/{id}/position-levels
-Status: BUILT on `feat/tp-e-edit-open-levels`, not on `develop` yet (TP-E)
+Status: BUILT, PR #77 into `develop`, not merged yet (TP-E)
 Auth: trader
 Purpose: Change the stop loss and/or take profit of the caller's OPEN position (D-124, SCR-18).
 

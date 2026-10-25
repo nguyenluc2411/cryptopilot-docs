@@ -2,6 +2,16 @@
 
 Newest first. Each entry names the `develop` SHA the guide was synced to.
 
+## 2026-10-26 — TP-E: `levelsEffectiveFrom`, team lead answers
+
+**Huy — one new field, two rules confirmed:**
+
+- `position.levelsEffectiveFrom` (ISO instant or `null`): the open of the first 1-minute candle the
+  current levels act on after the last change. After "Edit SL/TP" or "Move SL to breakeven", show "New
+  levels apply from HH:mm"; until then the previous levels can still close the position (Q-80).
+- A stop moved beyond the risk profile stays a warning (`levelWarnings`); only a Futures stop at or past
+  `liquidationPrice` is refused (Q-79).
+
 ## 2026-10-25 — TP-E built, branch `feat/tp-e-edit-open-levels`
 
 **Huy — the TP-E contract is built as written, with one correction:**
