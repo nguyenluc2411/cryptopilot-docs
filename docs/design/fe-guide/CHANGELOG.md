@@ -2,6 +2,18 @@
 
 Newest first. Each entry names the `develop` SHA the guide was synced to.
 
+## 2026-10-25 — T-046 manual close contract, branch `feat/t-046-manual-close`
+
+**Huy — new endpoints for SCR-19 (contract fixed by the team lead; stacked on PR #75, not built yet):**
+
+- `GET /plans/{id}/close-estimate` → `CloseEstimate` (current price, estimated exit price with
+  slippage, price result, entry fee, estimated exit fee, funding so far, estimated net P/L, `at`).
+- `POST /plans/{id}/close-position` (no body) → `TradingPlanResponse`, position `CLOSED`,
+  `closeReason: "MANUAL"`.
+- Errors: 404 not the caller's plan; 409 MSG43 no OPEN position; 503 MSG43 no current price.
+- The CLOSED position block keeps T-048b's names; the incomplete-funding flag is `provisional`.
+- `modules/trading-plan.md`: new section "Manual close of a position (T-046)".
+
 ## 2026-10-25 — T-048b exits of a position, branch `feat/t-048b-journal-exits`
 
 **Huy — visible change for the web (PR #75 on `develop` `df573af`, not merged yet; T-041, T-047, T-059):**

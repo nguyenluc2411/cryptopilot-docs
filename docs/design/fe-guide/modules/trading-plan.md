@@ -415,6 +415,53 @@ Source: `trading/matching/ExitRule.java`, `trading/service/impl/PositionCloser.j
 `trading/job/PositionUserFeed.java`, `trading/dto/response/PositionUpdateResponse.java`. Spec: BR-35,
 BR-36, BR-37, BR-38, UC-20, SCR-18, MSG23, MSG24, D-97, Q-56, Q-57, Q-59, Q-61.
 
+## Manual close of a position (T-046)
+
+Branch `feat/t-046-manual-close`, stacked on T-048b (PR #75), not on `develop` yet. Contract fixed by
+the team lead on 2026-10-25; build SCR-19 (Close Position pop-up, MSG21) on it. Spec: UC-21, BR-39,
+BR-36, BR-38, MSG21, MSG23.
+
+**1. Estimate** — `GET /api/v1/plans/{id}/close-estimate` → 200:
+
+```ts
+interface CloseEstimate {
+  currentPrice: string;        // current last price (Futures: the last price, never the mark price)
+  estimatedExitPrice: string;  // currentPrice moved by SLIPPAGE_BPS against the Trader (a taker sell for LONG, buy for SHORT), on the tick
+  priceResult: string;         // (estimatedExitPrice − fillPrice) × quantity for LONG, mirrored for SHORT
+  entryFee: string;            // the entry fee stored at the fill
+  estimatedExitFee: string;    // estimatedExitPrice × quantity × taker rate of the market
+  fundingSoFar: string | null; // Futures: signed funding settled since the fill, + received / − paid; null on Spot
+  fundingProvisional: boolean; // true: a settlement may still be missing from fundingSoFar; false on Spot
+  estimatedNetPnl: string;     // priceResult − entryFee − estimatedExitFee + (fundingSoFar ?? 0)
+  at: string;                  // ISO instant the estimate was computed
+}
+```
+
+- MSG21 "Close this position at about {price}? Estimated P/L: {pnl}." uses `estimatedExitPrice` and
+  `estimatedNetPnl`. The estimate is not stored and does not reserve the price: the close executes at
+  the price of its own moment.
+
+**2. Close** — `POST /api/v1/plans/{id}/close-position` (no body) → 200 `TradingPlanResponse` whose
+`position` is `CLOSED` with `closeReason: "MANUAL"`. The close is a taker sell (LONG) or buy (SHORT) at
+the current last price moved by `SLIPPAGE_BPS`; exit fee at the taker rate; funding up to the close;
+net P/L as for every exit (BR-38). The Trader also gets MSG23 (`{reason}` "manual close") and a
+`PositionUpdate` on `/user/queue/positions`.
+
+**Errors (both endpoints)**
+
+| Status | `messageCode` | When |
+|---|---|---|
+| 404 | — (`NOT_FOUND`) | the plan is not the caller's |
+| 409 | MSG43 | the plan has no OPEN position (not executed yet, or already closed, e.g. by the engine first) |
+| 503 | MSG43 | no current last price is cached for the pair |
+
+**Field names of the CLOSED position block** are those of T-048b ("Exits of a position" above):
+`exitPrice`, `exitTime`, `closeReason`, `realizedPnl`, `feeAmount`, `fundingFeeAmount`, `netPnl` and the
+boolean **`provisional`** (there is no `fundingIncomplete` field in the response: `provisional` is that
+flag, true while a funding settlement is missing).
+
+Source: `trading/controller/TradingPlanController.java`, `trading/dto/response/CloseEstimateResponse.java`.
+
 ## Entry deviation at MARKET activation (TP-C)
 
 Status: on `feat/tp-c-entry-deviation` (stacked on TP-B, not merged). Spec: BR-69, MSG51, MSG52;
