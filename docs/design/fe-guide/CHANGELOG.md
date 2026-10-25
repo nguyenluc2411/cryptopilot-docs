@@ -4,7 +4,7 @@ Newest first. Each entry names the `develop` SHA the guide was synced to.
 
 ## 2026-10-25 — T-048b exits of a position, branch `feat/t-048b-journal-exits`
 
-**Huy — visible change for the web (from `develop` `9076ca9`, not merged yet; T-041, T-047, T-059):**
+**Huy — visible change for the web (PR #75 on `develop` `df573af`, not merged yet; T-041, T-047, T-059):**
 
 - **Positions close by themselves now**: take profit, stop loss, and on Futures liquidation by the
   mark price. `position.status` becomes `CLOSED`; the plan stays `EXECUTED`.
