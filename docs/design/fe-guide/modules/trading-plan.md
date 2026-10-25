@@ -14,6 +14,10 @@ Read first:
   with T-048a, carries a `position` block (below). Still missing: `EXPIRED` (no expiry job yet,
   so an ACTIVE plan past `expiresAt` stays ACTIVE) and closing a position (SCR-19, T-048b).
 - Plan responses carry `pairId` but **no symbol** (FEQ-01).
+- **Breaking (TP-D, D-121), branch `feat/tp-d-account-capital`, not on `develop` yet: no `capital`
+  in the requests.** Every plan is sized on the Trader's account size, the profile's
+  `defaultCapital` (SCR-07). SCR-17 shows the capital **read-only** with a link to SCR-07; it is no
+  longer an input. See "Account capital (TP-D)" below.
 - **Position of a filled plan (T-048a), branch `feat/t-048a-journal-open`, not on `develop` yet:**
   `GET /plans/{id}` (and the create / update / activate responses) carry a `position` block once the
   plan is `EXECUTED`, and list rows carry `positionStatus`. See "Position of an executed plan
@@ -39,7 +43,6 @@ interface PlanInputs {
   entryPrice?: string | null;         // LIMIT and STOP (the stop price): required; MARKET: ignored
   stopLoss: string;
   takeProfit: string;
-  capital?: string | null;            // default: profile defaultCapital
   riskPercent?: string | null;        // default: profile defaultRiskPercent, else risk profile's risk per trade
   leverage?: number | null;           // default 1; SPOT must be 1 or absent
   expiresAt?: string | null;          // LIMIT and STOP default now + 7 days
@@ -81,7 +84,7 @@ interface PlanCalculationResponse {
   entryPrice: string;                 // after tick rounding; MARKET: current last price (the reference price)
   expectedFillPrice: string | null;   // TP-0, MARKET only: entryPrice moved by SLIPPAGE_BPS against the Trader;
                                       // the price the quantity is sized on and fills at; = entryPrice at 0 bps
-  capital: string;                    // after defaults
+  capital: string;                    // TP-D: always the profile's defaultCapital; show read-only
   riskPercent: string;                // after defaults
   snapshot: PlanSnapshot;
   warnings: PlanWarning[];
@@ -98,7 +101,7 @@ interface TradingPlanResponse {
   plannedEntryPrice: string | null;   // TP-A; entered price (LIMIT, STOP), reference price of the last save (MARKET)
   stopLoss: string;
   takeProfit: string;
-  capital: string;
+  capital: string;                    // TP-D: profile defaultCapital at the last save, or at activation
   riskPercent: string;
   leverage: number | null;          // null on SPOT
   marginMode: 'ISOLATED' | null;
@@ -182,7 +185,7 @@ BR-36; D-111 E1/E2/E3/E5, D-112 R6, D-116.
 |---|---|
 | `pairId`, `market`, `direction`, `entryType`, `stopLoss`, `takeProfit` | required → MSG01 |
 | `entryPrice`, `stopLoss`, `takeProfit` | > 0, ≤ 16 integer / 12 decimal digits → MSG15; rounded to the tick (half-up) before checks |
-| `capital` | > 0, ≤ 20 / 8 digits → MSG15; absent and no profile default → MSG01 `errors.capital` |
+| `capital` | TP-D: not a request field (ignored if sent). The profile has no `defaultCapital` (or one ≤ 0) → MSG01 `errors.capital` on calculate, create, update and activate: link the Trader to SCR-07 |
 | `riskPercent` | 0.1–10, ≤ 3 decimals → MSG15 |
 | `leverage` | ≥ 1 → MSG15; SPOT with leverage ≠ 1 → MSG01 |
 | `direction` | SPOT with SHORT → MSG01 |
@@ -204,6 +207,29 @@ Calculation rejections (400, `errors`):
 
 Client-side mirror for SCR-17 (CR-05): check required fields, ranges and price order before calling
 `/calculate`, and fill MSG15/MSG16 placeholders yourself (`{min}`, `{max}`, `{direction}`, `{rule}`).
+
+## Account capital (TP-D)
+
+D-121, branch `feat/tp-d-account-capital`, not on `develop` yet. **Breaking for SCR-17.**
+
+- The capital of a plan is the Trader's account size: the `defaultCapital` of the profile
+  (`GET /me/profile`, set on SCR-07). Every plan of the Trader uses that one number.
+- `POST /plans/calculate`, `POST /plans` and `PUT /plans/{id}` **no longer accept `capital`**. A body
+  that still sends it is not refused; the value is ignored and the profile's capital is used.
+- The responses keep `capital` (calculation and plan detail), so the panel can show the figure.
+- **SCR-17:** make the capital field read-only, showing the profile value (or `capital` from the
+  last `/plans/calculate`), with a link "Change in Profile & Settings" to SCR-07. `riskPercent`
+  stays an input per plan, pre-filled from the profile as before.
+- **No default capital** (never set, cleared, or ≤ 0): calculate, create, update and activate answer
+  400 with `errors.capital` = MSG01. Show it on the capital field with the SCR-07 link.
+- **Snapshot:** each save stores the profile capital of that moment; activation recalculates the plan
+  on the profile capital of the activation (BR-31), so `capital`, `positionQuantity`, `riskAmount`
+  and the warnings of an ACTIVE plan may differ from its draft. A later profile change never
+  changes a stored plan.
+- **TOTAL_OPEN_RISK** divides the risk of all ACTIVE plans and open positions by the **current**
+  profile capital. INSUFFICIENT_CAPITAL (BR-25 Spot notional, BR-26 Futures margin) compares with
+  the plan's capital, checked again at activation.
+- After the Trader changes `defaultCapital` on SCR-07, recalculate an open SCR-17 panel.
 
 ## Plan validity (TP-A)
 
@@ -420,7 +446,6 @@ Request: `CreateTradingPlanRequest` (`activate` ignored).
   "entryPrice": "62000",
   "stopLoss": "60000",
   "takeProfit": "66000",
-  "capital": "1000",
   "riskPercent": "1"
 }
 ```
@@ -431,7 +456,7 @@ Response `200`:
 {
   "entryPrice": "62000.00",
   "expectedFillPrice": null,
-  "capital": "1000",
+  "capital": "1000.00000000",
   "riskPercent": "1",
   "snapshot": {
     "positionQuantity": "0.00500",
@@ -556,7 +581,7 @@ Response `200`: `TradingPlanResponse`.
   "pairId": "0199a0f0-1111-7aaa-8bbb-000000000001",
   "market": "SPOT", "direction": "LONG", "entryType": "LIMIT",
   "entryPrice": "62000.00", "stopLoss": "60000.00", "takeProfit": "66000.00",
-  "capital": "1000", "riskPercent": "1",
+  "capital": "1000.00000000", "riskPercent": "1",
   "leverage": null, "marginMode": null,
   "expiresAt": "2026-10-10T02:20:00Z", "note": null,
   "status": "DRAFT", "editable": true,

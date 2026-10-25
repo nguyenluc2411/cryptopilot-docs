@@ -2,6 +2,26 @@
 
 Newest first. Each entry names the `develop` SHA the guide was synced to.
 
+## 2026-10-25 — TP-D account capital, branch `feat/tp-d-account-capital`
+
+**Huy — BREAKING change for the web (from `develop` `5f29dc6`, not merged yet):**
+
+- **The capital input on SCR-17 must become read-only.** Show the profile's `defaultCapital` with a
+  link to SCR-07 (Profile & Settings). The Trader no longer types a capital per plan (D-121).
+- **`capital` is removed from the request** of `POST /plans/calculate`, `POST /plans` and
+  `PUT /plans/{id}`. If the web still sends it, it is ignored: the plan is sized on the profile's
+  capital, not on the typed value. Remove the field from the form state and the request types.
+- **`capital` stays in the responses** (`PlanCalculationResponse`, `TradingPlanResponse`) for display.
+- **New error path:** a profile without `defaultCapital` (or ≤ 0) answers 400 `errors.capital` =
+  MSG01 on calculate, create, update **and activate**. Show it on the read-only capital field with the
+  SCR-07 link.
+- Activation recalculates the plan on the profile capital of that moment, so an ACTIVE plan may show
+  a different `capital`, quantity and risk than its draft. TOTAL_OPEN_RISK divides by the current
+  profile capital.
+- `riskPercent` is unchanged: per plan, pre-filled from the profile.
+- `modules/trading-plan.md`: new section "Account capital (TP-D)"; `PlanInputs`, input rules and the
+  `/plans/calculate` example updated.
+
 ## 2026-10-25 — T-048a position of an executed plan, branch `feat/t-048a-journal-open`
 
 **Huy — visible change for the web (from `develop` `dccfc6c`, not merged yet; T-041 uses it):**
