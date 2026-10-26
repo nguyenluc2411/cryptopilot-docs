@@ -382,3 +382,33 @@ Vẫn trong migration `V36__community_extras.sql`, không thêm bảng. Test m�
 - Bố cục 3 cột: danh sách coin bên trái (giá, % 24h), feed ở giữa, bên phải là bài ghim, Top Influencers, thảo luận coin đang chọn, nội quy. Feed mặc định **Latest** (bài mới nhất trên cùng), For You / Following / Saved trong menu, 10 bài mỗi trang, phân trang có số (`?page=` trên URL). Dialog Post: ô Title và Content riêng, gõ `$` để chọn coin, Bullish/Bearish, ảnh, emoji. Follow và chặn trên thẻ bài, trang thành viên và menu bài.
 - **Chạy FE develop với BE develop:** Latest, đăng bài, comment, like, follow vẫn dùng được; Top Influencers, coin đang được bàn, vote và tab For You lỗi hoặc trống cho tới khi `feat/community-forum-extras` vào develop.
 - FE chưa làm phần còn lại của mục 13: dialog report comment, hàng đợi report comment trong SCR-36, gợi ý @mention.
+
+## 15. Gộp develop, đổi số migration, commit và push (26/10/2026, D-125)
+
+### 15.1 Gộp `develop` vào `feat/community-forum-extras`
+
+- `develop` `68617a1` (#71 … #80: plan fill, TP/SL/liquidation, manual close, TP-E, academy, news, PCI) được kéo vào nhánh bằng fast-forward rồi áp lại phần extras đang làm. 10 file conflict, tất cả là hai bên cùng thêm vào cuối danh sách nên **giữ cả hai**: `AuditAction`, `ErrorCode`, `NotificationType` (`COMMENT, SYSTEM, FOLLOW, MENTION`), `NotificationReference` (`NEWS_SOURCE, MEMBER`), `UserApi`, `UserServiceImpl`, `ErrorCodeTest`, `OpenApiDocsTest` (114 gốc + 42 develop + 17 extras = **173** operation), `BaselineSchemaTest` (danh sách bảng của develop sau PCI + `user_relation`), `expected-enums.csv`.
+- **Migration đổi số `V36__community_extras.sql` → `V48__community_extras.sql`** (develop đã dùng V36 … V47). Ràng buộc `ck_notification_type` trong V48 **giữ `SYSTEM`** mà V42 thêm, nếu không V48 sẽ xoá mất giá trị này.
+- Người dùng xác nhận lại: **giữ bảng `user_relation`** (bảng mới duy nhất của extras; follow/block là quan hệ người–người, không bảng nào hiện có chứa được). Phương án nhét vào `engagement` bị loại vì phải nới ràng buộc "đúng một mục tiêu" của bảng đó.
+
+### 15.2 Commit và push
+
+- Backend `feat/community-forum-extras` **`1b59c9f`** (1 commit, 93 file) đã push lên origin, **chưa mở PR** (người dùng cần cho buổi review trưa 26/10).
+- Kiểm thử trước khi push: `test-compile` sạch, 5 bộ test liên quan đến conflict đạt (`ErrorCodeTest` 210, `AuthorizationMatrixTest` 98, `BaselineSchemaTest` 44, `OpenApiDocsTest` 11, `SchemaCatalogueTest` 6). `clean verify` đầy đủ chạy sau khi push, kết quả ghi ở session log của `CURRENT_STATE.md`.
+
+### 15.3 System test qua API (BE + FE chạy thật, DB `cryptopilot_pci` v48)
+
+41/41 bước đạt, với hai tài khoản QA riêng (`qa.sys.a`, `qa.sys.b`):
+
+- Follow: tự follow / tự chặn bị từ chối (`FOLLOW_SELF`, `BLOCK_SELF`); follow có thông báo FOLLOW; danh sách follower / following; bài hiện ở tab Following.
+- Bài: sentiment và coin; vote mới thay vote cũ; lượt xem chỉ tính người khác, mỗi người một lần; like; trending coins; influencers; tìm thành viên.
+- Comment: @mention có thông báo COMMENT và MENTION; trả lời comment báo cho người được trả lời; không report comment của chính mình, không report hai lần; comment bị report vào hàng đợi admin, admin ẩn rồi khôi phục được.
+- Chặn: bài của người bị chặn biến mất khỏi feed, không comment được vào bài của họ, có danh sách chặn, bỏ chặn thì bài hiện lại.
+- **Người bị chặn thử follow người đã chặn mình nhận 404 "Member not found", không phải 409.** Đây là cố ý (`MemberServiceImpl.visibleMember`, D-125): người chặn mình biến mất như bị ban, việc bị chặn không bị lộ.
+- Không chạy thử ban trên DB demo (ban là vĩnh viễn, BR-05); phần ẩn nội dung của người bị ban có test tự động.
+
+### 15.4 Việc còn lại
+
+- Mở PR `feat/community-forum-extras` → `develop` sau buổi review.
+- Leader cập nhật SRS / logical model: bảng `user_relation`, `post_report.comment_id` và `reported_content`, `forum_post.sentiment`, các giá trị `VIEW`, `BULLISH`, `BEARISH`, `FOLLOW`, `MENTION` (A-53).
+- FE: dialog report comment, hàng đợi report comment trong SCR-36, gợi ý @mention (mục 14.2) vẫn chưa làm.
