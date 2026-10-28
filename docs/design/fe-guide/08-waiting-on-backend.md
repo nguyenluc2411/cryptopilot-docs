@@ -23,8 +23,8 @@ module files.
 |---|---|---|---|---|---|
 | 1 | Q-75: let a signed-in session subscribe to `/user/queue/notifications` | Defect | BE2 (notification) | **High**, one line and a test | Live bell (T-059); the web polls every 60 s meanwhile |
 | 2 | Q-76: opening a moderation case must not fail when two openings meet | Defect | BE2 (community) | Medium | Nothing today (the web sends one opening); two Admins see a false MSG43 |
-| 3b | Q-79: let an Admin sign a media upload for an announcement | Defect | BE2 (community) | Medium | Images and video in announcements (T-087); the web form omits media meanwhile |
-| 3c | Q-81: cache the Futures last price from the 1m klines (`MarketStreamSupervisor` returns before the cache) | Defect | BE1 (market) | **High**, one branch and a test | Every Futures MARKET plan, Futures invalidation price and Futures STOP activation (T-040) answers 503 MSG43 |
+| 3b | Q-81: let an Admin sign a media upload for an announcement | Defect | BE2 (community) | Medium | Images and video in announcements (T-087); the web form omits media meanwhile |
+| 3c | Q-83: cache the Futures last price from the 1m klines (`MarketStreamSupervisor` returns before the cache) | Defect | BE1 (market) | **High**, one branch and a test | Every Futures MARKET plan, Futures invalidation price and Futures STOP activation (T-040) answers 503 MSG43 |
 | 4 | Push `feat/t-085-pair-admin`, `feat/t-082-system-settings`, `feat/t-083-user-management`, `feat/t-086-reports` and open their PRs | Release | BE2 | **High** | Admin screens SCR-33…44 (T-087); Futures plans (T-040), since `leverage_bracket` is empty |
 | 5 | Merge PR #66 of `feature/TP-A-plan-validity` (Q-74 and Q-77 answered; one approval, 2026-10-24) | Release | BE1 | Medium | GY-03 scope of T-040 / T-041 (invalidation price, INVALIDATED; STOP stays hidden until TP-B) |
 | 6 | Missing data in existing endpoints: FEQ-02, M-09, Q-21, Q-31, FEQ-04 | Gap | see section 3 | Low…medium | see section 3 |
@@ -129,7 +129,7 @@ Admins can still meet it.
 **Test.** Two concurrent openings of a post with OPEN reports both answer 200 with the same reports,
 which end REVIEWING with their version raised once.
 
-### 1.4 Q-79 — an Admin cannot attach media to an announcement
+### 1.4 Q-81 — an Admin cannot attach media to an announcement
 
 **Symptom.** With an Admin's token, `POST /media/upload-signature` answers `403 ACCESS_DENIED`
 (MSG43), so the announcement form cannot upload an image or a video (checked on `develop` `796f408`).
@@ -157,7 +157,7 @@ still cannot use an Admin endpoint.
 **Web follow-up.** Show the media block of the form in the Official mode (one condition) and check the
 upload against the backend.
 
-### 1.5 Q-81 — the Futures last price is never cached (checked 2026-10-25 on `develop` `dccfc6c`)
+### 1.5 Q-83 — the Futures last price is never cached (checked 2026-10-25 on `develop` `dccfc6c`)
 
 **Symptom.** With live streams, `POST /plans/calculate` of a Futures MARKET plan answers
 `503 MARKET_PRICE_UNAVAILABLE` (MSG43) while Futures LIMIT plans calculate; the Redis hash
@@ -188,8 +188,8 @@ expected fill appears once the backend answers it.
 |---|---|---|---|
 | FEQ-02 | The caller's plan: tier, limits (`ACTIVE_PLAN_MAX`, `WATCHLIST_MAX` …), end date and usage, e.g. in `GET /me/profile` or `GET /billing/subscription` | Still missing: `billing` has no controller, the profile has no plan fields | Lock icons before a request (CR-08) on SCR-10/11/14; Subscription tab of SCR-07; "x of y" limits on SCR-08 |
 | M-09 | Futures last price and 24h statistics (last, change, high, low, quote volume) | Still missing: `FuturesStatsResponse` carries mark, index, funding, open interest, long/short ratio | Futures tab of SCR-09 and the SCR-11 header as SRS 3.3.1 describes them (mark price shown meanwhile) |
-| Q-80 | The maximum leverage of a Futures pair (`maxLeverage` in `GET /market/pairs`) and a Trader read of its brackets | Missing on `dccfc6c`: only `GET /admin/pairs/{id}/brackets` (ADMIN) | SCR-17 shows no maximum or leverage slider; a refusal says "above the maximum for this position size, or no brackets" |
-| Q-21 | Analysis push on each closed candle | OPEN (not re-checked) | The web re-reads `GET /analysis` on each closed kline |
+| Q-82 | The maximum leverage of a Futures pair (`maxLeverage` in `GET /market/pairs`) and a Trader read of its brackets | Missing on `dccfc6c`: only `GET /admin/pairs/{id}/brackets` (ADMIN) | SCR-17 shows no maximum or leverage slider; a refusal says "above the maximum for this position size, or no brackets" |
+| Q-21 | Analysis push on each closed candle | RESOLVED (D-126), branch `feat/t-029-analysis-push` | Subscribe to the analysis topic; re-read `GET /analysis` for the score when a message arrives |
 | Q-31 | Marker of alerts paused by a plan change | OPEN; PROPOSED 2026-10-22 `paused_reason` | BR-64 mark on SCR-13 |
 | FEQ-04 | Indicator series | OPEN (not re-checked) | The web computes the series for drawing (ADR-017) |
 

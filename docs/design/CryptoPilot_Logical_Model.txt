@@ -266,8 +266,12 @@ erDiagram
     varchar direction "LONG, SHORT"
     int leverage
     decimal entry_price
-    decimal stop_loss_price
-    decimal take_profit_price
+    decimal stop_loss_price "current; the only level the exits read, versioned (D-119, D-124)"
+    decimal take_profit_price "current (D-124)"
+    decimal original_stop_loss_price "at the fill, never changed (D-124)"
+    decimal original_take_profit_price "at the fill, never changed (D-124)"
+    boolean stop_widened "a stop loss was ever moved further from the entry than the original (D-124)"
+    int level_change_count "changes of the levels (D-124)"
     decimal exit_price
     decimal quantity
     timestamp entry_time
@@ -296,6 +300,17 @@ erDiagram
     varchar chart_image_url
     timestamp created_at
     timestamp updated_at
+  }
+
+  TRADING_JOURNAL_LEVEL_CHANGE {
+    uuid level_change_id PK
+    uuid journal_id FK "no cascade: trading history"
+    timestamp changed_at "the new levels act from the candle that opens at or after it (D-124)"
+    decimal old_stop_loss_price
+    decimal old_take_profit_price
+    decimal new_stop_loss_price
+    decimal new_take_profit_price
+    timestamp created_at
   }
 
   %% ================= PAPER TRADING (simulated exchange, owned by the Trader since V34, D-117) =================
@@ -611,6 +626,7 @@ erDiagram
   CRYPTO_PAIR ||--o{ TRADING_PLAN : targets
   TRADING_PLAN ||--o{ TRADING_PLAN_WARNING : raises
   TRADING_PLAN |o--o| TRADING_JOURNAL : "results in"
+  TRADING_JOURNAL ||--o{ TRADING_JOURNAL_LEVEL_CHANGE : "levels changed"
   USER ||--o{ TRADING_JOURNAL : writes
   CRYPTO_PAIR ||--o{ TRADING_JOURNAL : "traded on"
   TRADING_STRATEGY |o--o{ TRADING_JOURNAL : categorizes
