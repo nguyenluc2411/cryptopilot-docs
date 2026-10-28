@@ -2,6 +2,14 @@
 
 Newest first. Each entry names the `develop` SHA the guide was synced to.
 
+## 2026-10-28 — T-029 analysis push (D-126), branch `feat/t-029-analysis-push`
+
+**Web/mobile — new Trader-only topics:**
+
+- `/topic/analysis.{MARKET}.{SYMBOL}.{tf}`: indicators, S/R, `openTime` once per closed candle; no score — re-read `GET /analysis` for it.
+- `/topic/analysis.{MARKET}.{SYMBOL}.{tf}.components`: component scores (PRO/PREMIUM).
+- CONNECT takes `Authorization: Bearer …`; Futures needs `FUTURES_ANALYSIS`, `.components` needs `SCORE_COMPONENTS`; refusal = ERROR frame + closed connection; plan checked at SUBSCRIBE only (`05-realtime.md`).
+
 ## 2026-10-26 — TP-E: `levelsEffectiveFrom`, team lead answers
 
 **Huy — one new field, two rules confirmed:**

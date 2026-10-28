@@ -374,7 +374,7 @@ FE notes:
 - `null` anywhere = "Insufficient data" (fewer than 200 closed candles), never 0 (SRS 3.3.2).
 - The score's `timeframe` is the preset's (from the Trader's trading style), and can differ from the
   chart's `tf`. Show preset name + version and the MSG42 disclaimer on the card (D-53, BR-60).
-- Re-fetch when a `closed: true` kline of the same series arrives (no analysis push yet, Q-21).
+- Re-fetch when a message arrives on `/topic/analysis.{MARKET}.{SYMBOL}.{tf}` (D-126, branch `feat/t-029-analysis-push`); until that branch is merged, when a `closed: true` kline of the same series arrives.
   Values update about 10 s after the candle close (NSF-05).
 - FREE plan (D-60, CR-08): Spot answers 200 with `componentsLocked: true`, `components: null` and
   `setupScore.components: null`; the total `score`, `preset`, `presetVersion`, indicators and levels

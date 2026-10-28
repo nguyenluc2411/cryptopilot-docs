@@ -9,7 +9,7 @@ Code paths are relative to the `cryptopilot_project` root at `0d92def` unless a 
 
 | Id | Question (short) | Affects | Status |
 |---|---|---|---|
-| Q-21 | Analysis push: destination, payload, CONNECT authentication | T-032…T-034 live analysis | OPEN — until answered, re-read `GET /analysis` on each closed kline |
+| Q-21 | Analysis push: destination, payload, CONNECT authentication | T-032…T-034 live analysis | RESOLVED → D-126: `/topic/analysis.{MARKET}.{SYMBOL}.{tf}` (+ `.components`), see `05-realtime.md`; built on branch `feat/t-029-analysis-push` |
 | Q-30 | Unit of a FUNDING_RATE alert threshold (fraction vs percent) | T-059 alert dialog (SCR-14) | **CLOSED** (percent, \|x\| ≤ 5); the web sends percent since `61faec5` (web `develop` `fa962da`, 2026-10-21) |
 | Q-31 | Marker for alerts paused by a plan change (BR-64), and whether resume clears it | T-059 alert list (SCR-13) | OPEN |
 | Q-06 | Flutter chart library (ADR-012) | T-090 | OPEN |
