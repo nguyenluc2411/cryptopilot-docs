@@ -7,7 +7,7 @@
 | URL | `ws://<host>:8080/ws` (local: `ws://localhost:8080/ws`); `wss://` behind TLS |
 | Transport | Plain WebSocket (RFC 6455). **No SockJS** fallback |
 | Protocol | STOMP 1.2 frames over the socket |
-| Auth on CONNECT | None today. Every implemented topic is public; a bearer header is ignored |
+| Auth on CONNECT | Optional `Authorization: Bearer <access token>` header. Without it the session is anonymous (public topics only); an invalid token gets an ERROR frame and the connection is closed (D-126 (3)) |
 | Allowed browser origins | `CORS_ALLOWED_ORIGINS`, the list REST uses (D-83; `dev`: any localhost port, `prod`: none until set) |
 | Client libraries | Web `@stomp/stompjs`; Flutter `stomp_dart_client` (TD 9) |
 | Client → server messages | **Refused.** Any `SEND` gets an ERROR frame and the session is closed. Only `SUBSCRIBE`/`UNSUBSCRIBE` |
@@ -26,6 +26,10 @@ Spec: TD 9, D-51, ADR-005.
 | `/topic/ticker.{MARKET}.{SYMBOL}` | One pair's latest ticker | At most 1 message/s per destination (coalesced, latest wins) |
 | `/topic/kline.{MARKET}.{SYMBOL}.{tf}` | Candle updates of one series, forming and closed | Pushed every 1 s; all candles that changed in that second, oldest first. A closed candle is never coalesced away |
 | `/topic/overview.{MARKET}` | Latest ticker of every pair of the market seen since the backend started | Every 2 s |
+| `/user/queue/positions` | `PositionUpdate`: one of the caller's positions closed (T-048b, branch `feat/t-048b-journal-exits`) | When it happens |
+| `/user/queue/notifications` | Each new notification of the caller (SCR-15); admitted since T-048b (Q-75) | When it happens |
+| `/topic/analysis.{MARKET}.{SYMBOL}.{tf}` | `AnalysisUpdate`: indicators, S/R and `openTime` of the candle that just closed. **No score** — re-read `GET /analysis/{market}/{symbol}?tf=` for the score of the Trader's preset (T-029, D-126; branch `feat/t-029-analysis-push`) | Once per closed candle, after NSF-05 stored it |
+| `/topic/analysis.{MARKET}.{SYMBOL}.{tf}.components` | `AnalysisComponentsUpdate`: the component scores of that candle (same branch) | Once per closed candle |
 
 - `{MARKET}` is `SPOT` or `FUTURES` in upper case; `{SYMBOL}` upper case (`BTCUSDT`); `{tf}` is
   `15m`, `1h`, `4h` or `1d`.
@@ -41,10 +45,28 @@ Source: `backend/src/main/java/com/cryptopilot/market/service/impl/MarketBroadca
 
 | Destination | Purpose | Needs |
 |---|---|---|
-| `/user/queue/notifications` | Notification centre push (SCR-15) | Bearer on CONNECT (not built), T-056/T-059 |
-| `/user/queue/positions` | Live position updates (SCR-18) | T-042+ |
 | `/user/queue/ai` | AI answer ready | T-073 |
-| Analysis push per series | NSF-05 "pushed to clients viewing the pair" | **Q-21 open** — destination, payload and auth undecided. Re-read `GET /analysis` on each closed kline instead |
+
+### Who may subscribe to the analysis topics (D-126)
+
+- Session connected with a bearer token of a **TRADER** (a Guest or an ADMIN is refused).
+- `FUTURES` topics need a plan with `FUTURES_ANALYSIS`; `.components` needs `SCORE_COMPONENTS` (PRO and PREMIUM; FREE gets the Spot main topic only).
+- A refusal is an ERROR frame, then the server closes the connection — subscribe to a gated topic on its own connection, or only after reading the plan, so a refusal does not drop your ticker/kline subscriptions.
+- The plan is checked at SUBSCRIBE only: after an upgrade or downgrade, reconnect (or unsubscribe and subscribe again) to have the new plan applied.
+
+```ts
+interface AnalysisUpdate {
+  market: 'SPOT' | 'FUTURES'; symbol: string; timeframe: '15m' | '1h' | '4h' | '1d';
+  openTime: string; calculatedAt: string;
+  indicators: Indicators;            // same shape as GET /analysis
+  nearestSupport: string | null; nearestResistance: string | null;
+}
+interface AnalysisComponentsUpdate {
+  market: 'SPOT' | 'FUTURES'; symbol: string; timeframe: '15m' | '1h' | '4h' | '1d';
+  openTime: string;
+  components: SpotComponents | FuturesComponents; // same shapes as GET /analysis
+}
+```
 
 ## Payloads
 
@@ -113,6 +135,31 @@ when it is newer. Draw `closed: false` as provisional (SRS 3.3.2). The REST cand
 closed candles only, so the forming bar comes only from this topic.
 
 Source: `backend/src/main/java/com/cryptopilot/market/dto/response/KlineUpdateResponse.java#L26`.
+
+### Position update — `/user/queue/positions` (T-048b)
+
+Needs a CONNECT with the Bearer token; a guest, or `/user/{id}/queue/...`, is refused with an ERROR
+frame. Sent after the close commits; a lost push is not resent, so re-read `GET /plans/{id}` on
+reconnect.
+
+```ts
+interface PositionUpdate {
+  positionId: string;      // journal record id
+  planId: string;
+  market: 'SPOT' | 'FUTURES';
+  symbol: string | null;
+  status: 'CLOSED';
+  closeReason: 'TAKE_PROFIT' | 'STOP_LOSS' | 'LIQUIDATION';
+  exitPrice: string;
+  exitTime: string;        // ISO instant
+  realizedPnl: string;
+  feeAmount: string;
+  netPnl: string;
+  provisional: boolean;    // funding incomplete: netPnl may still change
+}
+```
+
+Source: `backend/src/main/java/com/cryptopilot/trading/dto/response/PositionUpdateResponse.java`.
 
 ### Overview — `/topic/overview.*`
 

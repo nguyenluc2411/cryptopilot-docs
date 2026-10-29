@@ -2,6 +2,101 @@
 
 Newest first. Each entry names the `develop` SHA the guide was synced to.
 
+## 2026-10-28 — T-029 analysis push (D-126), branch `feat/t-029-analysis-push`
+
+**Web/mobile — new Trader-only topics:**
+
+- `/topic/analysis.{MARKET}.{SYMBOL}.{tf}`: indicators, S/R, `openTime` once per closed candle; no score — re-read `GET /analysis` for it.
+- `/topic/analysis.{MARKET}.{SYMBOL}.{tf}.components`: component scores (PRO/PREMIUM).
+- CONNECT takes `Authorization: Bearer …`; Futures needs `FUTURES_ANALYSIS`, `.components` needs `SCORE_COMPONENTS`; refusal = ERROR frame + closed connection; plan checked at SUBSCRIBE only (`05-realtime.md`).
+
+## 2026-10-26 — TP-E: `levelsEffectiveFrom`, team lead answers
+
+**Huy — one new field, two rules confirmed:**
+
+- `position.levelsEffectiveFrom` (ISO instant or `null`): the open of the first 1-minute candle the
+  current levels act on after the last change. After "Edit SL/TP" or "Move SL to breakeven", show "New
+  levels apply from HH:mm"; until then the previous levels can still close the position (Q-80).
+- A stop moved beyond the risk profile stays a warning (`levelWarnings`); only a Futures stop at or past
+  `liquidationPrice` is refused (Q-79).
+
+## 2026-10-25 — TP-E built, branch `feat/tp-e-edit-open-levels`
+
+**Huy — the TP-E contract is built as written, with one correction:**
+
+- A 400 of `PATCH /plans/{id}/position-levels` carries the field's code in `errors.<field>` (MSG01,
+  MSG15, MSG16); the top-level `messageCode` is the generic validation code, as on plan entry. Read the
+  field codes, not `messageCode`.
+- Example `position` block added to "Edit the stop loss and take profit of an open position (TP-E)".
+
+## 2026-10-25 — TP-E edit SL/TP of an open position, branch `feat/tp-e-edit-open-levels`
+
+**Huy — new endpoint for SCR-18 (contract first; not built yet, from `develop` `883e7c6`):**
+
+- `PATCH /plans/{id}/position-levels` with `{ stopLoss?, takeProfit? }` → `TradingPlanResponse` with the
+  updated `position`. Errors: 400 MSG01/MSG15/MSG16 on the field, 404, 409 MSG43 (no OPEN position),
+  503 MSG43 (no current price).
+- New `position` fields: `stopLoss`, `takeProfit` (current), `originalStopLoss`, `originalTakeProfit`,
+  `stopWidened`, `levelChangeCount`, `levelChanges[]`, `breakevenPrice`, `breakevenProvisional`,
+  `levelWarnings[]` (PATCH response only).
+- SCR-18: "Edit SL/TP" on an OPEN position; "Move SL to breakeven" sends `breakevenPrice`, never the
+  entry price, with a tooltip that it covers the fees. New levels act from the next 1-minute candle.
+- TOTAL_OPEN_RISK counts an open position at its current stop loss (0 at or past the entry).
+- `modules/trading-plan.md`: new section "Edit the stop loss and take profit of an open position (TP-E)".
+
+## 2026-10-25 — T-046 manual close contract, branch `feat/t-046-manual-close`
+
+**Huy — new endpoints for SCR-19 (contract fixed by the team lead; stacked on PR #75, not built yet):**
+
+- `GET /plans/{id}/close-estimate` → `CloseEstimate` (current price, estimated exit price with
+  slippage, price result, entry fee, estimated exit fee, funding so far, estimated net P/L, `at`).
+- `POST /plans/{id}/close-position` (no body) → `TradingPlanResponse`, position `CLOSED`,
+  `closeReason: "MANUAL"`.
+- Errors: 404 not the caller's plan; 409 MSG43 no OPEN position; 503 MSG43 no current price.
+- The CLOSED position block keeps T-048b's names; the incomplete-funding flag is `provisional`.
+- `modules/trading-plan.md`: new section "Manual close of a position (T-046)".
+
+## 2026-10-25 — T-048b exits of a position, branch `feat/t-048b-journal-exits`
+
+**Huy — visible change for the web (PR #75 on `develop` `df573af`, not merged yet; T-041, T-047, T-059):**
+
+- **Positions close by themselves now**: take profit, stop loss, and on Futures liquidation by the
+  mark price. `position.status` becomes `CLOSED`; the plan stays `EXECUTED`.
+- **New fields in `position`** (CLOSED only, `null` while OPEN): `exitPrice`, `exitTime`,
+  `closeReason`, `realizedPnl`, `feeAmount`, `fundingFeeAmount`, `netPnl`, and `provisional` (boolean,
+  `false` while OPEN). Show realized, fees, funding and net separately; tag net as provisional when
+  `provisional` is true.
+- `position.liquidationPrice` is now the position's own, computed at the fill price (it was the
+  snapshot's estimate, which can differ after slippage or a gap).
+- **New push** `/user/queue/positions` (`PositionUpdate`) when a position closes, and
+  `/user/queue/notifications` is now admitted (Q-75): the bell can subscribe instead of polling.
+- **New activation refusal:** a stop loss the last price has already reached is 400 MSG16 on
+  `stopLoss` for LIMIT, STOP and MARKET (Activate and Save and Activate).
+- **Notifications** MSG23 / MSG24 with the net P/L.
+- A closed position frees its `ACTIVE_PLAN_MAX` slot and leaves TOTAL_OPEN_RISK.
+- `modules/trading-plan.md`: new section "Exits of a position (T-048b)"; `PositionResponse` type.
+  `05-realtime.md`: the two user queues and the `PositionUpdate` payload.
+
+## 2026-10-25 — TP-D account capital, branch `feat/tp-d-account-capital`
+
+**Huy — BREAKING change for the web (from `develop` `5f29dc6`, not merged yet):**
+
+- **The capital input on SCR-17 must become read-only.** Show the profile's `defaultCapital` with a
+  link to SCR-07 (Profile & Settings). The Trader no longer types a capital per plan (D-121).
+- **`capital` is removed from the request** of `POST /plans/calculate`, `POST /plans` and
+  `PUT /plans/{id}`. If the web still sends it, it is ignored: the plan is sized on the profile's
+  capital, not on the typed value. Remove the field from the form state and the request types.
+- **`capital` stays in the responses** (`PlanCalculationResponse`, `TradingPlanResponse`) for display.
+- **New error path:** a profile without `defaultCapital` (or ≤ 0) answers 400 `errors.capital` =
+  MSG01 on calculate, create, update **and activate**. Show it on the read-only capital field with the
+  SCR-07 link.
+- Activation recalculates the plan on the profile capital of that moment, so an ACTIVE plan may show
+  a different `capital`, quantity and risk than its draft. TOTAL_OPEN_RISK divides by the current
+  profile capital.
+- `riskPercent` is unchanged: per plan, pre-filled from the profile.
+- `modules/trading-plan.md`: new section "Account capital (TP-D)"; `PlanInputs`, input rules and the
+  `/plans/calculate` example updated.
+
 ## 2026-10-25 — T-048a position of an executed plan, branch `feat/t-048a-journal-open`
 
 **Huy — visible change for the web (from `develop` `dccfc6c`, not merged yet; T-041 uses it):**

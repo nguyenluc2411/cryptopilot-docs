@@ -157,6 +157,13 @@ Các thứ **không đổi:** engine paper, `PriceLevelBook`, STOMP `/user/queue
 
 `V35__drop_legacy_paper_tables.sql` ở PR riêng, sau khi develop chạy ổn tối thiểu 1 tuần và cả nhóm xác nhận.
 
+Rà lại ngày 26/10/2026 (BE3), sau khi PCI vào develop (#80, `V47__paper_into_core_schema.sql`):
+
+- Số migration: develop đã dùng tới V47 và `feat/community-forum-extras` giữ V48, nên migration xoá bảng legacy sẽ là **V49 trở đi**, không còn là V35.
+- `legacy_paper_account` và `legacy_paper_transfer` có **0 dòng** trên DB local và không còn code nào đọc. Migration xoá nên **dừng với lỗi nếu bảng còn dòng**, phòng máy khác hoặc staging còn dữ liệu.
+- `order_matching_watermark` và `matching_watermark` có **cột giống hệt nhau** (`market_type`, `pair_id`, `last_candle_open_time`, `updated_at`), mỗi engine một bảng. Gộp ở Pha 2 khi còn một engine (mục 7); nếu cần gộp sớm thì thêm cột `engine` (`PLAN` / `ORDER`) vào khoá chính.
+- Các cặp bảng khác của nhóm thị trường và giao dịch giả lập **không trùng vai trò** và giữ nguyên: `spot_market_data` / `futures_market_data` (bộ cột khác nhau), `futures_market_data` / `funding_rate_history` (snapshot so với các lần chốt funding thật), `ohlcv` / `technical_indicator`, `coin` / `crypto_pair`, `binance_ban` / `dropped_backfill_gap`. Dữ liệu giao dịch giả lập không nằm chung bảng với dữ liệu thị trường: một bên riêng từng người và bị cập nhật, bên kia công khai, chỉ thêm vào và có retention của TimescaleDB.
+
 ## 6. Kiểm thử
 
 ### 6.1 Migration (Testcontainers)

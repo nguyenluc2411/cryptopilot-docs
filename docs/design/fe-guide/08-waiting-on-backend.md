@@ -150,7 +150,7 @@ sending it again may place a second OCO / OTO / OTOCO, so the web does not retry
 |---|---|---|---|
 | FEQ-02 | The caller's plan: tier, limits (`ACTIVE_PLAN_MAX`, `WATCHLIST_MAX` …), end date and usage, e.g. in `GET /me/profile` or `GET /billing/subscription` | Still missing: `billing` has no controller, the profile has no plan fields | Lock icons before a request (CR-08) on SCR-10/11/14; Subscription tab of SCR-07; "x of y" limits on SCR-08 |
 | M-09 | Futures last price and 24h statistics (last, change, high, low, quote volume) | Still missing: `FuturesStatsResponse` carries mark, index, funding, open interest, long/short ratio | Futures tab of SCR-09 and the SCR-11 header as SRS 3.3.1 describes them (mark price shown meanwhile) |
-| Q-21 | Analysis push on each closed candle | OPEN (not re-checked) | The web re-reads `GET /analysis` on each closed kline |
+| Q-21 | Analysis push on each closed candle | RESOLVED (D-126), branch `feat/t-029-analysis-push` | Subscribe to the analysis topic; re-read `GET /analysis` for the score when a message arrives |
 | Q-31 | Marker of alerts paused by a plan change | OPEN; PROPOSED 2026-10-22 `paused_reason` | BR-64 mark on SCR-13 |
 | FEQ-04 | Indicator series | OPEN (not re-checked) | The web computes the series for drawing (ADR-017) |
 

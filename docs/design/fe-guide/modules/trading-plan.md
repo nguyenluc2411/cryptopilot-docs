@@ -9,13 +9,23 @@ Read first:
 - **Futures plans cannot be sized in any environment today.** No leverage brackets are stored (they
   need the admin screen, T-085), so every `market: "FUTURES"` calculate/create/activate answers 400
   `errors.leverage` MSG15 (D-70). FREE users get 403 MSG29 first.
-- No fills yet (matching engine T-042+): an ACTIVE plan, MARKET included, stays ACTIVE. `EXECUTED`,
-  `EXPIRED`, the live position block and close-position do not exist yet.
+- **Plans fill.** A MARKET plan, and a LIMIT the price already reached, fill at activation; the
+  engine fills a resting LIMIT and triggers a STOP (TP-B) later. A filled plan is `EXECUTED` and,
+  with T-048a, carries a `position` block (below). Still missing: `EXPIRED` (no expiry job yet,
+  so an ACTIVE plan past `expiresAt` stays ACTIVE) and closing a position (SCR-19, T-048b).
 - Plan responses carry `pairId` but **no symbol** (FEQ-01).
+- **Breaking (TP-D, D-121), branch `feat/tp-d-account-capital`, not on `develop` yet: no `capital`
+  in the requests.** Every plan is sized on the Trader's account size, the profile's
+  `defaultCapital` (SCR-07). SCR-17 shows the capital **read-only** with a link to SCR-07; it is no
+  longer an input. See "Account capital (TP-D)" below.
 - **Position of a filled plan (T-048a), branch `feat/t-048a-journal-open`, not on `develop` yet:**
   `GET /plans/{id}` (and the create / update / activate responses) carry a `position` block once the
   plan is `EXECUTED`, and list rows carry `positionStatus`. See "Position of an executed plan
-  (T-048a)" below. Closing a position (exits) is T-048b; until then every position stays `OPEN`.
+  (T-048a)" below.
+- **Exits (T-048b), branch `feat/t-048b-journal-exits`, not on `develop` yet:** the engine closes a
+  position by its take profit, stop loss or liquidation; the `position` block then carries the exit,
+  realized, fees, funding, net and `provisional`, and the change is pushed on `/user/queue/positions`.
+  See "Exits of a position (T-048b)" below.
 - **Plan validity (TP-A, D-111, D-112), branch `feature/TP-A-plan-validity`, not on `develop` yet:**
   STOP entry, invalidation price, own entry deviation limit, analysis timeframe, the INVALIDATED status
   and the setup score taken at activation. See "Plan validity (TP-A)" below.
@@ -37,7 +47,6 @@ interface PlanInputs {
   entryPrice?: string | null;         // LIMIT and STOP (the stop price): required; MARKET: ignored
   stopLoss: string;
   takeProfit: string;
-  capital?: string | null;            // default: profile defaultCapital
   riskPercent?: string | null;        // default: profile defaultRiskPercent, else risk profile's risk per trade
   leverage?: number | null;           // default 1; SPOT must be 1 or absent
   expiresAt?: string | null;          // LIMIT and STOP default now + 7 days
@@ -79,7 +88,7 @@ interface PlanCalculationResponse {
   entryPrice: string;                 // after tick rounding; MARKET: current last price (the reference price)
   expectedFillPrice: string | null;   // TP-0, MARKET only: entryPrice moved by SLIPPAGE_BPS against the Trader;
                                       // the price the quantity is sized on and fills at; = entryPrice at 0 bps
-  capital: string;                    // after defaults
+  capital: string;                    // TP-D: always the profile's defaultCapital; show read-only
   riskPercent: string;                // after defaults
   snapshot: PlanSnapshot;
   warnings: PlanWarning[];
@@ -96,7 +105,7 @@ interface TradingPlanResponse {
   plannedEntryPrice: string | null;   // TP-A; entered price (LIMIT, STOP), reference price of the last save (MARKET)
   stopLoss: string;
   takeProfit: string;
-  capital: string;
+  capital: string;                    // TP-D: profile defaultCapital at the last save, or at activation
   riskPercent: string;
   leverage: number | null;          // null on SPOT
   marginMode: 'ISOLATED' | null;
@@ -180,7 +189,7 @@ BR-36; D-111 E1/E2/E3/E5, D-112 R6, D-116.
 |---|---|
 | `pairId`, `market`, `direction`, `entryType`, `stopLoss`, `takeProfit` | required → MSG01 |
 | `entryPrice`, `stopLoss`, `takeProfit` | > 0, ≤ 16 integer / 12 decimal digits → MSG15; rounded to the tick (half-up) before checks |
-| `capital` | > 0, ≤ 20 / 8 digits → MSG15; absent and no profile default → MSG01 `errors.capital` |
+| `capital` | TP-D: not a request field (ignored if sent). The profile has no `defaultCapital` (or one ≤ 0) → MSG01 `errors.capital` on calculate, create, update and activate: link the Trader to SCR-07 |
 | `riskPercent` | 0.1–10, ≤ 3 decimals → MSG15 |
 | `leverage` | ≥ 1 → MSG15; SPOT with leverage ≠ 1 → MSG01 |
 | `direction` | SPOT with SHORT → MSG01 |
@@ -202,6 +211,29 @@ Calculation rejections (400, `errors`):
 
 Client-side mirror for SCR-17 (CR-05): check required fields, ranges and price order before calling
 `/calculate`, and fill MSG15/MSG16 placeholders yourself (`{min}`, `{max}`, `{direction}`, `{rule}`).
+
+## Account capital (TP-D)
+
+D-121, branch `feat/tp-d-account-capital`, not on `develop` yet. **Breaking for SCR-17.**
+
+- The capital of a plan is the Trader's account size: the `defaultCapital` of the profile
+  (`GET /me/profile`, set on SCR-07). Every plan of the Trader uses that one number.
+- `POST /plans/calculate`, `POST /plans` and `PUT /plans/{id}` **no longer accept `capital`**. A body
+  that still sends it is not refused; the value is ignored and the profile's capital is used.
+- The responses keep `capital` (calculation and plan detail), so the panel can show the figure.
+- **SCR-17:** make the capital field read-only, showing the profile value (or `capital` from the
+  last `/plans/calculate`), with a link "Change in Profile & Settings" to SCR-07. `riskPercent`
+  stays an input per plan, pre-filled from the profile as before.
+- **No default capital** (never set, cleared, or ≤ 0): calculate, create, update and activate answer
+  400 with `errors.capital` = MSG01. Show it on the capital field with the SCR-07 link.
+- **Snapshot:** each save stores the profile capital of that moment; activation recalculates the plan
+  on the profile capital of the activation (BR-31), so `capital`, `positionQuantity`, `riskAmount`
+  and the warnings of an ACTIVE plan may differ from its draft. A later profile change never
+  changes a stored plan.
+- **TOTAL_OPEN_RISK** divides the risk of all ACTIVE plans and open positions by the **current**
+  profile capital. INSUFFICIENT_CAPITAL (BR-25 Spot notional, BR-26 Futures margin) compares with
+  the plan's capital, checked again at activation.
+- After the Trader changes `defaultCapital` on SCR-07, recalculate an open SCR-17 panel.
 
 ## Plan validity (TP-A)
 
@@ -285,8 +317,10 @@ NSF-07; D-77, D-78, D-111, D-112. Nothing in the request or response shapes chan
 ## Position of an executed plan (T-048a)
 
 Branch `feat/t-048a-journal-open`, not on `develop` yet. When a plan fills (the engine fills a
-resting LIMIT, or a LIMIT / MARKET fills at activation) the journal records its position in the same
-transaction, and the plan responses expose it.
+resting LIMIT or triggers a STOP, or a LIMIT / MARKET fills at activation) the journal records its
+position in the same transaction, and the plan responses expose it. A plan that was `EXECUTED`
+before T-048a has no position: `position` and `positionStatus` are `null` (D-118 note; local
+databases are reset, nothing is backfilled).
 
 `TradingPlanResponse.position` — `null` until the plan is `EXECUTED`:
 
@@ -297,9 +331,18 @@ interface PositionResponse {
   quantity: string;           // the snapshot's positionQuantity
   entryTime: string;          // ISO instant: the 1-minute candle open of an engine fill, else the activation instant
   entryFee: string;           // fee paid on the entry, by liquidity role (maker / taker)
-  liquidationPrice: string | null;  // Futures: the snapshot's estimatedLiquidationPrice; null on Spot
+  liquidationPrice: string | null;  // Futures: at the fill price (T-048b; was the snapshot's estimate); null on Spot
   currentPrice: string | null;      // OPEN only: Futures mark price, Spot last price; null when CLOSED or not cached
   unrealizedPnl: string | null;     // OPEN only: (currentPrice − fillPrice) × quantity, LONG; mirrored for SHORT
+  // T-048b, CLOSED only (null while OPEN):
+  exitPrice: string | null;         // exit fill: TP at its price, SL after slippage, liquidation at liquidationPrice
+  exitTime: string | null;          // ISO instant: open of the 1-minute candle (last or mark price) that decided it
+  closeReason: 'TAKE_PROFIT' | 'STOP_LOSS' | 'LIQUIDATION' | null;   // MANUAL comes with T-046
+  realizedPnl: string | null;       // price result only, no fees, no funding (BR-35)
+  feeAmount: string | null;         // entry fee + exit fee; a liquidation: entry fee + clearance fee (BR-36)
+  fundingFeeAmount: string | null;  // Futures: signed funding known so far, + received / − paid; null on Spot
+  netPnl: string | null;            // realizedPnl − feeAmount + fundingFeeAmount (BR-38)
+  provisional: boolean;             // true: a funding settlement is still missing, netPnl may change; false while OPEN
 }
 ```
 
@@ -318,10 +361,232 @@ interface PositionResponse {
 - `TradingPlanSummaryResponse.positionStatus`: `OPEN` / `CLOSED` on `EXECUTED` rows, else `null`.
 - An open position keeps its `ACTIVE_PLAN_MAX` slot (BR-62): the MSG27 banner counts ACTIVE plans
   plus open positions. The TOTAL_OPEN_RISK warning (BR-29) also adds the risk of open positions.
-- Exits, close-position and the journal screens come later (T-048b, T-046, T-049).
+- Close-position and the journal screens come later (T-046, T-049).
 
 Source: `trading/dto/response/PositionResponse.java`; `trading/service/impl/TradingPlanServiceImpl.java`
 (`detail`, `list`). Spec: BR-34, BR-62, BR-29, UC-20, SCR-16, SCR-18, Q-55, D-119.
+
+## Exits of a position (T-048b)
+
+Branch `feat/t-048b-journal-exits`, not on `develop` yet. The engine closes an OPEN position on its
+own; the Trader does nothing. The plan stays `EXECUTED`; its `position.status` becomes `CLOSED`.
+
+| Exit | Price source | Fills at | Fee |
+|---|---|---|---|
+| Take profit | last price (1-minute candles) | the take profit, also when the candle opened beyond it | maker |
+| Stop loss | last price | the stop, or the candle open when it opened beyond it, then moved by `SLIPPAGE_BPS` against the Trader | taker |
+| Liquidation (Futures) | **mark** price | `liquidationPrice`, always | clearance fee instead of the taker fee |
+
+- **New activation refusal:** a plan whose stop loss the current last price has already reached
+  (LONG last ≤ SL, SHORT last ≥ SL) is refused with 400 MSG16 on `stopLoss`, for LIMIT, STOP and
+  MARKET, on Activate and on Save and Activate. Futures checks the last price, never the mark. Show it
+  on the stop loss field.
+- One candle reaching both levels: the level its open is already at or beyond decides; otherwise the
+  stop loss wins (Q-61, BR-35).
+- The candle in which the entry filled can only stop the position out, never take profit (the order
+  inside the minute is unknown). A LIMIT that filled at activation already beyond its stop loss exits
+  at once at its entry price.
+- A CLOSED example (T-044 case (c), a liquidation):
+
+```json
+"position": {
+  "status": "CLOSED", "fillPrice": "100.000000000000", "quantity": "2.000000000000",
+  "entryTime": "2026-10-25T08:01:00Z", "entryFee": "0.04000000", "liquidationPrice": "90.370000000000",
+  "currentPrice": null, "unrealizedPnl": null,
+  "exitPrice": "90.370000000000", "exitTime": "2026-10-25T08:02:00Z", "closeReason": "LIQUIDATION",
+  "realizedPnl": "-19.26000000", "feeAmount": "0.76296000", "fundingFeeAmount": "0.00000000",
+  "netPnl": "-20.02296000", "provisional": false
+}
+```
+
+- Show realized, fees, funding and net separately (D-97). **Net is the P/L to headline**; it is the
+  `{pnl}` of MSG23 / MSG24.
+- `provisional: true` means a funding settlement of the position was not stored yet when it closed.
+  Show the net with a "provisional" tag; the backend recomputes it once the settlement arrives (every
+  10 minutes) and the next read shows the final value. A close is never delayed by this.
+- A closed position frees its `ACTIVE_PLAN_MAX` slot (MSG27) and leaves the TOTAL_OPEN_RISK warning.
+- The Trader gets a notification: MSG23 "{pair} position closed by take profit|stop loss at {price}.
+  P/L: {net}." or MSG24 "{pair} position was liquidated at {price}. Loss: {net}." (`type` PLAN,
+  `referenceType` PLAN, `referenceId` = the plan id).
+- Push: `/user/queue/positions` sends a `PositionUpdate` when a position closes (see
+  `05-realtime.md`); re-read `GET /plans/{id}` for the full block.
+
+Source: `trading/matching/ExitRule.java`, `trading/service/impl/PositionCloser.java`,
+`trading/job/PositionUserFeed.java`, `trading/dto/response/PositionUpdateResponse.java`. Spec: BR-35,
+BR-36, BR-37, BR-38, UC-20, SCR-18, MSG23, MSG24, D-97, Q-56, Q-57, Q-59, Q-61.
+
+## Manual close of a position (T-046)
+
+Branch `feat/t-046-manual-close`, stacked on T-048b (PR #75), not on `develop` yet. Contract fixed by
+the team lead on 2026-10-25; build SCR-19 (Close Position pop-up, MSG21) on it. Spec: UC-21, BR-39,
+BR-36, BR-38, MSG21, MSG23.
+
+**1. Estimate** — `GET /api/v1/plans/{id}/close-estimate` → 200:
+
+```ts
+interface CloseEstimate {
+  currentPrice: string;        // current last price (Futures: the last price, never the mark price)
+  estimatedExitPrice: string;  // currentPrice moved by SLIPPAGE_BPS against the Trader (a taker sell for LONG, buy for SHORT), on the tick
+  priceResult: string;         // (estimatedExitPrice − fillPrice) × quantity for LONG, mirrored for SHORT
+  entryFee: string;            // the entry fee stored at the fill
+  estimatedExitFee: string;    // estimatedExitPrice × quantity × taker rate of the market
+  fundingSoFar: string | null; // Futures: signed funding settled since the fill, + received / − paid; null on Spot
+  fundingProvisional: boolean; // true: a settlement may still be missing from fundingSoFar; false on Spot
+  estimatedNetPnl: string;     // priceResult − entryFee − estimatedExitFee + (fundingSoFar ?? 0)
+  at: string;                  // ISO instant the estimate was computed
+}
+```
+
+- MSG21 "Close this position at about {price}? Estimated P/L: {pnl}." uses `estimatedExitPrice` and
+  `estimatedNetPnl`. The estimate is not stored and does not reserve the price: the close executes at
+  the price of its own moment.
+
+**2. Close** — `POST /api/v1/plans/{id}/close-position` (no body) → 200 `TradingPlanResponse` whose
+`position` is `CLOSED` with `closeReason: "MANUAL"`. The close is a taker sell (LONG) or buy (SHORT) at
+the current last price moved by `SLIPPAGE_BPS`; exit fee at the taker rate; funding up to the close;
+net P/L as for every exit (BR-38). The Trader also gets MSG23 (`{reason}` "manual close") and a
+`PositionUpdate` on `/user/queue/positions`.
+
+**Errors (both endpoints)**
+
+| Status | `messageCode` | When |
+|---|---|---|
+| 404 | — (`NOT_FOUND`) | the plan is not the caller's |
+| 409 | MSG43 | the plan has no OPEN position (not executed yet, or already closed, e.g. by the engine first) |
+| 503 | MSG43 | no current last price is cached for the pair |
+
+**Field names of the CLOSED position block** are those of T-048b ("Exits of a position" above):
+`exitPrice`, `exitTime`, `closeReason`, `realizedPnl`, `feeAmount`, `fundingFeeAmount`, `netPnl` and the
+boolean **`provisional`** (there is no `fundingIncomplete` field in the response: `provisional` is that
+flag, true while a funding settlement is missing).
+
+Source: `trading/controller/TradingPlanController.java`, `trading/dto/response/CloseEstimateResponse.java`.
+
+## Edit the stop loss and take profit of an open position (TP-E)
+
+Branch `feat/tp-e-edit-open-levels`, not on `develop` yet. Decision D-124 (team lead, 2026-10-23):
+a Trader may move the stop loss and the take profit of an OPEN position. Partial closing stays out
+(D-11). Build "Edit SL/TP" on SCR-18 on this contract. Spec: UC-21, BR-22, BR-28, BR-29, BR-42, D-124.
+
+**Request** — `PATCH /api/v1/plans/{id}/position-levels` (`id` = the plan id, as for close-position):
+
+```ts
+interface ChangePositionLevelsRequest {
+  stopLoss?: string | null;    // new stop loss; absent or null keeps the current one
+  takeProfit?: string | null;  // new take profit; absent or null keeps the current one
+}
+```
+
+- At least one of the two → otherwise 400 MSG01 on `stopLoss`.
+- Each value > 0, ≤ 16 integer / 12 decimal digits → MSG15; rounded to the pair's tick (half-up)
+  before every check, as on plan entry.
+- Checked against the **current last price** (Futures: the last price, never the mark price), MSG16
+  on the field:
+  - LONG: `stopLoss < lastPrice < takeProfit`; SHORT: `takeProfit < lastPrice < stopLoss`;
+  - a level the last price has already reached is refused, never executed at once;
+  - Futures: the stop loss must stay before `position.liquidationPrice` (LONG above it, SHORT below
+    it). This one is blocking, as on plan entry (BR-28).
+- Only the fields sent are checked; a value equal to the current level changes nothing.
+
+**Response** — 200 `TradingPlanResponse`, with `position` updated. New fields of `PositionResponse`
+(on every read of the plan, OPEN and CLOSED):
+
+```ts
+interface PositionResponse {
+  // ... T-048a / T-048b / T-046 fields unchanged ...
+  stopLoss: string | null;            // the CURRENT stop loss (the exits use this one)
+  takeProfit: string | null;          // the CURRENT take profit
+  originalStopLoss: string | null;    // the levels at the fill; never change (= the plan's stopLoss / takeProfit)
+  originalTakeProfit: string | null;
+  stopWidened: boolean;               // true once a stop loss was moved further from the entry than the original
+  levelChangeCount: number;           // how many changes were made
+  levelChanges: LevelChange[];        // every change, oldest first; [] when none
+  breakevenPrice: string | null;      // OPEN only, see "Move SL to breakeven"; null when CLOSED
+  breakevenProvisional: boolean;      // true: a funding settlement may be missing from it (Futures)
+  levelWarnings: PlanWarningResponse[];  // only in the PATCH response, see "Warnings"; [] on every other read
+  levelsEffectiveFrom: string | null;    // ISO instant: open of the first 1m candle the current levels act on; null if never changed
+}
+
+interface LevelChange {
+  changedAt: string;                  // ISO instant of the change
+  oldStopLoss: string | null;  oldTakeProfit: string | null;
+  newStopLoss: string | null;  newTakeProfit: string | null;
+}
+```
+
+**When a new level acts (approved, Q-80).** The exits use the new levels from the next 1-minute
+candle (a candle that opened at or after `changedAt`); the rest of the minute in which the change was
+made is still decided by the previous levels, so a replay after downtime gives the same exit as live
+processing (the same rule as a plan activated in the middle of a minute). Show
+`position.levelsEffectiveFrom` after a save: "New levels apply from HH:mm" (local time of that
+instant). Until then the previous levels can still close the position. Exit pricing does not change: a stop loss exits as a taker with slippage, a take profit at
+its own price as a maker.
+
+**Result in R.** The realized R of the journal keeps the ORIGINAL planned risk (BR-42): moving a stop
+does not change the risk the trade is measured against, so a widened stop that is then hit shows a loss
+larger than −1R. Show `stopWidened` on SCR-18 and in the journal ("stop moved away"), and the history
+from `levelChanges`; the AI review uses the same data.
+
+**Move SL to breakeven.** A stop loss at the entry price still loses the fees. `breakevenPrice` is the
+stop price at which the net P/L is zero: the entry fee paid, the taker exit fee and the slippage of the
+stop, and on Futures the funding so far. It is on the tick and rounded against the Trader (LONG up,
+SHORT down). The shortcut button sends `{ "stopLoss": breakevenPrice }`, **never the bare entry
+price**; tooltip: "Moves the stop to the price that covers the entry fee, the exit fee and slippage
+(and funding so far), so a stop-out ends at about zero net P/L." Tag it "provisional" when
+`breakevenProvisional` is true. The button can only succeed once the last price is beyond
+`breakevenPrice` (LONG above, SHORT below); otherwise the request answers MSG16 on `stopLoss`, so
+disable it until then.
+
+**Warnings** (`position.levelWarnings`, non-blocking, shown like MSG17): when the change widens the
+stop loss (further from the entry than the current one) and the new risk breaks a limit of the risk
+profile:
+
+| `type` | When |
+|---|---|
+| `OVERSIZED_POSITION` | the position's risk at the new stop / profile capital > the profile's risk per trade |
+| `TOTAL_OPEN_RISK` | the open risk with the new stop / profile capital > the profile's maximum total open risk |
+
+The change is saved anyway: these stay warnings (team lead, Q-79). Only a Futures stop loss at or past
+`liquidationPrice` is refused (MSG16).
+
+**Open risk.** TOTAL_OPEN_RISK (the risk panel warning, BR-29) now counts an open position at its
+CURRENT risk: quantity × |entry − current stop loss| when the stop is on the losing side, 0 once the
+stop is at or past the entry. Moving a stop to breakeven frees the risk budget for new plans.
+
+**Errors**
+
+A 400 is a validation answer like plan entry: the code of each refused field is in `errors.<field>`
+(the top-level `messageCode` is the generic validation code, not the field's).
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `errors.stopLoss` MSG01 | neither `stopLoss` nor `takeProfit` sent |
+| 400 | `errors.<field>` MSG15 | a value ≤ 0 or with too many digits |
+| 400 | `errors.<field>` MSG16 | wrong side of the current last price, already reached, or (Futures) the stop loss at or past `liquidationPrice` |
+| 401 | MSG44 | no valid session |
+| 404 | — (`NOT_FOUND`) | the plan is not the caller's |
+| 409 | MSG43 | the plan has no OPEN position: not executed, already closed, or closed (by TP, SL, liquidation or a manual close) while the change was being made; nothing changed |
+| 503 | MSG43 | no current last price is cached for the pair |
+
+Status: built, **PR #77** into `develop` (`feat/tp-e-edit-open-levels` on `008efac`), not merged yet.
+Example `position` after `{ "stopLoss": 97.004, "takeProfit": 112 }` on a Futures LONG 2 at 100 (stop 95,
+take profit 110, maker entry fee 0.04, 10 bps slippage):
+
+```json
+"position": {
+  "status": "OPEN", "fillPrice": "100.000000000000", "quantity": "2.000000000000",
+  "stopLoss": "97.000000000000", "takeProfit": "112.000000000000",
+  "originalStopLoss": "95.000000000000", "originalTakeProfit": "110.000000000000",
+  "stopWidened": false, "levelChangeCount": 1,
+  "levelChanges": [{ "changedAt": "2026-10-25T08:02:30Z", "oldStopLoss": "95.000000000000",
+    "oldTakeProfit": "110.000000000000", "newStopLoss": "97.000000000000", "newTakeProfit": "112.000000000000" }],
+  "breakevenPrice": "100.19", "breakevenProvisional": false, "levelWarnings": [],
+  "levelsEffectiveFrom": "2026-10-25T08:03:00Z"
+}
+```
+
+Source: `trading/controller/PositionLevelController.java`,
+`trading/service/impl/PositionLevelServiceImpl.java`, `trading/calculator/BreakevenCalculator.java`.
 
 ## Entry deviation at MARKET activation (TP-C)
 
@@ -416,7 +681,6 @@ Request: `CreateTradingPlanRequest` (`activate` ignored).
   "entryPrice": "62000",
   "stopLoss": "60000",
   "takeProfit": "66000",
-  "capital": "1000",
   "riskPercent": "1"
 }
 ```
@@ -427,7 +691,7 @@ Response `200`:
 {
   "entryPrice": "62000.00",
   "expectedFillPrice": null,
-  "capital": "1000",
+  "capital": "1000.00000000",
   "riskPercent": "1",
   "snapshot": {
     "positionQuantity": "0.00500",
@@ -552,7 +816,7 @@ Response `200`: `TradingPlanResponse`.
   "pairId": "0199a0f0-1111-7aaa-8bbb-000000000001",
   "market": "SPOT", "direction": "LONG", "entryType": "LIMIT",
   "entryPrice": "62000.00", "stopLoss": "60000.00", "takeProfit": "66000.00",
-  "capital": "1000", "riskPercent": "1",
+  "capital": "1000.00000000", "riskPercent": "1",
   "leverage": null, "marginMode": null,
   "expiresAt": "2026-10-10T02:20:00Z", "note": null,
   "status": "DRAFT", "editable": true,
@@ -652,6 +916,14 @@ Response `200`: `TradingPlanResponse` (`status: "CANCELLED"`).
 Source: `trading/controller/TradingPlanController.java#L154`. Spec: SRS 3.5.3, UC-19.
 
 ---
+
+### PATCH /plans/{id}/position-levels
+Status: BUILT, PR #77 into `develop`, not merged yet (TP-E)
+Auth: trader
+Purpose: Change the stop loss and/or take profit of the caller's OPEN position (D-124, SCR-18).
+
+See "Edit the stop loss and take profit of an open position (TP-E)" above.
+Source: `trading/controller/PositionLevelController.java`. Spec: UC-21, BR-22, BR-28, BR-29, D-124.
 
 ### POST /plans/{id}/close-position
 Status: PLANNED (spec only)

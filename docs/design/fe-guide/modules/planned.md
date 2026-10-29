@@ -178,33 +178,33 @@ Source: none. Spec: TD 8, BR-44.
 
 ### GET /news
 Status: BUILT 2026-10-25 on `feature/T-080-news-api` (`cdfefd7`, local, stacked on T-079; not merged)
-Auth: trader (401 without a session, 403 for ADMIN); every plan sees the same items (D-122, no `NEWS_AI_INSIGHT` gate)
+Auth: trader (401 without a session, 403 for ADMIN); every plan sees the same items (D-126, no `NEWS_AI_INSIGHT` gate)
 Purpose: News feed, newest first (UC-34, SCR-28; also the news blocks of SCR-08/10/11 with `coin`).
 Request (all optional): `coin` symbol, any case (`btc`); `sentiment` `BULLISH|NEUTRAL|BEARISH`, any case; `range` `24h|7d|30d`, any case, **7d by default**; `page` from 1; `pageSize` 1–100, 20 by default.
 Response 200 `PageResponse`: `{ items, page, pageSize, total }`; each item
 `{ articleId, title, originalTitle, source, originalUrl, publishedAt, summary, aiSummarized, sentiment, coins: [{ symbol, primary }] }`.
-- `title`: Vietnamese headline once summarized (D-123), else the collected one; `originalTitle` always the outlet's.
+- `title`: Vietnamese headline once summarized (D-127), else the collected one; `originalTitle` always the outlet's.
 - `summary`: the AI summary (Vietnamese, ≤ 60 words) when `aiSummarized`, else the feed excerpt; may be `null`.
 - `sentiment`: absent until the article is summarized (show no chip). `coins`: primary first.
 - An unknown `coin` answers an empty page, not an error. Open `originalUrl` in a new tab (SRS 3.8.1).
 Errors: 400 with `errors.sentiment`, `errors.range`, `errors.page` or `errors.pageSize` = `MSG15`.
-Source: `news/controller/NewsController`. Spec: TD 8, SRS 3.8.1, UC-34, D-122, D-123.
+Source: `news/controller/NewsController`. Spec: TD 8, SRS 3.8.1, UC-34, D-126, D-127.
 
 ### GET /news/sentiment-summary
 Status: BUILT 2026-10-25 (`cdfefd7`, as above)
-Auth: trader, every plan (D-122)
+Auth: trader, every plan (D-126)
 Purpose: the 24h summary bar of SCR-28.
 Response 200: `{ since, bullish, neutral, bearish }` — articles published since `since` (now − 24 h) per sentiment; articles not summarized yet are not counted.
 Source: `news/controller/NewsController`. Spec: TD 8, SRS 3.8.1.
 
-### POST /admin/news-sources/{id}/crawl — crawl now (T-080b, D-124)
+### POST /admin/news-sources/{id}/crawl — crawl now (T-080b, D-128)
 Status: BUILT 2026-10-25 on `feature/T-080b-news-admin` (`43ff01a`, local, stacked on T-080; not merged)
 Auth: admin. Body: none. Works on a source that is switched off too.
 **Confirm first (SCR-41):** before calling, show a dialog built from the source row (`GET /admin/news-sources` or `/{id}`): `crawlIntervalMinutes`, `lastCrawledAt`, `nextCrawlAt`, `active`. Suggested text (vi): *"Nguồn **{sourceName}** được hệ thống tự động crawl **mỗi {crawlIntervalMinutes} phút**. Lần gần nhất: **{lastCrawledAt}** ({n} phút trước). Lần kế tiếp: **{nextCrawlAt}**. Bạn vẫn muốn crawl ngay?"* `[Huỷ]` `[Crawl ngay]`. When `active` is false: *"Nguồn đang tắt, hệ thống không tự crawl."* in place of the next time; when never crawled: *"Chưa crawl lần nào."*
 Response 200: the crawl log entry `{ crawlLogId, startedAt, finishedAt, status, articlesFound, articlesInserted, errorMessage }`; then refresh the row (its next crawl is now + interval).
 Errors: 404 MSG41; **429 `NEWS_SOURCE_CRAWLED_RECENTLY` MSG50**, `messageArgs[0]` = seconds to wait (crawled less than a minute ago).
 
-### GET /admin/news-articles (T-080b, D-124)
+### GET /admin/news-articles (T-080b, D-128)
 Status: BUILT 2026-10-25 (`43ff01a`, as above). Auth: admin.
 Request: `status` `PENDING|FAILED|SUMMARIZED|HIDDEN` (any case), `sourceId`, `page`, `pageSize` (CR-04). Newest first, hidden ones included.
 Response 200 `PageResponse` of `{ articleId, sourceId, source, title, aiTitle, originalUrl, excerpt, aiSummary, sentiment, publishedAt, collectedAt, status, summaryAttempts, summaryError, summaryAttemptedAt, hiddenAt }`.

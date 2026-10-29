@@ -325,3 +325,90 @@ Gỡ trên nhánh `feat/cf-07-scope-trim` (tách từ `cf-06` đã merge `origin
 - Xoá API `/posts/trending`, `/posts/coins/{symbol}/sentiment`, `/community/members/{id}/follow`, `/followers`, `/following`; bỏ filter `sentiment`, `hashtag`, tab FOLLOWING, trường `sentiment`, `hashtags[]` của bài; bỏ `followers`, `following`, `followedByMe` của profile; bỏ `ErrorCode.FOLLOW_SELF`, `NotificationType.FOLLOW`, `NotificationReference.MEMBER`.
 - Giữ `GET /community/members/{id}` và filter `author`, `q` của feed. Test tìm kiếm chuyển sang `SearchApiTest`.
 
+
+## 13. Làm thêm sau khi merge (25/10/2026, D-125)
+
+Người dùng mở lại phạm vi để forum đủ như một diễn đàn: lấy lại E-6 (follow), thêm chặn người dùng, report comment, thông báo reply, @mention, lượt xem, và ẩn nội dung của người bị ban. Quy tắc của người dùng: **không tạo thêm bảng riêng**, chỉ một bảng mới cho quan hệ giữa thành viên.
+
+Nhánh `feat/community-forum-extras` (từ `origin/develop` `5f29dc6`), migration **V36** `V36__community_extras.sql`. PCI cũng đang giữ V35 và sẽ phải đổi lên V36: nhánh nào merge sau thì đổi số.
+
+| Tính năng | Lưu ở đâu | API |
+|---|---|---|
+| Follow (E-6) và chặn | Bảng mới `user_relation (source_user_id, target_user_id, relation_type FOLLOW/BLOCK)`, một dòng mỗi chiều nên follow và chặn loại trừ nhau | `POST/DELETE /community/members/{id}/follow`, `/block`; `GET /community/members/{id}/followers`, `/following` (công khai); `GET /community/blocks` (của mình) |
+| Report comment | `post_report` thêm `comment_id` (null = report bài) và `reported_content` (text lúc report); hai partial unique index thay `uq_post_report_post_reporter`; action mới `HIDE_COMMENT`, `REMOVE_COMMENT`, CHECK action khớp loại report | `POST /comments/{id}/reports`; admin `GET /admin/comment-reports-queue`, `GET .../{commentId}`, `POST .../{commentId}/decision`, `POST /admin/comments/{id}/restore` |
+| Thông báo reply | Không đổi DB; `PostCommented` thêm `repliedToAuthorId` | type `COMMENT`, "X replied to your comment." |
+| @mention | Không lưu; request bài và comment thêm `mentions: [userId]` (tối đa 10); type thông báo mới `MENTION`, khoá nguồn theo bài/comment + người nên sửa bài không báo lại | `GET /community/members?q=` (gợi ý tên, tối đa 10) |
+| Lượt xem | `engagement` thêm action `VIEW` (chỉ cho bài), mỗi người đăng nhập khác tác giả tính một lần, khách không tính | `viewCount` trong thẻ và chi tiết bài |
+| Ẩn nội dung người bị ban | Không đổi DB; event mới `user.event.AccountBanned` ở cả hai đường ban; `BannedMemberListener` ẩn bài và comment còn PUBLISHED, xoá follow và chặn của họ | — |
+
+Quy tắc nghiệp vụ:
+
+- Không follow hay chặn chính mình (`FOLLOW_SELF`, `BLOCK_SELF`), không follow hay chặn Admin (`RELATION_NOT_ALLOWED`; Admin chỉ đăng bài official mà tab Following bỏ qua, và không đọc được `/notifications`). Bỏ follow hay bỏ chặn người chưa có quan hệ vẫn trả 200.
+- Chặn có hiệu lực **hai chiều** (`CommunityAccess`): A chặn B thì cả A lẫn B không thấy bài (mọi tab trừ MINE, kể cả mở link trực tiếp), comment, số comment của nhau; không like, lưu, report, comment hay reply nội dung của nhau. Nội dung bị chặn trả **404 (MSG41)** như không tồn tại, để không lộ việc bị chặn. Follow xoá hai chiều; B follow A trả 404, A follow B trả `RELATION_NOT_ALLOWED` (409, A phải bỏ chặn trước). Mention và gợi ý tên bỏ qua người có quan hệ chặn.
+- Trang cá nhân: B mở trang A (người chặn mình) nhận 404, kể cả danh sách follower/following của A; A vẫn mở được trang B (`blockedByMe = true`) để bỏ chặn. Danh sách follower/following của bất kỳ ai cũng bỏ qua những người có quan hệ chặn với người đang xem.
+- Comment bị ẩn: tác giả không sửa, không xoá được (giữ nguyên cho kiểm duyệt); nếu là comment đầu thread còn reply thì hiện placeholder `hidden = true`, không có nội dung và tác giả. `REMOVE_COMMENT` chuyển comment sang DELETED.
+- Hàng đợi report bài chỉ gồm report có `comment_id` null; quyết định bài từ chối `HIDE_COMMENT`/`REMOVE_COMMENT` (400), quyết định comment từ chối `HIDE_POST`/`REMOVE_POST` (400). Audit mới: `COMMENT_HIDDEN`, `COMMENT_REMOVED`, `COMMENT_RESTORED`, entity `FORUM_COMMENT`.
+- Mention bỏ qua id không tồn tại, bị ban, Admin, chính tác giả: không báo lỗi, vì danh sách gợi ý có thể đã cũ.
+- Khi ban: nội dung bị ẩn không ghi audit từng dòng (lệnh ban đã có audit). Admin **không** khôi phục được bài hay comment của người đã bị ban (`AUTHOR_BANNED`, 409), vì ban là vĩnh viễn.
+- Mỗi bài hoặc comment báo mention cho tối đa 10 người, tính dồn qua mọi lần sửa (đếm theo khoá nguồn trong `notification`, dưới advisory lock theo bài/comment nên hai lần sửa cùng lúc cũng không vượt 10).
+- Dashboard admin (T-086): `openReports` chỉ đếm report bài, thêm `openCommentReports` cho report comment.
+- Follow và chặn khoá theo từng cặp thành viên (`UserLock`, scope `community-relation`), để follow ngược lại không lọt qua lúc đang bị chặn.
+- Số comment của bài (`commentCount`) không tính comment của người có quan hệ chặn với người xem, khớp với danh sách comment.
+- Còn lại (chấp nhận): thông báo cũ do người kia tạo trước khi chặn vẫn nằm trong hộp thông báo, bấm vào sẽ ra 404; các con số tổng hợp công khai (số bài, số follower, thảo luận theo coin) vẫn đếm mọi người.
+
+Còn lại cho FE: nút follow/chặn trên trang thành viên, danh sách chặn, dialog report comment, hàng đợi comment trong SCR-36, ô gợi ý @mention, placeholder comment bị ẩn, hiện `viewCount`.
+
+## 14. Giao diện kiểu CoinMarketCap Community (25–26/10/2026, D-99, D-125)
+
+Người dùng yêu cầu FE community giống khoảng 90% trang CoinMarketCap Community (ảnh tham khảo chỉ để trên máy, không commit). Quyết định của người dùng: tiêu đề bài do người viết tự gõ (không tự sinh); bỏ Repost, Poll, GIF và Live. Articles là bài official theo chuyên mục; Topics là coin đang được bàn nhiều.
+
+### 14.1 BE thêm trên `feat/community-forum-extras` (chưa commit)
+
+| Tính năng | Lưu ở đâu | API |
+|---|---|---|
+| Tác giả gắn nhãn Bullish/Bearish cho bài | `forum_post.sentiment` (null, `BULLISH`, `BEARISH`), CHECK `ck_forum_post_sentiment`; `PostRequest.sentiment` (để trống = không gắn) | trường `sentiment` của bài |
+| Người đọc vote Bullish/Bearish | `engagement.action_type` thêm `BULLISH`, `BEARISH` (chỉ cho bài); partial unique index `uq_engagement_post_vote (user_id, post_id)` nên mỗi người một phiếu, vote lại là đổi phiếu (upsert) | `PUT /posts/{id}/vote` `{sentiment}`, `DELETE /posts/{id}/vote`; bài có `bullishCount`, `bearishCount`, `myVote` |
+| Tab For You | `FeedTab.TRENDING`, không đổi DB: điểm = (like + vote) × 3 + comment × 4 + view × 0,5 + 1, chia cho (tuổi bài tính bằng giờ + 2) mũ 1,5 (kiểu Hacker News), không gồm bài official | `GET /posts?tab=TRENDING` |
+| Coin đang được bàn | Đếm tag coin của bài gần đây | `GET /posts/trending-coins?limit=` (công khai) |
+| Điểm tác giả và Top Influencers | Tính bằng SQL, không lưu: ảnh hưởng = 40·ln(1+follower) + 25·ln(1+like) + 15·ln(1+comment) + 10·ln(1+bài); độ sâu = 50·ln(1+bài sâu) + 20·ln(1+like) + 10·ln(1+comment), bài sâu là bài có media hoặc nội dung từ 600 ký tự | `authorStanding` trên mỗi bài; `GET /community/influencers?rank=INFLUENCE|DEPTH&limit=` (công khai) |
+
+Vẫn trong migration `V36__community_extras.sql`, không thêm bảng. Test mới `CommunityRankingApiTest` (5); `OpenApiDocsTest` 131 operation; `clean verify` 4019/4019, đạt ngưỡng coverage (25/10).
+
+**Phải làm trước khi commit:** develop đã có `V36__journal_exits.sql` (T-048b, #75), nên migration này phải đổi sang số còn trống; PCI cũng đang chờ một số mới. Các comment trong code đã đổi D-121 → D-125.
+
+### 14.2 FE (để cả nhóm biết BE nào cần)
+
+- Nhánh FE `feat/community-cmc-ui` (`0bd6c13`) đã merge thẳng vào FE `develop` ngày 25/10 (`20788b5`, không qua PR, theo yêu cầu người dùng).
+- Bố cục 3 cột: danh sách coin bên trái (giá, % 24h), feed ở giữa, bên phải là bài ghim, Top Influencers, thảo luận coin đang chọn, nội quy. Feed mặc định **Latest** (bài mới nhất trên cùng), For You / Following / Saved trong menu, 10 bài mỗi trang, phân trang có số (`?page=` trên URL). Dialog Post: ô Title và Content riêng, gõ `$` để chọn coin, Bullish/Bearish, ảnh, emoji. Follow và chặn trên thẻ bài, trang thành viên và menu bài.
+- **Chạy FE develop với BE develop:** Latest, đăng bài, comment, like, follow vẫn dùng được; Top Influencers, coin đang được bàn, vote và tab For You lỗi hoặc trống cho tới khi `feat/community-forum-extras` vào develop.
+- FE chưa làm phần còn lại của mục 13: dialog report comment, hàng đợi report comment trong SCR-36, gợi ý @mention.
+
+## 15. Gộp develop, đổi số migration, commit và push (26/10/2026, D-125)
+
+### 15.1 Gộp `develop` vào `feat/community-forum-extras`
+
+- `develop` `68617a1` (#71 … #80: plan fill, TP/SL/liquidation, manual close, TP-E, academy, news, PCI) được kéo vào nhánh bằng fast-forward rồi áp lại phần extras đang làm. 10 file conflict, tất cả là hai bên cùng thêm vào cuối danh sách nên **giữ cả hai**: `AuditAction`, `ErrorCode`, `NotificationType` (`COMMENT, SYSTEM, FOLLOW, MENTION`), `NotificationReference` (`NEWS_SOURCE, MEMBER`), `UserApi`, `UserServiceImpl`, `ErrorCodeTest`, `OpenApiDocsTest` (114 gốc + 42 develop + 17 extras = **173** operation), `BaselineSchemaTest` (danh sách bảng của develop sau PCI + `user_relation`), `expected-enums.csv`.
+- **Migration đổi số `V36__community_extras.sql` → `V48__community_extras.sql`** (develop đã dùng V36 … V47). Ràng buộc `ck_notification_type` trong V48 **giữ `SYSTEM`** mà V42 thêm, nếu không V48 sẽ xoá mất giá trị này.
+- Người dùng xác nhận lại: **giữ bảng `user_relation`** (bảng mới duy nhất của extras; follow/block là quan hệ người–người, không bảng nào hiện có chứa được). Phương án nhét vào `engagement` bị loại vì phải nới ràng buộc "đúng một mục tiêu" của bảng đó.
+
+### 15.2 Commit và push
+
+- Backend `feat/community-forum-extras` **`1b59c9f`** (1 commit, 93 file) đã push lên origin, **chưa mở PR** (người dùng cần cho buổi review trưa 26/10).
+- Kiểm thử trước khi push: `test-compile` sạch, 5 bộ test liên quan đến conflict đạt (`ErrorCodeTest` 210, `AuthorizationMatrixTest` 98, `BaselineSchemaTest` 44, `OpenApiDocsTest` 11, `SchemaCatalogueTest` 6). `clean verify` đầy đủ chạy sau khi push, kết quả ghi ở session log của `CURRENT_STATE.md`.
+
+### 15.3 System test qua API (BE + FE chạy thật, DB `cryptopilot_pci` v48)
+
+41/41 bước đạt, với hai tài khoản QA riêng (`qa.sys.a`, `qa.sys.b`):
+
+- Follow: tự follow / tự chặn bị từ chối (`FOLLOW_SELF`, `BLOCK_SELF`); follow có thông báo FOLLOW; danh sách follower / following; bài hiện ở tab Following.
+- Bài: sentiment và coin; vote mới thay vote cũ; lượt xem chỉ tính người khác, mỗi người một lần; like; trending coins; influencers; tìm thành viên.
+- Comment: @mention có thông báo COMMENT và MENTION; trả lời comment báo cho người được trả lời; không report comment của chính mình, không report hai lần; comment bị report vào hàng đợi admin, admin ẩn rồi khôi phục được.
+- Chặn: bài của người bị chặn biến mất khỏi feed, không comment được vào bài của họ, có danh sách chặn, bỏ chặn thì bài hiện lại.
+- **Người bị chặn thử follow người đã chặn mình nhận 404 "Member not found", không phải 409.** Đây là cố ý (`MemberServiceImpl.visibleMember`, D-125): người chặn mình biến mất như bị ban, việc bị chặn không bị lộ.
+- Không chạy thử ban trên DB demo (ban là vĩnh viễn, BR-05); phần ẩn nội dung của người bị ban có test tự động.
+
+### 15.4 Việc còn lại
+
+- Mở PR `feat/community-forum-extras` → `develop` sau buổi review.
+- Leader cập nhật SRS / logical model: bảng `user_relation`, `post_report.comment_id` và `reported_content`, `forum_post.sentiment`, các giá trị `VIEW`, `BULLISH`, `BEARISH`, `FOLLOW`, `MENTION` (A-53).
+- FE: dialog report comment, hàng đợi report comment trong SCR-36, gợi ý @mention (mục 14.2) vẫn chưa làm.
