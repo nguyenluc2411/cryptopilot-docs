@@ -2,6 +2,13 @@
 
 Newest first. Each entry names the `develop` SHA the guide was synced to.
 
+## 2026-10-30 — Q-81 MSG22 "entry filled", branch `fix/q81-fill-notification`
+
+**Web/mobile — one new notification:**
+
+- MSG22 "{pair} {direction} entry filled at {price}." is now written for every fill: a MARKET or LIMIT filled at activation, and a resting LIMIT or a STOP filled later by the engine. `type` PLAN, title "Entry filled", `referenceType` PLAN, `referenceId` = the plan id; pushed on `/user/queue/notifications` like the others.
+- A plan can now have two notifications (MSG22, then MSG23 / MSG24). Group or link them by `referenceId`; tell them apart by `title`.
+
 ## 2026-10-28 — T-029 analysis push (D-126), branch `feat/t-029-analysis-push`
 
 **Web/mobile — new Trader-only topics:**
