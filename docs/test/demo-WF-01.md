@@ -77,9 +77,12 @@ Unless a step says otherwise, sign in on the web app as the account named, on th
 > demonstrate it up to the open position (UC-20) and stop there.
 
 - **Type:** main. **Account:** demo.pro (PRO, BALANCED).
-- **Data:** BTCUSDT Futures, MARKET LONG, SL = price − 0.5 %, TP = price + 1.5 %, risk 1 % (100 USDT of 10,000),
-  leverage 5 (BALANCED's maximum, so no leverage warning). Expected panel: R:R 3, notional ≈ 20,000 USDT, margin
-  ≈ 4,000 USDT, liquidation ≈ 19–20 % below the entry, so far beyond the SL.
+- **Data:** BTCUSDT Futures, MARKET LONG with the last price at 100,000, SL 99,500 (price − 0.5 %), TP 101,500
+  (price + 1.5 %), risk 1 % (100 USDT of 10,000), leverage 5 (BALANCED's maximum, so no leverage warning),
+  `SLIPPAGE_BPS` 10. The MARKET entry is priced with the slippage: expected fill 100,100, so the stop distance is 600
+  and the target distance 1,400. Expected panel: quantity 0.166, R:R 2.33, notional 16,616.6 USDT, margin
+  3,323.32 USDT, liquidation 80,401.7 (≈ 19.7 % below the entry), so far beyond the SL. With `SLIPPAGE_BPS` 0 the
+  entry is 100,000 and R:R is 3.
 - **Steps:** SCR-17, enter the values → panel → *Save and Activate* → the plan fills at once (MARKET, BR-33) → open
   position on SCR-18 → *Close position* (manual close) → SCR journal.
 - **Expected:** plan EXECUTED with a fill price, fill liquidity TAKER and the slippage of TP-0. After the close, a journal
