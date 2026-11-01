@@ -2,7 +2,7 @@
 
 Newest first. Each entry names the `develop` SHA the guide was synced to.
 
-## 2026-10-30 — Q-81 MSG22 "entry filled", branch `fix/q81-fill-notification`
+## 2026-10-30 — Q-81 MSG22 "entry filled", PR #91 (`c302466`, `ec3a6f9`, `8a1cd5c` on `develop` `c4335ae`; not merged yet)
 
 **Web/mobile — one new notification:**
 
