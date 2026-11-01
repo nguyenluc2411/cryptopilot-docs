@@ -691,6 +691,18 @@ Rule: an AI agent never answers an open question by guessing. It implements what
 
 Newest first. One block per working session, format in `CLAUDE.md` section 8.
 
+### 2026-11-02 – PR #92 review fixes: grant, pair stop, returned-to-cross check (BE3)
+- Result: DONE for review items 1, 2, 3, 4, 6; pushed to PR #92 as `24de198`, not merged
+- Summary: (1) the opening grant follows D-86 / Q-T5 again: Spot 10 000 USDT, 0.1 BTC, 1 ETH, 10 BNB; Futures 5 000 USDT; the test-only `application-default.yml` override is deleted, so the tests run with the production grant. (2) The D-128 tests are named `D128_<subject>_<behaviour>`. (3) PR body rewritten without local-only paths and with the note "V49 and V58 changed during review: run flyway repair or use a fresh database if you ran this branch before" (pasted by hand: no `gh` on this machine). (4) TR-46 `FuturesPairStop.stop`: cancels and closes commit in two REQUIRES_NEW transactions, each under the Trader lock; closes use the cached mark, else the latest stored mark (new `MarketApi.latestStoredMarkPrice`, `futures_market_data`); with no mark at all the cancels stay, the positions stay open, one WARN (TR-46), no exception. (6) V58 adds `ck_futures_position_returned_to_cross` (≥ 0, zero unless ISOLATED), backfill floored with `GREATEST(…, 0)`, comment corrected (late fees since V57 leave the amount higher; on a shared database V48 → V58 changes nothing)
+- Tests: 5 added (2 TR-46 pair-stop no-mark cases, 2 schema checks, 1 `MarketApiImpl`); suite 5,224 green in six batches, JaCoCo gate met (line 97.49 %, branch 90.40 %); pair-stop + schema tests 10 runs in a row green
+- Decisions: none new; grant follows D-86 / Q-T5 again
+- Waiting for the team lead: D-128 confirmation; an SRS Alignment row for BR-62
+- Decision needed (review item 5): the paper liquidation price uses the bracket at the liquidation price (as Binance), the plans use the entry bracket (Q-58); record it as a decision or share the helper
+- Follow-up tasks to open: race test fill vs cancel / liquidation (TR-31); shared Futures test helpers in `support/`; replace the "plan x.y" citations (57 main files)
+- Docs after merge: SRS entities and columns; ERD-04/05 + README range V1–V58; fe-guide paper section; Report 4 Futures section
+- Next: PR #92 review and merge; then the docs above
+- Commits: `24de198` fix(futures): #92 review: grant, pair stop, returned-to-cross check (subject shortened from the requested one: the commit-msg hook allows 72 characters)
+
 ### 2026-11-01 – Q-81 PR #91 rebased onto develop, replay test made deterministic – BE1
 - Result: DONE (pushed; PR #91 waits for review, not merged)
 - Summary: PR #89 merged as `c4335ae`. `fix/q81-fill-notification` rebased with `git rebase --onto origin/develop 064788e` (`test/e2e-wf01` was rebased on 2026-10-31, so it was no longer the fork point; `064788e` was the old tip), one import conflict in `PositionUserQueueTest`; PR #91 base changed to `develop`. `DS01b_anEngineFill_sendsMsg22Once_evenWhenItsCandleIsReplayed` waited on nothing before counting: it now feeds the next minute's candle and waits for the pair's watermark to reach it (the watermark never moves back, so waiting for the replayed minute itself proves nothing; a pair's candles are matched in order). New DB test: the same `PlanFilled` handled twice, each in its own transaction, leaves one MSG22 row.
