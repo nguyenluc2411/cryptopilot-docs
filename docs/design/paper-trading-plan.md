@@ -37,7 +37,7 @@ Module này là **sàn giao dịch demo độc lập** để người dùng tậ
 | Cặp giao dịch | `crypto_pair`: tick size, step size, min notional, max leverage. Bảng `leverage_bracket` (MMR, maintenance amount). | Thiếu min/max qty và price band (PERCENT_PRICE) nếu muốn kiểm tra giống Binance (P2). |
 | Journal | Có bảng `trading_journal` | Ngoài phạm vi. Module trading chỉ phát event khi vị thế đóng (Q-T9). |
 | Realtime | STOMP: `/topic/ticker.*`, `/topic/kline.*`, `/topic/overview.*`, broker có `/queue` | Chưa có kênh riêng cho từng user (lệnh, vị thế, số dư), chưa có topic depth, trades, mark. |
-| Gói / quyền | `EntitlementApi`, `futures_analysis`, `active_plan_max` | Cần chốt gói nào được dùng Futures demo. |
+| Gói / quyền | `EntitlementApi`, `futures_analysis`, `active_plan_max` | Đã chốt: Futures demo cho mọi gói (D-128). |
 | Web / Mobile | Chưa có | Toàn bộ giao diện. |
 
 ## 3. Các quyết định
@@ -101,6 +101,8 @@ Nối thẳng từ trình duyệt tới WebSocket công khai của Binance thì 
 #### Q-T10 Gói dịch vụ `Đã chốt`
 
 **Đề xuất:** Spot demo dùng được cho mọi gói. Futures demo dành cho gói có `futures_analysis = true`, dùng chung cờ với phân tích Futures và báo lỗi MSG29 như plan hiện tại. Nếu muốn tách quyền riêng thì thêm cột `futures_demo`.
+
+**Sửa 2026-10-30 (D-128):** Futures demo cũng dùng được cho **mọi gói**, giống Spot. `futures_analysis` chỉ còn khóa phân tích Futures, trading plan Futures và cảnh báo Futures (MSG29); các API `/paper/futures/**` không kiểm tra gói nữa.
 
 ## 4. Tài khoản demo và ví
 

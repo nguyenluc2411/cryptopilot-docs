@@ -77,9 +77,12 @@ Unless a step says otherwise, sign in on the web app as the account named, on th
 > demonstrate it up to the open position (UC-20) and stop there.
 
 - **Type:** main. **Account:** demo.pro (PRO, BALANCED).
-- **Data:** BTCUSDT Futures, MARKET LONG, SL = price − 0.5 %, TP = price + 1.5 %, risk 1 % (100 USDT of 10,000),
-  leverage 5 (BALANCED's maximum, so no leverage warning). Expected panel: R:R 3, notional ≈ 20,000 USDT, margin
-  ≈ 4,000 USDT, liquidation ≈ 19–20 % below the entry, so far beyond the SL.
+- **Data:** BTCUSDT Futures, MARKET LONG with the last price at 100,000, SL 99,500 (price − 0.5 %), TP 101,500
+  (price + 1.5 %), risk 1 % (100 USDT of 10,000), leverage 5 (BALANCED's maximum, so no leverage warning),
+  `SLIPPAGE_BPS` 10. The MARKET entry is priced with the slippage: expected fill 100,100, so the stop distance is 600
+  and the target distance 1,400. Expected panel: quantity 0.166, R:R 2.33, notional 16,616.6 USDT, margin
+  3,323.32 USDT, liquidation 80,401.7 (≈ 19.7 % below the entry), so far beyond the SL. With `SLIPPAGE_BPS` 0 the
+  entry is 100,000 and R:R is 3.
 - **Steps:** SCR-17, enter the values → panel → *Save and Activate* → the plan fills at once (MARKET, BR-33) → open
   position on SCR-18 → *Close position* (manual close) → SCR journal.
 - **Expected:** plan EXECUTED with a fill price, fill liquidity TAKER and the slippage of TP-0. After the close, a journal
@@ -170,12 +173,27 @@ Unless a step says otherwise, sign in on the web app as the account named, on th
 
 ## 3. Readiness on `develop` today
 
-| Scenario | Live demo possible on develop | Waiting for |
-|---|---|---|
-| DS-01a | up to the open position | T-046 (manual close), T-048b/c (journal close) |
-| DS-01b, DS-01c, DS-01d, DS-01g | yes | — |
-| DS-01e | yes (needs a moving market) | — (TP-C merged, #72) |
-| DS-01f | replay test only | — (TP-B merged, #70) |
+Updated 2026-10-30 (E2E-WF01, branch `test/e2e-wf01`). Every scenario has an end-to-end test in
+`backend/src/test/java/com/cryptopilot/workflow/Wf01EndToEndTest.java`: the backend on the `demo` profile and its own
+database, the demo accounts signed in with their passwords, every Trader step through the public HTTP API, the pairs,
+brackets and `SLIPPAGE_BPS` through the admin API, and Binance replaced by recorded closed 1-minute candles, prices in
+the price cache and stubbed funding settlements. Expected amounts are computed by hand in the test. Each fill or exit
+decided by a candle must be visible through the API within 3 s (N3); measured 30-60 ms locally.
+
+| Scenario | Test method | Live demo on develop | Status |
+|---|---|---|---|
+| DS-01a | `DS01a_marketFuturesPlan_toClosedJournalEntry` | yes, up to the CLOSED journal entry (T-046 #76, T-048b #75) | passes |
+| DS-01a (MSG22 on fill) | `DS01a_aFill_sendsMsg22` | no notification is shown on a fill | **disabled: bug Q-81**, no MSG22 is written |
+| DS-01a-2 | `DS01a2_closedByTakeProfit_andByStopLossOnAGap` | needs the market to reach the TP or gap through the SL; show the test | passes |
+| DS-01b | `DS01b_limitPlan_restsUntilACandleReachesIt` | yes (the fill needs the market to reach the entry) | passes |
+| DS-01c | `DS01c_stopBeyondLiquidation_isBlocked` | yes | passes |
+| DS-01d | `DS01d_freeAccount_futuresPlan_isRefused` | yes | passes |
+| DS-01e | `DS01e_movedMarketEntry_confirmOrRefuse` | yes (needs a moving market) | passes |
+| DS-01f | `DS01f_limitInvalidated_whenTakeProfitReachedFirst` | test only | passes |
+| DS-01g | `DS01g_freeFourthActivePlan_isRefused` | yes | passes |
+| TP-E (SL/TP change of an open position) | `TPE_aStopLossChange_actsFromTheNextCandle` | yes (the exit needs the market to reach the new stop) | passes |
+
+Run them with `./mvnw -Dtest=Wf01EndToEndTest test` from `backend/`.
 
 ## 4. Tests of the demo data itself (DEMO-01)
 

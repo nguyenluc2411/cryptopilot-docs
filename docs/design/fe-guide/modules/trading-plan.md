@@ -405,6 +405,11 @@ own; the Trader does nothing. The plan stays `EXECUTED`; its `position.status` b
   Show the net with a "provisional" tag; the backend recomputes it once the settlement arrives (every
   10 minutes) and the next read shows the final value. A close is never delayed by this.
 - A closed position frees its `ACTIVE_PLAN_MAX` slot (MSG27) and leaves the TOTAL_OPEN_RISK warning.
+- When the entry fills (at activation, or later by the engine for a resting LIMIT or a STOP), the
+  Trader gets MSG22 "{pair} {direction} entry filled at {price}." (`type` PLAN, title "Entry filled",
+  `referenceType` PLAN, `referenceId` = the plan id), once per plan, pushed on
+  `/user/queue/notifications` like the others (Q-81). A plan now has up to two notifications: MSG22,
+  then MSG23 / MSG24.
 - The Trader gets a notification: MSG23 "{pair} position closed by take profit|stop loss at {price}.
   P/L: {net}." or MSG24 "{pair} position was liquidated at {price}. Loss: {net}." (`type` PLAN,
   `referenceType` PLAN, `referenceId` = the plan id).
