@@ -266,6 +266,68 @@ Source: `backend/src/main/java/com/cryptopilot/watchlist/model/enums/AlertType.j
 `AlertIndicator.java#L8`, `ConditionOperator.java#L8`, `TriggerMode.java#L8`, `AlertStatus.java#L20`
 (same folder).
 
+## Administration (PR #93, `feat/uc-52-audit-log`, not merged)
+
+PENDING PR: values from code on the branch; the FE may build SCR-44 against them behind a flag.
+
+### `ActorType` — `?actorType=` of `GET /admin/audit-log`
+
+| Value | Meaning | UI label |
+|---|---|---|
+| `USER` | An account acted | User |
+| `SYSTEM` | A scheduled job or a payment callback acted (`actor: null`) | System |
+
+### `AuditAction` — `action` of an audit entry, `?action=` (repeatable)
+
+`ACCOUNT_LOCKED`, `ACCOUNT_UNLOCKED`, `ACCOUNT_BANNED`, `ROLE_CHANGED`, `POST_HIDDEN`,
+`POST_RESTORED`, `POST_REMOVED`, `REPORTS_DISMISSED`, `USER_WARNED`, `NEWS_ARTICLE_HIDDEN`,
+`NEWS_ARTICLE_RESTORED`, `COMMENT_HIDDEN`, `COMMENT_REMOVED`, `COMMENT_RESTORED`,
+`CONFIGURATION_CREATED`, `CONFIGURATION_CHANGED`, `CONFIGURATION_DELETED`, and since PR #93
+`AUDIT_LOG_EXPORTED` (an admin exported the audit log). Labels: the value in sentence case.
+
+### `AuditedEntity` — `entityType` of an audit entry, `?entityType=`
+
+`USER_ACCOUNT`, `FORUM_POST`, `FORUM_COMMENT`, `CRYPTO_PAIR`, `LEVERAGE_BRACKET`,
+`SUBSCRIPTION_PACKAGE`, `SUBSCRIPTION_ORDER`, `NEWS_SOURCE`, `NEWS_ARTICLE`, `AI_CONFIGURATION`,
+`SYSTEM_SETTING`, `ACADEMY_ARTICLE`, `ACADEMY_TERM`, `ACADEMY_TOPIC`, and since PR #93 `AUDIT_LOG`
+(an export; `entityId` is `null`).
+
+### `SystemEventCategory` — system log
+
+| Value | Meaning | UI label |
+|---|---|---|
+| `SYSTEM_ERROR` | An unexpected 500 (with the reference the caller got) or a scheduled job that threw | System error |
+| `EXTERNAL_API_FAILURE` | A call to an external service failed | External API failure |
+
+### `SystemEventSource` — system log and health panel
+
+| Value | Meaning | On the health panel |
+|---|---|---|
+| `APPLICATION` | A request answered with 500 | no |
+| `SCHEDULED_JOB` | A `@Scheduled` job | no |
+| `BINANCE_REST` | Binance Spot and Futures REST | yes |
+| `AI_SERVICE` | The AI Service | yes |
+| `MEDIA_STORAGE` | Cloudinary (forum media) | yes |
+| `NEWS_SOURCE` | All RSS feeds and news pages, one row | yes |
+| `MAIL` | The SMTP server | yes |
+
+### `ServiceStatus` — `services[].status` of `GET /admin/system-health`
+
+| Value | Meaning | UI label |
+|---|---|---|
+| `UP` | Answered, no failure in the last `recentWindowMinutes` (15) | Up |
+| `DEGRADED` | Failed in the window, answered again after that (news: some feeds failed, others answered) | Degraded |
+| `DOWN` | Failed in the window and not answered since; or Binance bans the server (`bannedUntil`) | Down |
+| `UNKNOWN` | Not called since the backend started, no recent failure | Unknown |
+
+### Bracket template id — `id` of `GET /admin/pairs/bracket-templates`
+
+`MAJOR` (125x first bracket), `ALTCOIN` (75x), `SMALL_CAP` (50x).
+
+Source: `admin/model/enums/ActorType.java`, `AuditAction.java`, `AuditedEntity.java`,
+`SystemEventCategory.java`, `SystemEventSource.java`, `ServiceStatus.java` (same folder);
+`market/model/enums/BracketTemplate.java`, branch `feat/uc-52-audit-log` at `cedc28b`.
+
 ## Plan tier (in `messageArgs` only)
 
 `PlanTier`: `FREE`, `PRO`, `PREMIUM`. Appears as text in MSG27 / MSG29 arguments. Labels: Free, Pro,

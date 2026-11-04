@@ -2,6 +2,29 @@
 
 Newest first. Each entry names the `develop` SHA the guide was synced to.
 
+## 2026-11-04 — PR #93 audit log, system log, pairs, FREE Futures (`feat/uc-52-audit-log` at `cedc28b`, on `develop` `db6c5fa`; not merged)
+
+**Web/mobile — plan gates (D-129, V61):**
+
+- FREE now has `FUTURES_ANALYSIS`: Futures analysis (components still locked), Futures metrics and the
+  metric blocks of Futures stats, Futures plans and Futures price alerts no longer answer 403 MSG29
+  on FREE. Drop the Futures locks for FREE; keep MSG29 handling for components, indicator alerts
+  (FUNDING_RATE and OPEN_INTEREST_CHANGE included) and email/push. The Futures analysis topic is
+  open to FREE; `.components` is not.
+
+**Web — admin console (SCR-44, SCR-38; `modules/planned.md`, `04-enums.md`):**
+
+- New: `GET /admin/audit-log`, `/admin/audit-log/export` (CSV, `X-Result-Truncated`,
+  `X-Total-Count`), `/admin/system-events`, `/admin/system-health`, `/admin/pairs/bracket-templates`.
+- `PUT /admin/pairs/{id}` with `INACTIVE` turns both markets off and clears `maxLeverage`; Futures
+  switched on without brackets gets a default template.
+
+**Everyone — errors and realtime:**
+
+- MSG01 also for a NUL byte in text (was 409) and for a fraction in a whole-number field (was
+  silently cut) (D-132, `03-conventions.md`).
+- `/topic/overview.{MARKET}` sends one message about 150 ms after SUBSCRIBE (`05-realtime.md`).
+
 ## 2026-10-30 — Q-81 MSG22 "entry filled", PR #91 (`c302466`, `ec3a6f9`, `8a1cd5c` on `develop` `c4335ae`; not merged yet)
 
 **Web/mobile — one new notification:**

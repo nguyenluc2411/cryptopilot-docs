@@ -25,7 +25,7 @@ Spec: TD 9, D-51, ADR-005.
 |---|---|---|
 | `/topic/ticker.{MARKET}.{SYMBOL}` | One pair's latest ticker | At most 1 message/s per destination (coalesced, latest wins) |
 | `/topic/kline.{MARKET}.{SYMBOL}.{tf}` | Candle updates of one series, forming and closed | Pushed every 1 s; all candles that changed in that second, oldest first. A closed candle is never coalesced away |
-| `/topic/overview.{MARKET}` | Latest ticker of every pair of the market seen since the backend started | Every 2 s |
+| `/topic/overview.{MARKET}` | Latest ticker of every pair of the market seen since the backend started | Every 2 s, and once about 150 ms after a SUBSCRIBE (at most one such push per 2 s; PR #93, D-131), so the board fills without waiting for the next tick |
 | `/user/queue/positions` | `PositionUpdate`: one of the caller's positions closed (T-048b, branch `feat/t-048b-journal-exits`) | When it happens |
 | `/user/queue/notifications` | Each new notification of the caller (SCR-15); admitted since T-048b (Q-75) | When it happens |
 | `/topic/analysis.{MARKET}.{SYMBOL}.{tf}` | `AnalysisUpdate`: indicators, S/R and `openTime` of the candle that just closed. **No score** — re-read `GET /analysis/{market}/{symbol}?tf=` for the score of the Trader's preset (T-029, D-126; branch `feat/t-029-analysis-push`) | Once per closed candle, after NSF-05 stored it |
@@ -50,7 +50,7 @@ Source: `backend/src/main/java/com/cryptopilot/market/service/impl/MarketBroadca
 ### Who may subscribe to the analysis topics (D-126)
 
 - Session connected with a bearer token of a **TRADER** (a Guest or an ADMIN is refused).
-- `FUTURES` topics need a plan with `FUTURES_ANALYSIS`; `.components` needs `SCORE_COMPONENTS` (PRO and PREMIUM; FREE gets the Spot main topic only).
+- `FUTURES` topics need a plan with `FUTURES_ANALYSIS`; `.components` needs `SCORE_COMPONENTS` (PRO and PREMIUM). Since V61 (PR #93, D-129) every tier has `FUTURES_ANALYSIS`: FREE gets the Spot and Futures main topics, not `.components`.
 - A refusal is an ERROR frame, then the server closes the connection — subscribe to a gated topic on its own connection, or only after reading the plan, so a refusal does not drop your ticker/kline subscriptions.
 - The plan is checked at SUBSCRIBE only: after an upgrade or downgrade, reconnect (or unsubscribe and subscribe again) to have the new plan applied.
 

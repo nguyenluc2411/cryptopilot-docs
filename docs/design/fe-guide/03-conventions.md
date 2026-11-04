@@ -144,7 +144,7 @@ Spec: TD 5.1, D-25, RFC 9457.
 
 | `code` | Status | MSG | When | FE action |
 |---|---|---|---|---|
-| `VALIDATION_FAILED` | 400 | MSG01 | Body/parameter invalid; `errors` usually present | Field errors, else banner |
+| `VALIDATION_FAILED` | 400 | MSG01 | Body/parameter invalid; `errors` usually present. Also (PR #93, D-132): a NUL byte or invalid UTF-8 in any text, e.g. a search box (was 409 `DATA_CONFLICT`), and a fraction for a whole-number field such as `"maxLeverage": 20.5`, under `errors.<field>` (was cut to 20) | Field errors, else banner. Send whole numbers as integers |
 | `RESOURCE_NOT_FOUND` | 404 | MSG41 | Unknown id, another user's row, pair not enabled | "No results found." Drop stale cache entry |
 | `INTERNAL_ERROR` | 500 | MSG43 | Unexpected | Toast with `traceId` |
 | `INVALID_CREDENTIALS` | 401 | MSG08 | Login: wrong email or password | Inline on SCR-04. **Not** a session end |

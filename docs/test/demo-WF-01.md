@@ -123,14 +123,16 @@ Unless a step says otherwise, sign in on the web app as the account named, on th
   `TradingPlanServiceImplTest.MSG18_saveAndActivate_withABlockingWarning_isRefused`,
   `TradingPlanApiTest.MSG18_aBlockingWarning_refusesTheActivation` (develop).
 
-### DS-01d: exception, FREE asks for Futures
+### DS-01d: FREE plans on Futures (changed by V61, PR #93, D-129)
 
-- **Type:** exception (permission / plan tier). **Account:** demo.free.
-- **Data:** any Futures plan on BTCUSDT.
-- **Steps:** SCR-17, choose Futures → *Calculate* or *Save*.
-- **Expected:** **MSG29** (feature not in the FREE plan, BR-62). Nothing is saved.
-- **Proved by:** `TradingPlanApiTest.MSG29_aFreeTrader_cannotPlanOnFutures`,
-  `TradingPlanServiceImplTest.MSG29_activatingAFuturesPlanWithoutTheFeature_isRefusedBeforeTheMissingLastPriceIsNoticed` (develop).
+- **Type:** normal flow since V61; before it, an exception (MSG29). **Account:** demo.free.
+- **Data:** BTCUSDT Futures LIMIT LONG at 99,000, SL 98,010, TP 101,970, leverage 5, last price 100,000.
+- **Steps:** SCR-17, choose Futures → *Calculate*, then *Save*.
+- **Expected:** the panel answers (200) and the draft is saved (201): every plan includes the Futures
+  analysis since V61 (A-54). MSG29 remains only for a tier saved without `FUTURES_ANALYSIS`.
+- **Proved by:** `TradingPlanApiTest.BR62_aFreeTrader_plansOnFutures` (PR #93); the refusal for a tier
+  without the feature by
+  `TradingPlanServiceImplTest.MSG29_activatingAFuturesPlanWithoutTheFeature_isRefusedBeforeTheMissingLastPriceIsNoticed`.
 
 ### DS-01e: exception, MARKET entry moved since the draft
 
@@ -187,7 +189,7 @@ decided by a candle must be visible through the API within 3 s (N3); measured 30
 | DS-01a-2 | `DS01a2_closedByTakeProfit_andByStopLossOnAGap` | needs the market to reach the TP or gap through the SL; show the test | passes |
 | DS-01b | `DS01b_limitPlan_restsUntilACandleReachesIt` | yes (the fill needs the market to reach the entry) | passes |
 | DS-01c | `DS01c_stopBeyondLiquidation_isBlocked` | yes | passes |
-| DS-01d | `DS01d_freeAccount_futuresPlan_isRefused` | yes | passes |
+| DS-01d | `DS01d_freeAccount_futuresPlan_isCalculatedAndSaved` (renamed on PR #93) | yes, after PR #93 merges | passes on PR #93 |
 | DS-01e | `DS01e_movedMarketEntry_confirmOrRefuse` | yes (needs a moving market) | passes |
 | DS-01f | `DS01f_limitInvalidated_whenTakeProfitReachedFirst` | test only | passes |
 | DS-01g | `DS01g_freeFourthActivePlan_isRefused` | yes | passes |

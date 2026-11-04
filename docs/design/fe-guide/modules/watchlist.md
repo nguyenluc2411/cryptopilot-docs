@@ -222,7 +222,10 @@ Check order on create/edit/resume: field rules (400) → plan features (403 MSG2
 the market (404 MSG41) → limits under the per-user lock (409 MSG27).
 
 Plan features: `INDICATOR` → `INDICATOR_ALERT`; `FUTURES` market → `FUTURES_ANALYSIS`;
-`notifyEmail`/`notifyPush` true → `EXTERNAL_ALERT_CHANNELS`. All three are PRO+.
+`notifyEmail`/`notifyPush` true → `EXTERNAL_ALERT_CHANNELS`. `INDICATOR_ALERT` and
+`EXTERNAL_ALERT_CHANNELS` are PRO+; `FUTURES_ANALYSIS` is in every tier since V61 (PR #93, D-129),
+so FREE creates PRICE alerts on Futures. FUNDING_RATE and OPEN_INTEREST_CHANGE are INDICATOR
+alerts and stay PRO+.
 
 Source: `watchlist/service/impl/AlertRuleValidator.java#L44`; `watchlist/dto/request/CreateAlertRequest.java#L23`; `watchlist/dto/request/UpdateAlertRequest.java#L22`; `watchlist/dto/response/AlertResponse.java#L39`. Spec: SRS 3.4.2, BR-17…BR-20, A-40, D-76.
 
@@ -279,7 +282,7 @@ Response `201`: `AlertResponse` with `status: "ACTIVE"`.
 | Status | `code` | MSG | When | Show |
 |---|---|---|---|---|
 | 400 | `VALIDATION_FAILED` | MSG01/MSG15 | Rule table | Under each field |
-| 403 | `PLAN_FEATURE_NOT_INCLUDED` | MSG29 | Indicator / Futures / email-push on FREE | MSG29 dialog |
+| 403 | `PLAN_FEATURE_NOT_INCLUDED` | MSG29 | Indicator / email-push on FREE; Futures on a tier without `FUTURES_ANALYSIS` (none at release since V61, D-129) | MSG29 dialog |
 | 404 | `RESOURCE_NOT_FOUND` | MSG41 | Pair not enabled on that market | Inline |
 | 409 | `PLAN_LIMIT_REACHED` | MSG27 | `ACTIVE_ALERT_MAX`, or `WATCHLIST_MAX` when the pair had to be added | Inline + upgrade |
 
