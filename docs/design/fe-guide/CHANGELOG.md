@@ -2,6 +2,17 @@
 
 Newest first. Each entry names the `develop` SHA the guide was synced to.
 
+## 2026-11-04 — PR #93 final sync (`feat/uc-52-audit-log` at `23f9ad9`; not merged)
+
+**Web — admin console (SCR-44; `modules/planned.md`):**
+
+- `GET /admin/system-health`: new `systemLogDropped` (whole number), the failures not recorded since
+  the backend started because the system log's queue was full.
+- `staleAfterMinutes` is now the shortest stored timeframe (15m) plus a configurable grace (2m by
+  default), 17 instead of 5: a healthy feed no longer reads stale between 15m candles.
+- `GET /admin/system-events` `message` and the health `lastError` are masked: emails as
+  `a***@domain`, secret values as `[REDACTED]`.
+
 ## 2026-11-04 — PR #93 audit log, system log, pairs, FREE Futures (`feat/uc-52-audit-log` at `cedc28b`, on `develop` `db6c5fa`; not merged)
 
 **Web/mobile — plan gates (D-131, V61):**

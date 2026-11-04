@@ -418,7 +418,7 @@ interface SystemEvent {
   source: string;            // SystemEventSource
   operation: string;         // e.g. "GET /api/v1/plans/{planId}", a job or a client method
   errorType: string;         // class of what was thrown
-  message: string | null;
+  message: string | null;    // masked: emails as a***@domain, secret values as [REDACTED]
   reference: string | null;  // the reference a 500 answered with; match it to a user's report
   occurrences: number;       // repeats merged into this row (same failure, 10-minute bucket)
   firstSeenAt: string;
@@ -443,14 +443,14 @@ Response `200`, read on each call:
 interface SystemHealth {
   checkedAt: string;
   recentWindowMinutes: number;   // 15: a failure this recent makes a service DOWN or DEGRADED
-  staleAfterMinutes: number;     // 5: a feed whose latest candle is older is stale
+  staleAfterMinutes: number;     // 17 by default: shortest stored timeframe (15m) + feed grace (2m)
   services: Array<{
     source: 'BINANCE_REST' | 'AI_SERVICE' | 'MEDIA_STORAGE' | 'NEWS_SOURCE' | 'MAIL';
     status: 'UP' | 'DEGRADED' | 'DOWN' | 'UNKNOWN';
     lastSuccessAt: string | null;  // since the backend started
     lastFailureAt: string | null;
     failures24h: number;
-    lastError: string | null;
+    lastError: string | null;      // masked like the system log's message
     bannedUntil: string | null;    // Binance only: end of an IP ban
   }>;
   feeds: Array<{
@@ -459,8 +459,13 @@ interface SystemHealth {
     lagSeconds: number | null;
     stale: boolean;               // true also when nothing is stored
   }>;
+  systemLogDropped: number;      // long: failures not recorded since the backend started (queue full)
 }
 ```
+
+A feed is stale when its latest candle closed longer ago than the shortest stored timeframe (15m)
+plus `cryptopilot.admin.system-health.feed-grace` (2m by default), or when nothing is stored.
+Show `systemLogDropped` above 0 as a warning: the system log is missing that many failures.
 
 Source: `backend/src/main/java/com/cryptopilot/admin/controller/SystemMonitorController.java#L59`;
 `admin/dto/response/SystemHealthResponse.java`. Spec: UC-46, D-132.
