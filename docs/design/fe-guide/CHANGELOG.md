@@ -4,7 +4,7 @@ Newest first. Each entry names the `develop` SHA the guide was synced to.
 
 ## 2026-11-04 — PR #93 audit log, system log, pairs, FREE Futures (`feat/uc-52-audit-log` at `cedc28b`, on `develop` `db6c5fa`; not merged)
 
-**Web/mobile — plan gates (D-129, V61):**
+**Web/mobile — plan gates (D-131, V61):**
 
 - FREE now has `FUTURES_ANALYSIS`: Futures analysis (components still locked), Futures metrics and the
   metric blocks of Futures stats, Futures plans and Futures price alerts no longer answer 403 MSG29
@@ -22,7 +22,7 @@ Newest first. Each entry names the `develop` SHA the guide was synced to.
 **Everyone — errors and realtime:**
 
 - MSG01 also for a NUL byte in text (was 409) and for a fraction in a whole-number field (was
-  silently cut) (D-132, `03-conventions.md`).
+  silently cut) (D-134, `03-conventions.md`).
 - `/topic/overview.{MARKET}` sends one message about 150 ms after SUBSCRIBE (`05-realtime.md`).
 
 ## 2026-10-30 — Q-81 MSG22 "entry filled", PR #91 (`c302466`, `ec3a6f9`, `8a1cd5c` on `develop` `c4335ae`; not merged yet)

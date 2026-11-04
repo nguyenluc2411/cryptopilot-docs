@@ -123,7 +123,7 @@ Unless a step says otherwise, sign in on the web app as the account named, on th
   `TradingPlanServiceImplTest.MSG18_saveAndActivate_withABlockingWarning_isRefused`,
   `TradingPlanApiTest.MSG18_aBlockingWarning_refusesTheActivation` (develop).
 
-### DS-01d: FREE plans on Futures (changed by V61, PR #93, D-129)
+### DS-01d: FREE plans on Futures (changed by V61, PR #93, D-131)
 
 - **Type:** normal flow since V61; before it, an exception (MSG29). **Account:** demo.free.
 - **Data:** BTCUSDT Futures LIMIT LONG at 99,000, SL 98,010, TP 101,970, leverage 5, last price 100,000.
