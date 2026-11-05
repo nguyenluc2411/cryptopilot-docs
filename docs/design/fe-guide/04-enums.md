@@ -266,9 +266,9 @@ Source: `backend/src/main/java/com/cryptopilot/watchlist/model/enums/AlertType.j
 `AlertIndicator.java#L8`, `ConditionOperator.java#L8`, `TriggerMode.java#L8`, `AlertStatus.java#L20`
 (same folder).
 
-## Administration (PR #93, `feat/uc-52-audit-log`, not merged)
+## Administration (PR #93, merged)
 
-PENDING PR: values from code on the branch; the FE may build SCR-44 against them behind a flag.
+IMPLEMENTED (develop): values from code at `6d8a3d9`.
 
 ### `ActorType` — `?actorType=` of `GET /admin/audit-log`
 
@@ -326,7 +326,7 @@ PENDING PR: values from code on the branch; the FE may build SCR-44 against them
 
 Source: `admin/model/enums/ActorType.java`, `AuditAction.java`, `AuditedEntity.java`,
 `SystemEventCategory.java`, `SystemEventSource.java`, `ServiceStatus.java` (same folder);
-`market/model/enums/BracketTemplate.java`, branch `feat/uc-52-audit-log` at `cedc28b`.
+`market/model/enums/BracketTemplate.java`, `develop` at `6d8a3d9`.
 
 ## Plan tier (in `messageArgs` only)
 

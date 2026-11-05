@@ -54,7 +54,7 @@ exists in code, marks what is not built yet, and lists the gaps that need a deci
 
 | Status | REST | STOMP destinations |
 |---|---|---|
-| IMPLEMENTED (develop) | 41 | 3 topic families |
+| IMPLEMENTED (develop) | 46 | 3 topic families |
 | PENDING PR | 0 | 0 |
 | PLANNED (spec only) | 43 listed in TD 8 (42 in `modules/planned.md` + close-position) + 13 admin areas without methods | 3 user queues + analysis push (Q-21) |
 
