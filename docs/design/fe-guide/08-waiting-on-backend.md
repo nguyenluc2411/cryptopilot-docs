@@ -159,7 +159,7 @@ sending it again may place a second OCO / OTO / OTOCO, so the web does not retry
 | Backend task (owner) · status | API the web needs | Web work blocked |
 |---|---|---|
 | T-046 (BE2) · TODO | `POST /plans/{id}/close-position`, position status and P/L on plan rows (M-10), `/user/queue/positions` (M-06) | Close position dialog (T-047, SCR-19); live position on plan detail (T-041); open positions on SCR-08 |
-| T-048…T-050 (BE2) · TODO; T-051 built, not merged | `/journal/**`, `/journal/performance/*` | Journal, entry detail, manual trade, performance (T-052, SCR-20…23); performance block of SCR-08 (T-112) |
+| T-048…T-051 (BE2) · TODO | `/journal/**`, `GET /performance` | Journal, entry detail, manual trade, performance (T-052, SCR-20…23); performance block of SCR-08 (T-112) |
 | T-066…T-070 (BE1) · TODO | `/billing/**` | Packages, checkout, payment result, payment history (T-071, SCR-30…32) |
 | T-072 (DO), T-073…T-075 (BE1) · TODO | `/ai/**`, `/user/queue/ai` | AI assistant (T-076, SCR-29) |
 | T-077…T-079 (BE2) · TODO | `GET /news`, `GET /news/sentiment-summary` | News feed (T-080, SCR-28); news block of SCR-08 (T-112) |
