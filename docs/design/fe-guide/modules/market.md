@@ -14,7 +14,7 @@ Common rules of `/market/**`:
 - A bad parameter (market, tf, limit, range, page) → 400 MSG01 **without** an `errors` map.
 - **D-60 plan gates (T-107, branch `feat/t-107-analysis-gates`, not merged yet):**
   `GET /market/futures/{symbol}/metrics` needs a token (401 MSG44) and a plan with
-  `FUTURES_ANALYSIS` (403 MSG29 without it; since V61, PR #93, D-129, FREE has it too);
+  `FUTURES_ANALYSIS` (403 MSG29 without it; since V61, PR #93, D-131, FREE has it too);
   `GET /market/futures/{symbol}/stats` stays public but answers `openInterest`, `longShortRatio` and
   `lastFundingSettlement` only to a Trader whose plan has `FUTURES_ANALYSIS` — `null` for a Guest
   (and for FREE before V61). Send the token on both when the user is signed in.
@@ -227,7 +227,7 @@ interface FundingSettlement { fundingTime: string; fundingRate: string; markPric
 
 FE notes: each block has its own instant and is `null` until stored. **For a Guest
 `openInterest`, `longShortRatio` and `lastFundingSettlement` are always `null`** (D-60): nothing is
-wrong with the data. A FREE Trader gets them since V61 (PR #93, D-129). Only SCR-11 shows those
+wrong with the data. A FREE Trader gets them since V61 (PR #93, D-131). Only SCR-11 shows those
 blocks, and SCR-11 is gated by `GET /analysis/futures/…` (403 MSG29 only for a tier without
 `FUTURES_ANALYSIS`), so a screen that got its analysis also gets the blocks. Funding countdown: from
 `price.nextFundingTime` (live from the ticker topic), never assume 8 h (BR-11). **No last price and
@@ -238,7 +238,7 @@ Source: `market/controller/MarketController.java#L101`; `market/dto/response/Fut
 
 ### GET /market/futures/{symbol}/metrics
 Status: IMPLEMENTED (develop); plan gate on branch `feat/t-107-analysis-gates`
-Auth: trader with `FUTURES_ANALYSIS` (every tier since V61, PR #93, D-129; PRO and PREMIUM before) — the path is public, the gate is the plan (D-60)
+Auth: trader with `FUTURES_ANALYSIS` (every tier since V61, PR #93, D-131; PRO and PREMIUM before) — the path is public, the gate is the plan (D-60)
 Purpose: Open interest, long/short ratio and settled funding series over a range (SCR-11 charts).
 
 | Query | Type | Required | Rule |
@@ -275,7 +275,7 @@ interface FuturesMetricsResponse {
 |---|---|---|---|
 | 400 | `VALIDATION_FAILED` | MSG01 | `to` in future, `from ≥ to`, range > 7 days |
 | 401 | `AUTHENTICATION_REQUIRED` | MSG44 | No token (checked first) |
-| 403 | `PLAN_FEATURE_NOT_INCLUDED` | MSG29 | A tier without `FUTURES_ANALYSIS` (none at release since V61, D-129; checked before the range); upgrade prompt |
+| 403 | `PLAN_FEATURE_NOT_INCLUDED` | MSG29 | A tier without `FUTURES_ANALYSIS` (none at release since V61, D-131; checked before the range); upgrade prompt |
 | 404 | `RESOURCE_NOT_FOUND` | MSG41 | Not enabled on Futures |
 
 FE notes: series are sparse — do not assume a point every 5 minutes. When `availableFrom` is after
@@ -367,7 +367,7 @@ interface SetupScore {
 |---|---|---|---|---|
 | 400 | `VALIDATION_FAILED` | MSG01 | Bad `market` or `tf` | Banner |
 | 401 | `AUTHENTICATION_REQUIRED` | MSG44 | No session (Guests cannot call this) | Login prompt |
-| 403 | `PLAN_FEATURE_NOT_INCLUDED` | MSG29 | `futures` on a tier without `FUTURES_ANALYSIS` (none at release since V61, D-129; checked after `market`/`tf`, before the pair) | Lock + upgrade prompt (CR-08) |
+| 403 | `PLAN_FEATURE_NOT_INCLUDED` | MSG29 | `futures` on a tier without `FUTURES_ANALYSIS` (none at release since V61, D-131; checked after `market`/`tf`, before the pair) | Lock + upgrade prompt (CR-08) |
 | 403 | `ACCESS_DENIED` | MSG43 | ADMIN token | — |
 | 404 | `RESOURCE_NOT_FOUND` | MSG41 | Not enabled on that market | "Pair no longer available", back to SCR-09 |
 
@@ -381,6 +381,6 @@ FE notes:
   `setupScore.components: null`; the total `score`, `preset`, `presetVersion`, indicators and levels
   are still there. Show the component rows with a lock icon that opens the upgrade prompt (MSG29) —
   **do not** show "Insufficient data" for them: read `componentsLocked` before the null rule. Futures
-  answers the same way on FREE since V61 (PR #93, D-129): 200 with `componentsLocked: true`; 403
+  answers the same way on FREE since V61 (PR #93, D-131): 200 with `componentsLocked: true`; 403
   MSG29 as a whole only for a tier without `FUTURES_ANALYSIS`. PRO and PREMIUM: `componentsLocked: false`, as before.
 Source: `market/controller/AnalysisController.java#L50`; `market/dto/response/AnalysisResponse.java#L24`; `market/dto/response/IndicatorsResponse.java#L24`; `market/dto/response/SpotSetupScoreResponse.java#L19`; `market/dto/response/FuturesSetupScoreResponse.java#L21`; `market/dto/response/SpotComponentsResponse.java#L16`; `market/dto/response/FuturesComponentsResponse.java#L18`. Spec: SRS 3.3.2, 3.3.3, UC-10, UC-11, BR-12…BR-14, D-53, D-60, Q-21.

@@ -161,11 +161,11 @@ Spec: SRS 3.1.3, TD 5.3, D-27.
 
 "Trader (PRO/PREMIUM)" is not a role. Plan features are checked per request by the backend
 (`EntitlementApi`), D-54. Plan values (seed `V11`, configurable later by UC-47; `V61` turns
-`FUTURES_ANALYSIS` on for FREE, D-129, PR #93):
+`FUTURES_ANALYSIS` on for FREE, D-131, PR #93):
 
 | Entitlement (`Feature`) | FREE | PRO | PREMIUM | Enforced today in |
 |---|---|---|---|---|
-| `FUTURES_ANALYSIS` — Futures analysis, Futures plans, Futures alerts | ✔ since V61 (PR #93, D-129); ✗ before | ✔ | ✔ | Plans and alerts (develop); `/analysis/futures`, Futures metrics and the metric blocks of Futures stats on branch `feat/t-107-analysis-gates` (T-107, not merged) |
+| `FUTURES_ANALYSIS` — Futures analysis, Futures plans, Futures alerts | ✔ since V61 (PR #93, D-131); ✗ before | ✔ | ✔ | Plans and alerts (develop); `/analysis/futures`, Futures metrics and the metric blocks of Futures stats on branch `feat/t-107-analysis-gates` (T-107, not merged) |
 | `SCORE_COMPONENTS` — setup score components | ✗ | ✔ | ✔ | `componentsLocked` in `GET /analysis`, on branch `feat/t-107-analysis-gates` (T-107, not merged) |
 | `ACTIVE_PLAN_MAX` — ACTIVE plans + open positions | 3 | unlimited | unlimited | Plans (develop) |
 | `WATCHLIST_MAX` | 5 | 50 | 100 | Watchlist (develop) |

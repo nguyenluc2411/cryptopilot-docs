@@ -7,10 +7,10 @@ Code prefix: `backend/src/main/java/com/cryptopilot/trading/`. Controller: `cont
 Read first:
 
 - **Futures plans need leverage brackets.** On a pair without brackets every `market: "FUTURES"`
-  calculate/create/activate answers 400 `errors.leverage` MSG15 (D-70). Since PR #93 (D-131) a Futures
+  calculate/create/activate answers 400 `errors.leverage` MSG15 (D-70). Since PR #93 (D-133) a Futures
   market an admin switches on without brackets gets a default template (MAJOR for BTC and ETH,
   ALTCOIN otherwise), so those pairs can be sized; a pair enabled earlier without brackets still
-  needs them saved on SCR-38. Since V61 (D-129) FREE plans on Futures too; 403 MSG29 comes only for
+  needs them saved on SCR-38. Since V61 (D-131) FREE plans on Futures too; 403 MSG29 comes only for
   a tier without `FUTURES_ANALYSIS`.
 - **Plans fill.** A MARKET plan, and a LIMIT the price already reached, fill at activation; the
   engine fills a resting LIMIT and triggers a STOP (TP-B) later. A filled plan is `EXECUTED` and,
@@ -726,7 +726,7 @@ Response `200`:
 | Status | `code` | MSG | When | Show |
 |---|---|---|---|---|
 | 400 | `VALIDATION_FAILED` | MSG01/15/16 | Input and calculation rules, and the save's validity checks (a MARKET plan with an `invalidationPrice` is MSG01 on that field, as on create) | Under fields / in panel |
-| 403 | `PLAN_FEATURE_NOT_INCLUDED` | MSG29 | FUTURES on a tier without `FUTURES_ANALYSIS` (none at release since V61, D-129) | MSG29 dialog |
+| 403 | `PLAN_FEATURE_NOT_INCLUDED` | MSG29 | FUTURES on a tier without `FUTURES_ANALYSIS` (none at release since V61, D-131) | MSG29 dialog |
 | 404 | `RESOURCE_NOT_FOUND` | MSG41 | Pair not enabled on that market | Inline |
 | 503 | `MARKET_PRICE_UNAVAILABLE` | MSG43 | MARKET entry and no live last price; an `invalidationPrice` and no live last price (on Futures: the close of the latest 1-minute candle, from TP-0) | "Price unavailable", retry |
 
@@ -752,7 +752,7 @@ Response `201`: `TradingPlanResponse` (`status` `DRAFT`, or `ACTIVE` when activa
 |---|---|---|---|---|
 | 400 | `VALIDATION_FAILED` | MSG01/15/16 | As calculate | Fields |
 | 400 | `ENTRY_DEVIATION_CONFIRMATION_REQUIRED` | MSG51 | TP-C: MARKET with `activate: true` whose expected fill is 0.25R up to the limit from the plan; nothing saved | Dialog; resend with `"confirmDeviation": true` |
-| 403 | `PLAN_FEATURE_NOT_INCLUDED` | MSG29 | FUTURES on a tier without `FUTURES_ANALYSIS` (none at release since V61, D-129) | Dialog |
+| 403 | `PLAN_FEATURE_NOT_INCLUDED` | MSG29 | FUTURES on a tier without `FUTURES_ANALYSIS` (none at release since V61, D-131) | Dialog |
 | 404 | `RESOURCE_NOT_FOUND` | MSG41 | Pair not enabled | Inline |
 | 409 | `TRADING_BLOCKING_WARNING` | MSG18 | `activate: true` with a BLOCKING warning; **nothing is saved** | Banner; offer "Save as Draft" |
 | 409 | `PLAN_LIMIT_REACHED` | MSG27 | `activate: true` and `ACTIVE_PLAN_MAX` reached (FREE: 3); nothing saved | Inline + upgrade |
@@ -864,7 +864,7 @@ Response `200`: `TradingPlanResponse`.
 |---|---|---|---|---|
 | 400 | `VALIDATION_FAILED` | MSG01/15/16 | As calculate | Fields |
 | 400 | `ENTRY_DEVIATION_CONFIRMATION_REQUIRED` | MSG51 | TP-C: as `POST /plans`; the draft keeps its earlier values | Dialog; resend with `"confirmDeviation": true` |
-| 403 | `PLAN_FEATURE_NOT_INCLUDED` | MSG29 | FUTURES on a tier without `FUTURES_ANALYSIS` (none at release since V61, D-129) | Dialog |
+| 403 | `PLAN_FEATURE_NOT_INCLUDED` | MSG29 | FUTURES on a tier without `FUTURES_ANALYSIS` (none at release since V61, D-131) | Dialog |
 | 404 | `RESOURCE_NOT_FOUND` | MSG41 | Not the caller's plan, or pair no longer enabled | Inline |
 | 409 | `TRADING_PLAN_STATUS_TRANSITION_INVALID` | MSG43 | Plan is not DRAFT | Reload plan |
 | 409 | `TRADING_BLOCKING_WARNING` | MSG18 | `activate: true` with a BLOCKING warning | Banner |

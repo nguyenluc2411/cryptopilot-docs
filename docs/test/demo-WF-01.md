@@ -123,7 +123,7 @@ Unless a step says otherwise, sign in on the web app as the account named, on th
   `TradingPlanServiceImplTest.MSG18_saveAndActivate_withABlockingWarning_isRefused`,
   `TradingPlanApiTest.MSG18_aBlockingWarning_refusesTheActivation` (develop).
 
-### DS-01d: FREE plans on Futures (changed by V61, PR #93, D-129)
+### DS-01d: FREE plans on Futures (changed by V61, PR #93, D-131)
 
 - **Type:** normal flow since V61; before it, an exception (MSG29). **Account:** demo.free.
 - **Data:** BTCUSDT Futures LIMIT LONG at 99,000, SL 98,010, TP 101,970, leverage 5, last price 100,000.
@@ -189,7 +189,7 @@ decided by a candle must be visible through the API within 3 s (N3); measured 30
 | DS-01a-2 | `DS01a2_closedByTakeProfit_andByStopLossOnAGap` | needs the market to reach the TP or gap through the SL; show the test | passes |
 | DS-01b | `DS01b_limitPlan_restsUntilACandleReachesIt` | yes (the fill needs the market to reach the entry) | passes |
 | DS-01c | `DS01c_stopBeyondLiquidation_isBlocked` | yes | passes |
-| DS-01d | `DS01d_freeAccount_futuresPlan_isCalculatedAndSaved` (renamed on PR #93) | yes, after PR #93 merges | passes on PR #93 |
+| DS-01d | `DS01d_freeAccount_futuresPlan_isCalculatedAndSaved` (renamed on PR #93) | yes | passes |
 | DS-01e | `DS01e_movedMarketEntry_confirmOrRefuse` | yes (needs a moving market) | passes |
 | DS-01f | `DS01f_limitInvalidated_whenTakeProfitReachedFirst` | test only | passes |
 | DS-01g | `DS01g_freeFourthActivePlan_isRefused` | yes | passes |

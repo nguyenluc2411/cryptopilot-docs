@@ -12,9 +12,28 @@ Newest first. Each entry names the `develop` SHA the guide was synced to.
   trade. `totalFees` and `totalFunding` are free summary fields (D-138).
 - An empty result is 200 with `trades: 0` or `[]`: show MSG41.
 
+## 2026-11-05 — PR #93 merged (`develop` `6d8a3d9`)
+
+**Web — admin console (SCR-44, SCR-38; `modules/planned.md`, `04-enums.md`):**
+
+- `GET /admin/audit-log`, `/admin/audit-log/export`, `/admin/system-events`, `/admin/system-health`
+  and `/admin/pairs/bracket-templates` are IMPLEMENTED (develop): the flag can go. The contract is
+  the one of the two entries below; the merge changed nothing since `23f9ad9`.
+
+## 2026-11-04 — PR #93 final sync (`feat/uc-52-audit-log` at `23f9ad9`; not merged)
+
+**Web — admin console (SCR-44; `modules/planned.md`):**
+
+- `GET /admin/system-health`: new `systemLogDropped` (whole number), the failures not recorded since
+  the backend started because the system log's queue was full.
+- `staleAfterMinutes` is now the shortest stored timeframe (15m) plus a configurable grace (2m by
+  default), 17 instead of 5: a healthy feed no longer reads stale between 15m candles.
+- `GET /admin/system-events` `message` and the health `lastError` are masked: emails as
+  `a***@domain`, secret values as `[REDACTED]`.
+
 ## 2026-11-04 — PR #93 audit log, system log, pairs, FREE Futures (`feat/uc-52-audit-log` at `cedc28b`, on `develop` `db6c5fa`; not merged)
 
-**Web/mobile — plan gates (D-129, V61):**
+**Web/mobile — plan gates (D-131, V61):**
 
 - FREE now has `FUTURES_ANALYSIS`: Futures analysis (components still locked), Futures metrics and the
   metric blocks of Futures stats, Futures plans and Futures price alerts no longer answer 403 MSG29
@@ -32,7 +51,7 @@ Newest first. Each entry names the `develop` SHA the guide was synced to.
 **Everyone — errors and realtime:**
 
 - MSG01 also for a NUL byte in text (was 409) and for a fraction in a whole-number field (was
-  silently cut) (D-132, `03-conventions.md`).
+  silently cut) (D-134, `03-conventions.md`).
 - `/topic/overview.{MARKET}` sends one message about 150 ms after SUBSCRIBE (`05-realtime.md`).
 
 ## 2026-10-30 — Q-81 MSG22 "entry filled", PR #91 (`c302466`, `ec3a6f9`, `8a1cd5c` on `develop` `c4335ae`; not merged yet)
