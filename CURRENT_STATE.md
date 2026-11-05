@@ -4801,3 +4801,7 @@ Kept current as tasks close (`/end-session` step 5). Each row: BR/UC/NSF/SCR id 
 - Q-84 closed by D-138
 - Docs: fe55d9f moved to docs/t-051 (546e0ee); docs/pr-93 reverted (7ea9a1e)
 - Open: T-048c fallback (planned R/R and R use the fill price and original stop until it writes `planned_entry_price` and `risk_amount`; learning metrics null); T-049/T-050 write `strategy_id`, T-050 also `fee_amount` 0 (not null), `realized_pnl`, `exit_time`
+
+## Docs merge - 2026-11-06
+- docs/pr-93 merged (PR #93 DONE, T-115 DONE)
+- docs/t-051 merged (T-051 DONE pending review)
