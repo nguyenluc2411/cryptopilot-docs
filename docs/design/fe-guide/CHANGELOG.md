@@ -2,6 +2,14 @@
 
 Newest first. Each entry names the `develop` SHA the guide was synced to.
 
+## 2026-11-05 — PR #93 merged (`develop` `6d8a3d9`)
+
+**Web — admin console (SCR-44, SCR-38; `modules/planned.md`, `04-enums.md`):**
+
+- `GET /admin/audit-log`, `/admin/audit-log/export`, `/admin/system-events`, `/admin/system-health`
+  and `/admin/pairs/bracket-templates` are IMPLEMENTED (develop): the flag can go. The contract is
+  the one of the two entries below; the merge changed nothing since `23f9ad9`.
+
 ## 2026-11-04 — PR #93 final sync (`feat/uc-52-audit-log` at `23f9ad9`; not merged)
 
 **Web — admin console (SCR-44; `modules/planned.md`):**

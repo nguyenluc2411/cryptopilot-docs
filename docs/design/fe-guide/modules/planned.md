@@ -336,17 +336,17 @@ Source: none. Spec: TD 8.
 | `/admin/news-sources` | UC-49 | T-077 |
 | `/admin/ai-configurations` | UC-50 | T-071/T-073 |
 | `/admin/settings` | UC-51 | T-082 |
-| `/admin/audit-log` | UC-46 (v1.0: UC-52), SCR-44 (search, CSV export) | T-115, PENDING PR #93 (below) |
-| `/admin/system-events`, `/admin/system-health` | UC-46, SCR-44 (system log, API health) | T-115, PENDING PR #93 (below) |
+| `/admin/audit-log` | UC-46 (v1.0: UC-52), SCR-44 (search, CSV export) | T-115, IMPLEMENTED (below) |
+| `/admin/system-events`, `/admin/system-health` | UC-46, SCR-44 (system log, API health) | T-115, IMPLEMENTED (below) |
 | `/admin/announcements` | UC-44 | T-084 |
 
 Status: PLANNED (spec only) in this file for the rows without a section below. The sections below are
-PENDING PR (`feat/uc-52-audit-log`, PR #93, head `cedc28b`): build against them behind a flag. The
+IMPLEMENTED (develop), merged with PR #93 (`6d8a3d9`). The
 rows and sections of PR #93 use the current SRS numbering (Q-82); the other rows keep the v1.0
 numbers they were written with. Spec: TD 8, SRS 3.11.
 
 ### GET /admin/audit-log
-Status: PENDING PR (`feat/uc-52-audit-log`, PR #93)
+Status: IMPLEMENTED (develop)
 Auth: admin
 Purpose: The audit log of SCR-44, newest first, read only (UC-46, D-132).
 
@@ -388,7 +388,7 @@ Source: `backend/src/main/java/com/cryptopilot/admin/controller/AuditLogControll
 `admin/dto/response/AuditLogEntryResponse.java`. Spec: SRS 3.11.9, BR-57, D-132.
 
 ### GET /admin/audit-log/export
-Status: PENDING PR (`feat/uc-52-audit-log`, PR #93)
+Status: IMPLEMENTED (develop)
 Auth: admin
 Purpose: The same search as a CSV file (UC-46).
 
@@ -401,7 +401,7 @@ audit entry (`AUDIT_LOG_EXPORTED`, entity `AUDIT_LOG`). Errors: as the search, w
 Source: `backend/src/main/java/com/cryptopilot/admin/controller/AuditLogController.java#L96`. Spec: SRS 3.11.9, D-132.
 
 ### GET /admin/system-events
-Status: PENDING PR (`feat/uc-52-audit-log`, PR #93)
+Status: IMPLEMENTED (develop)
 Auth: admin
 Purpose: The system log of SCR-44: unexpected errors, failed jobs and failed external calls, the
 latest seen first (UC-46, D-132).
@@ -433,7 +433,7 @@ Source: `backend/src/main/java/com/cryptopilot/admin/controller/SystemMonitorCon
 `admin/dto/response/SystemEventResponse.java`. Spec: UC-46, D-132.
 
 ### GET /admin/system-health
-Status: PENDING PR (`feat/uc-52-audit-log`, PR #93)
+Status: IMPLEMENTED (develop)
 Auth: admin
 Purpose: The health panel of SCR-44: each external service and each market's data feed (D-132).
 
@@ -471,7 +471,7 @@ Source: `backend/src/main/java/com/cryptopilot/admin/controller/SystemMonitorCon
 `admin/dto/response/SystemHealthResponse.java`. Spec: UC-46, D-132.
 
 ### GET /admin/pairs/bracket-templates
-Status: PENDING PR (`feat/uc-52-audit-log`, PR #93)
+Status: IMPLEMENTED (develop)
 Auth: admin
 Purpose: Ready-made leverage brackets SCR-38 can start from (D-133).
 
