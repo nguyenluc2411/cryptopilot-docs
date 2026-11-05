@@ -2,6 +2,14 @@
 
 Newest first. Each entry names the `develop` SHA the guide was synced to.
 
+## 2026-11-05 — T-051 performance statistics (`feat/t-051-performance-stats`, on `develop` `6d8a3d9`; not merged)
+
+**Web — SCR-23, SCR-08 (`modules/planned.md`):**
+
+- New `GET /journal/performance/summary`, `/by-coin`, `/by-strategy`, `/by-market`, `/equity-curve`; they replace the
+  planned `GET /performance`. FREE gets `summary` with `advanced: null`; the other four answer 403 MSG29 on FREE.
+- An empty result is 200 with `trades: 0` or `[]`: show MSG41.
+
 ## 2026-11-04 — PR #93 audit log, system log, pairs, FREE Futures (`feat/uc-52-audit-log` at `cedc28b`, on `develop` `db6c5fa`; not merged)
 
 **Web/mobile — plan gates (D-129, V61):**
