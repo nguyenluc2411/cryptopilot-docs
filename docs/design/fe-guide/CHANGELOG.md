@@ -8,6 +8,8 @@ Newest first. Each entry names the `develop` SHA the guide was synced to.
 
 - New `GET /journal/performance/summary`, `/by-coin`, `/by-strategy`, `/by-market`, `/equity-curve`; they replace the
   planned `GET /performance`. FREE gets `summary` with `advanced: null`; the other four answer 403 MSG29 on FREE.
+- `from` and `to` are optional, with no limit on the period; `from` is null in the answer when counted from the first
+  trade. `totalFees` and `totalFunding` are free summary fields (D-138).
 - An empty result is 200 with `trades: 0` or `[]`: show MSG41.
 
 ## 2026-11-04 — PR #93 audit log, system log, pairs, FREE Futures (`feat/uc-52-audit-log` at `cedc28b`, on `develop` `db6c5fa`; not merged)

@@ -47,14 +47,14 @@ Request/Response/Errors: not defined.
 Source: none. Spec: TD 8.
 
 ### GET /journal/performance/* (T-051, SCR-23, SCR-08 widget)
-Status: BUILT on `feat/t-051-performance-stats`, not merged. The path replaces the planned `GET /performance`.
+Status: BUILT on `feat/t-051-performance-stats` (`c58e88b`), not merged. The path replaces the planned `GET /performance`.
 Auth: trader (guest 401, admin 403); only the caller's closed trades.
-Filters, the same on all five, all optional: `from`, `to` (`yyyy-MM-dd`, UTC+7 days, `from` counted and `to` not, at most one year; default the year up to and including today), `market` (`SPOT`, `FUTURES`, `ALL`; default `ALL`), `source` (`SIMULATED`, `MANUAL`, `ALL`; default `SIMULATED`, BR-41), `pairId`, `strategyId`. A bad filter answers 400 MSG01; a bad period names `from` or `to` with MSG15.
+Filters, the same on all five, all optional: `from`, `to` (`yyyy-MM-dd`, UTC+7 days, `from` counted and `to` not, no length limit; without `from` from the first trade, without `to` up to and including today), `market` (`SPOT`, `FUTURES`, `ALL`; default `ALL`), `source` (`SIMULATED`, `MANUAL`, `ALL`; default `SIMULATED`, BR-41), `pairId`, `strategyId`. A bad filter answers 400 MSG01; `from` not before `to`, when both are sent, names `from` with MSG15.
 Decimals are strings with 8 decimals. A ratio or mean with nothing to compute is `null`, never 0: show a dash.
 
 `GET /journal/performance/summary`, every plan:
-`from, to, trades, wins, losses, breakeven, winRate (0 to 1), totalNetPnl, provisionalTrades, advanced`. `trades: 0` is the empty result: show MSG41 (it is 200, not 404). `provisionalTrades > 0`: the total may still change, funding is incomplete. `advanced` is `null` on FREE: show the locks (CR-08), do not call it an error.
-`advanced` on PRO and PREMIUM: `averageWin, averageLoss (negative), profitFactor, averagePlannedRiskReward, averageRealizedR (also the expectancy in R), tradesWithR, largestWin, largestLoss, maxConsecutiveLosses, maxDrawdown (positive USDT), totalFees, totalFunding (+ received), averageEntryDeviationR, costOfLateEntryR, averageMaeR, averageMfeR`. The last four are `null` until T-048c stores the learning data.
+`from (null when counted from the first trade), to, trades, wins, losses, breakeven, winRate (0 to 1), totalNetPnl, provisionalTrades, totalFees, totalFunding (+ received), advanced`. `trades: 0` is the empty result: show MSG41 (it is 200, not 404). `provisionalTrades > 0`: the total may still change, funding is incomplete. `advanced` is `null` on FREE: show the locks (CR-08), do not call it an error.
+`advanced` on PRO and PREMIUM: `averageWin, averageLoss (negative), profitFactor, averagePlannedRiskReward, averageRealizedR (also the expectancy in R), tradesWithR, largestWin, largestLoss, maxConsecutiveLosses, maxDrawdown (positive USDT), averageEntryDeviationR, costOfLateEntryR, averageMaeR, averageMfeR`. The last four are `null` until T-048c stores the learning data.
 
 `GET /journal/performance/by-coin`, `/by-strategy`, `/by-market`, PRO and PREMIUM, FREE 403 MSG29: a list, highest net P/L first, of `key, label, trades, wins, losses, breakeven, winRate, netPnl, profitFactor, averageRealizedR`. `key` is the pair id, strategy id or market; `label` the symbol, strategy name or market. Trades without a strategy: `key: null`, `label: "Unassigned"`.
 
