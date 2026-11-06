@@ -144,7 +144,7 @@ Spec: TD 5.1, D-25, RFC 9457.
 
 | `code` | Status | MSG | When | FE action |
 |---|---|---|---|---|
-| `VALIDATION_FAILED` | 400 | MSG01 | Body/parameter invalid; `errors` usually present | Field errors, else banner |
+| `VALIDATION_FAILED` | 400 | MSG01 | Body/parameter invalid; `errors` usually present. Also (PR #93, D-134): a NUL byte or invalid UTF-8 in any text, e.g. a search box (was 409 `DATA_CONFLICT`), and a fraction for a whole-number field such as `"maxLeverage": 20.5`, under `errors.<field>` (was cut to 20) | Field errors, else banner. Send whole numbers as integers |
 | `RESOURCE_NOT_FOUND` | 404 | MSG41 | Unknown id, another user's row, pair not enabled | "No results found." Drop stale cache entry |
 | `INTERNAL_ERROR` | 500 | MSG43 | Unexpected | Toast with `traceId` |
 | `INVALID_CREDENTIALS` | 401 | MSG08 | Login: wrong email or password | Inline on SCR-04. **Not** a session end |
@@ -204,7 +204,7 @@ order, or by the client where noted.
 | MSG19 | Toast | Trading plan activated. |
 | MSG20 | Confirm dialog | Cancel this trading plan? This action cannot be undone. |
 | MSG21 | Confirm dialog | Close this position at about {price}? Estimated P/L: {pnl}. *(planned)* |
-| MSG22 | Notification | {pair} {direction} entry filled at {price}. *(planned)* |
+| MSG22 | Notification | {pair} {direction} entry filled at {price}. *(built, Q-81: `type` PLAN, title "Entry filled", `referenceType` PLAN, `referenceId` = the plan id; every fill, at activation or by the engine, once)* |
 | MSG23 | Notification | {pair} position closed by {reason} at {price}. P/L: {pnl}. *(planned; `{pnl}` = `net_pnl`, same as the journal row, Q-56)* |
 | MSG24 | Notification | {pair} position was liquidated at {price}. Loss: {pnl}. *(planned; `{pnl}` = `net_pnl`, same as the journal row, Q-56)* |
 | MSG25 | Toast | {pair} added to watchlist. *(client fills from the response `symbol`)* |
