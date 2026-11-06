@@ -2,6 +2,16 @@
 
 Newest first. Each entry names the `develop` SHA the guide was synced to.
 
+## 2026-11-06 — T-051 review fixes (`feat/t-051-performance-stats` `7ba89c6`, PR #94; not merged)
+
+**Web — SCR-23, SCR-08 (`modules/planned.md`):**
+
+- `errors.<field>` of a bad filter is `MSG15` or the default text `is invalid`, never the server's message.
+- `from` is checked against the resolved end: a `from` after today without `to` is now 400 MSG01 with `errors.from: MSG15`
+  (it was 200 and empty). A year outside 1..9999 is refused on `from` or `to` the same way (D-139).
+- The equity curve has no point at `from`: the client adds the 0 baseline. Show the "includes provisional trades" badge
+  from `summary.provisionalTrades`.
+
 ## 2026-11-05 — T-051 performance statistics (`feat/t-051-performance-stats`, on `develop` `6d8a3d9`; not merged)
 
 **Web — SCR-23, SCR-08 (`modules/planned.md`):**

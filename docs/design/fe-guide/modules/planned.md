@@ -47,18 +47,18 @@ Request/Response/Errors: not defined.
 Source: none. Spec: TD 8.
 
 ### GET /journal/performance/* (T-051, SCR-23, SCR-08 widget)
-Status: BUILT on `feat/t-051-performance-stats` (`c58e88b`), not merged. The path replaces the planned `GET /performance`.
+Status: BUILT on `feat/t-051-performance-stats` (`7ba89c6`), PR #94 open, not merged. The path replaces the planned `GET /performance`.
 Auth: trader (guest 401, admin 403); only the caller's closed trades.
-Filters, the same on all five, all optional: `from`, `to` (`yyyy-MM-dd`, UTC+7 days, `from` counted and `to` not, no length limit; without `from` from the first trade, without `to` up to and including today), `market` (`SPOT`, `FUTURES`, `ALL`; default `ALL`), `source` (`SIMULATED`, `MANUAL`, `ALL`; default `SIMULATED`, BR-41), `pairId`, `strategyId`. A bad filter answers 400 MSG01; `from` not before `to`, when both are sent, names `from` with MSG15.
+Filters, the same on all five, all optional: `from`, `to` (`yyyy-MM-dd`, UTC+7 days, `from` counted and `to` not, no length limit; without `from` from the first trade, without `to` up to and including today), `market` (`SPOT`, `FUTURES`, `ALL`; default `ALL`), `source` (`SIMULATED`, `MANUAL`, `ALL`; default `SIMULATED`, BR-41), `pairId`, `strategyId`. A bad filter answers 400 MSG01. `errors.<field>` is a message code (`MSG15`) or the default text `is invalid`, never a server message: a value of the wrong type gives `is invalid`. Resolved-period rule (D-139): `from` must be before the end of the period, sent or defaulted, so a `from` after today without `to` is refused too, and a year outside 1..9999 is refused on `from` or `to`; each names the field with `MSG15`.
 Decimals are strings with 8 decimals. A ratio or mean with nothing to compute is `null`, never 0: show a dash.
 
 `GET /journal/performance/summary`, every plan:
-`from (null when counted from the first trade), to, trades, wins, losses, breakeven, winRate (0 to 1), totalNetPnl, provisionalTrades, totalFees, totalFunding (+ received), advanced`. `trades: 0` is the empty result: show MSG41 (it is 200, not 404). `provisionalTrades > 0`: the total may still change, funding is incomplete. `advanced` is `null` on FREE: show the locks (CR-08), do not call it an error.
+`from (null when counted from the first trade), to, trades, wins, losses, breakeven, winRate (0 to 1), totalNetPnl, provisionalTrades, totalFees, totalFunding (+ received), advanced`. `trades: 0` is the empty result: show MSG41 (it is 200, not 404). `provisionalTrades > 0`: show an "includes provisional trades" badge, the total may still change because funding is incomplete. This field is the only signal: breakdowns and the curve carry no provisional count (D-139). `advanced` is `null` on FREE: show the locks (CR-08), do not call it an error.
 `advanced` on PRO and PREMIUM: `averageWin, averageLoss (negative), profitFactor, averagePlannedRiskReward, averageRealizedR (also the expectancy in R), tradesWithR, largestWin, largestLoss, maxConsecutiveLosses, maxDrawdown (positive USDT), averageEntryDeviationR, costOfLateEntryR, averageMaeR, averageMfeR`. The last four are `null` until T-048c stores the learning data.
 
 `GET /journal/performance/by-coin`, `/by-strategy`, `/by-market`, PRO and PREMIUM, FREE 403 MSG29: a list, highest net P/L first, of `key, label, trades, wins, losses, breakeven, winRate, netPnl, profitFactor, averageRealizedR`. `key` is the pair id, strategy id or market; `label` the symbol, strategy name or market. Trades without a strategy: `key: null`, `label: "Unassigned"`.
 
-`GET /journal/performance/equity-curve`, PRO and PREMIUM, FREE 403 MSG29: oldest first, one point per day with an exit: `day, trades, netPnl, cumulativeNetPnl`. The curve starts at 0 at `from`.
+`GET /journal/performance/equity-curve`, PRO and PREMIUM, FREE 403 MSG29: oldest first, one point per day with an exit: `day, trades, netPnl, cumulativeNetPnl`. There is no point at `from`: the first point is the first exit day, with that day's net as its cumulative. The client adds the 0 baseline itself.
 Source: `PerformanceController`. Spec: SRS 3.6.3, UC-25 (current SRS UC-22), BR-41, BR-42, BR-62, TD 7.10.
 
 ## community — SCR-24 … SCR-27 (T-060 … T-065)
