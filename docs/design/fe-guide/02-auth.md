@@ -136,7 +136,7 @@ Role rules are path rules in the security filter chain (D-27). Anything not list
 | `GET /market/**` | ✔ | ✔ | ✔ |
 | `/ws` (STOMP handshake) | ✔ | ✔ | ✔ |
 | `PUT /me/password` | — | ✔ | ✔ |
-| `/me/**` (except password), `/analysis/**`, `/watchlist/**`, `/alerts/**`, `/notifications/**`, `/plans/**`, `/journal/**`, `/posts/**`, `/comments/**`, `/media/**`, `/news/**`, `/ai/**`, `/billing/packages`, `/billing/orders/**`, `/billing/subscription` | — | ✔ | — (403) |
+| `/me/**` (except password), `/analysis/**`, `/watchlist/**`, `/alerts/**`, `/notifications/**`, `/plans/**`, `/journal/**`, `/strategies`, `/posts/**`, `/comments/**`, `/media/**`, `/news/**`, `/ai/**`, `/billing/packages`, `/billing/orders/**`, `/billing/subscription` | — | ✔ | — (403) |
 | `/admin/**` | — | — | ✔ |
 | everything else | 403 | 403 | 403 |
 
