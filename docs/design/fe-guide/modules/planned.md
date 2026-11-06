@@ -1,7 +1,7 @@
 # Planned modules (spec only)
 
-Everything in this file is **PLANNED (spec only)**: listed in TD 8 or SRS, with no controller or DTO
-in code. Do not call these paths; until a controller exists a Guest gets 401, a TRADER
+Everything in this file is **PLANNED (spec only)** unless its entry says IMPLEMENTED (develop): listed
+in TD 8 or SRS, with no controller or DTO in code. Do not call these paths; until a controller exists a Guest gets 401, a TRADER
 404 (no handler) and an ADMIN 403. Request and response shapes are not defined — do not invent them. What the spec does fix
 (paths, roles, plan gates, messages) is listed so screens can be laid out.
 
@@ -11,12 +11,14 @@ Source for every entry: no code at `6137e24`; TD 8 endpoint catalogue.
 ## journal — SCR-20 … SCR-23 (T-048 … T-052)
 
 ### GET /journal
-Status: PLANNED (spec only)
-Auth: trader
-Purpose: List journal entries, filter by source SIMULATED / MANUAL (UC-22).
-Request: not defined. Response: not defined. Errors: not defined.
-FE notes: paged (CR-04). Source filter separates simulated from manual (T-052).
-Source: none. Spec: TD 8, SRS 3.6.1, UC-22, BR-40.
+Status: IMPLEMENTED (develop)
+Auth: trader (guest 401, admin 403); only the caller's trades.
+Purpose: List journal entries, latest entry first (SCR-20, UC-22).
+Request (all optional): `status` (`OPEN`, `CLOSED`; both when absent), `pairId`, `market` (`SPOT`, `FUTURES`), `page`, `pageSize` (CR-04, `03-conventions.md`).
+Response: `PageResponse` of `id, planId (null on a manual trade), pairId, market, direction, source (SIMULATED, MANUAL), status, leverage (null on Spot), entryPrice, quantity, entryTime, entryFee (null when unknown), stopLoss, takeProfit, exitPrice, exitTime, closeReason, realizedPnl, feeAmount, fundingFeeAmount (null on Spot), netPnl, provisional`. The fields from `exitPrice` to `netPnl` are set once CLOSED; `provisional` is true while a funding settlement may still be missing.
+Errors: 400 MSG01 with `errors.<field>` for a bad parameter, 401 MSG44.
+FE notes: not there yet, all in T-116: the filters `from`, `to`, `source`, `strategyId`, `result`, and `strategyId`, `strategyName` on an entry.
+Source: `backend/src/main/java/com/cryptopilot/journal/controller/JournalController.java#L50`, `JournalEntryResponse`. Spec: TD 8, SRS 3.6.1, UC-22, BR-40.
 
 ### GET /journal/{id}
 Status: PLANNED (spec only)
@@ -47,7 +49,7 @@ Request/Response/Errors: not defined.
 Source: none. Spec: TD 8.
 
 ### GET /journal/performance/* (T-051, SCR-23, SCR-08 widget)
-Status: BUILT on `feat/t-051-performance-stats` (`7ba89c6`), PR #94 open, not merged. The path replaces the planned `GET /performance`.
+Status: IMPLEMENTED (develop), merged with PR #94 (`52736cb`). The path replaces the planned `GET /performance`.
 Auth: trader (guest 401, admin 403); only the caller's closed trades.
 Filters, the same on all five, all optional: `from`, `to` (`yyyy-MM-dd`, UTC+7 days, `from` counted and `to` not, no length limit; without `from` from the first trade, without `to` up to and including today), `market` (`SPOT`, `FUTURES`, `ALL`; default `ALL`), `source` (`SIMULATED`, `MANUAL`, `ALL`; default `SIMULATED`, BR-41), `pairId`, `strategyId`. A bad filter answers 400 MSG01. `errors.<field>` is a message code (`MSG15`) or the default text `is invalid`, never a server message: a value of the wrong type gives `is invalid`. Resolved-period rule (D-139): `from` must be before the end of the period, sent or defaulted, so a `from` after today without `to` is refused too, and a year outside 1..9999 is refused on `from` or `to`; each names the field with `MSG15`.
 Decimals are strings with 8 decimals. A ratio or mean with nothing to compute is `null`, never 0: show a dash.
@@ -56,7 +58,7 @@ Decimals are strings with 8 decimals. A ratio or mean with nothing to compute is
 `from (null when counted from the first trade), to, trades, wins, losses, breakeven, winRate (0 to 1), totalNetPnl, provisionalTrades, totalFees, totalFunding (+ received), advanced`. `trades: 0` is the empty result: show MSG41 (it is 200, not 404). `provisionalTrades > 0`: show an "includes provisional trades" badge, the total may still change because funding is incomplete. This field is the only signal: breakdowns and the curve carry no provisional count (D-139). `advanced` is `null` on FREE: show the locks (CR-08), do not call it an error.
 `advanced` on PRO and PREMIUM: `averageWin, averageLoss (negative), profitFactor, averagePlannedRiskReward, averageRealizedR (also the expectancy in R), tradesWithR, largestWin, largestLoss, maxConsecutiveLosses, maxDrawdown (positive USDT), averageEntryDeviationR, costOfLateEntryR, averageMaeR, averageMfeR`. The last four are `null` until T-048c stores the learning data.
 
-`GET /journal/performance/by-coin`, `/by-strategy`, `/by-market`, PRO and PREMIUM, FREE 403 MSG29: a list, highest net P/L first, of `key, label, trades, wins, losses, breakeven, winRate, netPnl, profitFactor, averageRealizedR`. `key` is the pair id, strategy id or market; `label` the symbol, strategy name or market. Trades without a strategy: `key: null`, `label: "Unassigned"`.
+`GET /journal/performance/by-coin`, `/by-strategy`, `/by-market`, PRO and PREMIUM, FREE 403 MSG29: a list, highest net P/L first, of `key, label, trades, wins, losses, breakeven, winRate, netPnl, profitFactor, averageRealizedR`. `key` is the pair id, strategy id or market; `label` the symbol, strategy name or market. Trades without a strategy: `key: null`, `label: "Unassigned"`. In `/by-coin`, a pair that is not found has its id as `label` today; T-116 makes it `null`.
 
 `GET /journal/performance/equity-curve`, PRO and PREMIUM, FREE 403 MSG29: oldest first, one point per day with an exit: `day, trades, netPnl, cumulativeNetPnl`. There is no point at `from`: the first point is the first exit day, with that day's net as its cumulative. The client adds the 0 baseline itself.
 Source: `PerformanceController`. Spec: SRS 3.6.3, UC-25 (current SRS UC-22), BR-41, BR-42, BR-62, TD 7.10.

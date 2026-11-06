@@ -1023,7 +1023,7 @@ fee_amount  (≥ 0, BR-36) = fee(entry fill) + fee(exit fill)
 funding_fee_amount  (Futures only, signed: + received, − paid; null for Spot, BR-37)
   = Σ_{t ∈ settlements, entry_time < t ≤ exit_time}  −d × qty × mark_t × rate_t     d = +1 LONG, −1 SHORT
 net_pnl  (derived, never stored, BR-38)
-  = realized_pnl − fee_amount + coalesce(funding_fee_amount, 0)
+  = realized_pnl − coalesce(fee_amount, 0) + coalesce(funding_fee_amount, 0)
 ```
 
 `net_pnl` is computed in exactly one place per layer: a domain method on the journal trade model (`net_pnl()` of the journal record) and, for statistics, the SQL expression `realized_pnl - coalesce(fee_amount, 0) + coalesce(funding_fee_amount, 0)` (one shared expression or view used by 7.10, not repeated per query). No `net_pnl` column; the only new setting is `LIQUIDATION_CLEARANCE_FEE` (below). Journal list and detail, performance statistics and AI trade summaries read `net_pnl`; the trade detail shows `realized_pnl`, `fee_amount`, `funding_fee_amount` and `net_pnl` separately. Paper trading Futures, when built, books the same split as ledger rows `REALIZED_PNL`, `FEE`, `FUNDING_FEE`, `LIQUIDATION_FEE`.

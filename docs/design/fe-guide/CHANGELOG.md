@@ -2,6 +2,18 @@
 
 Newest first. Each entry names the `develop` SHA the guide was synced to.
 
+## 2026-11-06 — PR #94 merged (`develop` `52736cb`)
+
+**Web — SCR-23, SCR-20, SCR-08 (`modules/planned.md`, `02-auth.md`):**
+
+- `GET /journal/performance/summary`, `/by-coin`, `/by-strategy`, `/by-market` and `/equity-curve` are IMPLEMENTED
+  (develop): the flag can go. `ADVANCED_PERFORMANCE` is enforced; `/performance` is gone from the Trader paths.
+  `GET /journal` (on `develop` since PR #80) now has its contract in the guide.
+- `errors.<field>` of a bad filter is a message code (`MSG15`) or the default text `is invalid`.
+- The period is checked once resolved: a `from` after today without `to` is 400 MSG01 with `errors.from: MSG15`.
+- A null fee counts as 0 in net P/L, so a closed trade is never left out for it (D-139).
+- The equity curve has no point at `from`: the client adds the 0 baseline.
+
 ## 2026-11-06 — T-051 review fixes (`feat/t-051-performance-stats` `7ba89c6`, PR #94; not merged)
 
 **Web — SCR-23, SCR-08 (`modules/planned.md`):**

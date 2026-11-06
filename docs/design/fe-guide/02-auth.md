@@ -136,7 +136,7 @@ Role rules are path rules in the security filter chain (D-27). Anything not list
 | `GET /market/**` | ✔ | ✔ | ✔ |
 | `/ws` (STOMP handshake) | ✔ | ✔ | ✔ |
 | `PUT /me/password` | — | ✔ | ✔ |
-| `/me/**` (except password), `/analysis/**`, `/watchlist/**`, `/alerts/**`, `/notifications/**`, `/plans/**`, `/journal/**`, `/performance`, `/posts/**`, `/comments/**`, `/media/**`, `/news/**`, `/ai/**`, `/billing/packages`, `/billing/orders/**`, `/billing/subscription` | — | ✔ | — (403) |
+| `/me/**` (except password), `/analysis/**`, `/watchlist/**`, `/alerts/**`, `/notifications/**`, `/plans/**`, `/journal/**`, `/posts/**`, `/comments/**`, `/media/**`, `/news/**`, `/ai/**`, `/billing/packages`, `/billing/orders/**`, `/billing/subscription` | — | ✔ | — (403) |
 | `/admin/**` | — | — | ✔ |
 | everything else | 403 | 403 | 403 |
 
@@ -172,7 +172,7 @@ Spec: SRS 3.1.3, TD 5.3, D-27.
 | `ACTIVE_ALERT_MAX` | 3 | 20 | 50 | Alerts (develop) |
 | `INDICATOR_ALERT` | ✗ | ✔ | ✔ | Alerts (develop) |
 | `EXTERNAL_ALERT_CHANNELS` — email/push for alerts | ✗ | ✔ | ✔ | Alerts (develop) |
-| `ADVANCED_PERFORMANCE` | ✗ | ✔ | ✔ | Planned (T-051) |
+| `ADVANCED_PERFORMANCE` | ✗ | ✔ | ✔ | Implemented: `GET /journal/performance/*` (develop, PR #94) |
 | `NEWS_AI_INSIGHT` | ✗ | ✔ | ✔ | Planned (T-079) |
 | `AI_CHAT_DAILY` — questions per day | 0 | 30 | 100 | Planned (T-075) |
 | `AI_PERFORMANCE_CONTEXT` | ✗ | ✗ | ✔ | Planned (T-075) |
