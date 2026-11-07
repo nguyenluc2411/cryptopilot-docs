@@ -136,7 +136,7 @@ Role rules are path rules in the security filter chain (D-27). Anything not list
 | `GET /market/**` | ✔ | ✔ | ✔ |
 | `/ws` (STOMP handshake) | ✔ | ✔ | ✔ |
 | `PUT /me/password` | — | ✔ | ✔ |
-| `/me/**` (except password), `/analysis/**`, `/watchlist/**`, `/alerts/**`, `/notifications/**`, `/plans/**`, `/journal/**`, `/performance`, `/posts/**`, `/comments/**`, `/media/**`, `/news/**`, `/ai/**`, `/billing/packages`, `/billing/orders/**`, `/billing/subscription` | — | ✔ | — (403) |
+| `/me/**` (except password), `/analysis/**`, `/watchlist/**`, `/alerts/**`, `/notifications/**`, `/plans/**`, `/journal/**`, `/strategies`, `/posts/**`, `/comments/**`, `/media/**`, `/news/**`, `/ai/**`, `/billing/packages`, `/billing/orders/**`, `/billing/subscription` | — | ✔ | — (403) |
 | `/admin/**` | — | — | ✔ |
 | everything else | 403 | 403 | 403 |
 
@@ -160,19 +160,20 @@ Spec: SRS 3.1.3, TD 5.3, D-27.
 ## Plan gating (subscription entitlements)
 
 "Trader (PRO/PREMIUM)" is not a role. Plan features are checked per request by the backend
-(`EntitlementApi`), D-54. Plan values (seed `V11`, configurable later by UC-47):
+(`EntitlementApi`), D-54. Plan values (seed `V11`, configurable later by UC-47; `V61` turns
+`FUTURES_ANALYSIS` on for FREE, D-131, PR #93):
 
 | Entitlement (`Feature`) | FREE | PRO | PREMIUM | Enforced today in |
 |---|---|---|---|---|
-| `FUTURES_ANALYSIS` — Futures analysis, Futures plans, Futures alerts | ✗ | ✔ | ✔ | Plans and alerts (develop); `/analysis/futures`, Futures metrics and the metric blocks of Futures stats on branch `feat/t-107-analysis-gates` (T-107, not merged) |
+| `FUTURES_ANALYSIS` — Futures analysis, Futures plans, Futures alerts | ✔ since V61 (PR #93, D-131); ✗ before | ✔ | ✔ | Plans and alerts (develop); `/analysis/futures`, Futures metrics and the metric blocks of Futures stats on branch `feat/t-107-analysis-gates` (T-107, not merged) |
 | `SCORE_COMPONENTS` — setup score components | ✗ | ✔ | ✔ | `componentsLocked` in `GET /analysis`, on branch `feat/t-107-analysis-gates` (T-107, not merged) |
 | `ACTIVE_PLAN_MAX` — ACTIVE plans + open positions | 3 | unlimited | unlimited | Plans (develop) |
 | `WATCHLIST_MAX` | 5 | 50 | 100 | Watchlist (develop) |
 | `ACTIVE_ALERT_MAX` | 3 | 20 | 50 | Alerts (develop) |
 | `INDICATOR_ALERT` | ✗ | ✔ | ✔ | Alerts (develop) |
 | `EXTERNAL_ALERT_CHANNELS` — email/push for alerts | ✗ | ✔ | ✔ | Alerts (develop) |
-| `ADVANCED_PERFORMANCE` | ✗ | ✔ | ✔ | Planned (T-051) |
-| `NEWS_AI_INSIGHT` | — | — | — | **Not used** (D-126): news summary and sentiment are shown on every plan; do not gate or list it as a paid benefit |
+| `ADVANCED_PERFORMANCE` | ✗ | ✔ | ✔ | Implemented: `GET /journal/performance/*` (develop, PR #94) |
+| `NEWS_AI_INSIGHT` | — | — | — | **Not used** (D-141): news summary and sentiment are shown on every plan; do not gate or list it as a paid benefit |
 | `AI_CHAT_DAILY` — questions per day | 0 | 30 | 100 | Planned (T-075) |
 | `AI_PERFORMANCE_CONTEXT` | ✗ | ✗ | ✔ | Planned (T-075) |
 | `VIDEO_POST` | ✗ | ✗ | ✔ | Planned (T-062) |

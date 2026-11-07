@@ -2,6 +2,94 @@
 
 Newest first. Each entry names the `develop` SHA the guide was synced to.
 
+## 2026-11-06 — PR #95 merged (`develop` `25ba960`)
+
+**Web — SCR-20, SCR-21, SCR-23 (`modules/planned.md`, `02-auth.md`):**
+
+- `GET /journal` has the filters `from`, `to`, `source`, `strategyId`, `result`, and `market` also takes `ALL`; rows
+  carry `strategyId` and `strategyName`.
+- `source` defaults to `ALL` and the period reads `entry_time` here, unlike performance (`SIMULATED`, `exit_time`):
+  the SCR-23 -> SCR-20 link passes pair and market only (D-140).
+- `netPnl` on a journal row counts a null fee as 0, as performance does; it is null only without `realizedPnl`.
+- New `GET /journal/{id}` (SCR-21 deep link) and `GET /strategies` (dropdown, every plan) are IMPLEMENTED (develop).
+  No D-111 learning fields on the detail until T-048c.
+- `/journal/performance/by-coin`: `label` is `null` for a pair that is not found (it was the pair id); show
+  "Unknown pair".
+
+## 2026-11-06 — PR #94 merged (`develop` `52736cb`)
+
+**Web — SCR-23, SCR-20, SCR-08 (`modules/planned.md`, `02-auth.md`):**
+
+- `GET /journal/performance/summary`, `/by-coin`, `/by-strategy`, `/by-market` and `/equity-curve` are IMPLEMENTED
+  (develop): the flag can go. `ADVANCED_PERFORMANCE` is enforced; `/performance` is gone from the Trader paths.
+  `GET /journal` (on `develop` since PR #80) now has its contract in the guide.
+- `errors.<field>` of a bad filter is a message code (`MSG15`) or the default text `is invalid`.
+- The period is checked once resolved: a `from` after today without `to` is 400 MSG01 with `errors.from: MSG15`.
+- A null fee counts as 0 in net P/L, so a closed trade is never left out for it (D-139).
+- The equity curve has no point at `from`: the client adds the 0 baseline.
+
+## 2026-11-06 — T-051 review fixes (`feat/t-051-performance-stats` `7ba89c6`, PR #94; not merged)
+
+**Web — SCR-23, SCR-08 (`modules/planned.md`):**
+
+- `errors.<field>` of a bad filter is `MSG15` or the default text `is invalid`, never the server's message.
+- `from` is checked against the resolved end: a `from` after today without `to` is now 400 MSG01 with `errors.from: MSG15`
+  (it was 200 and empty). A year outside 1..9999 is refused on `from` or `to` the same way (D-139).
+- The equity curve has no point at `from`: the client adds the 0 baseline. Show the "includes provisional trades" badge
+  from `summary.provisionalTrades`.
+
+## 2026-11-05 — T-051 performance statistics (`feat/t-051-performance-stats`, on `develop` `6d8a3d9`; not merged)
+
+**Web — SCR-23, SCR-08 (`modules/planned.md`):**
+
+- New `GET /journal/performance/summary`, `/by-coin`, `/by-strategy`, `/by-market`, `/equity-curve`; they replace the
+  planned `GET /performance`. FREE gets `summary` with `advanced: null`; the other four answer 403 MSG29 on FREE.
+- `from` and `to` are optional, with no limit on the period; `from` is null in the answer when counted from the first
+  trade. `totalFees` and `totalFunding` are free summary fields (D-138).
+- An empty result is 200 with `trades: 0` or `[]`: show MSG41.
+
+## 2026-11-05 — PR #93 merged (`develop` `6d8a3d9`)
+
+**Web — admin console (SCR-44, SCR-38; `modules/planned.md`, `04-enums.md`):**
+
+- `GET /admin/audit-log`, `/admin/audit-log/export`, `/admin/system-events`, `/admin/system-health`
+  and `/admin/pairs/bracket-templates` are IMPLEMENTED (develop): the flag can go. The contract is
+  the one of the two entries below; the merge changed nothing since `23f9ad9`.
+
+## 2026-11-04 — PR #93 final sync (`feat/uc-52-audit-log` at `23f9ad9`; not merged)
+
+**Web — admin console (SCR-44; `modules/planned.md`):**
+
+- `GET /admin/system-health`: new `systemLogDropped` (whole number), the failures not recorded since
+  the backend started because the system log's queue was full.
+- `staleAfterMinutes` is now the shortest stored timeframe (15m) plus a configurable grace (2m by
+  default), 17 instead of 5: a healthy feed no longer reads stale between 15m candles.
+- `GET /admin/system-events` `message` and the health `lastError` are masked: emails as
+  `a***@domain`, secret values as `[REDACTED]`.
+
+## 2026-11-04 — PR #93 audit log, system log, pairs, FREE Futures (`feat/uc-52-audit-log` at `cedc28b`, on `develop` `db6c5fa`; not merged)
+
+**Web/mobile — plan gates (D-131, V61):**
+
+- FREE now has `FUTURES_ANALYSIS`: Futures analysis (components still locked), Futures metrics and the
+  metric blocks of Futures stats, Futures plans and Futures price alerts no longer answer 403 MSG29
+  on FREE. Drop the Futures locks for FREE; keep MSG29 handling for components, indicator alerts
+  (FUNDING_RATE and OPEN_INTEREST_CHANGE included) and email/push. The Futures analysis topic is
+  open to FREE; `.components` is not.
+
+**Web — admin console (SCR-44, SCR-38; `modules/planned.md`, `04-enums.md`):**
+
+- New: `GET /admin/audit-log`, `/admin/audit-log/export` (CSV, `X-Result-Truncated`,
+  `X-Total-Count`), `/admin/system-events`, `/admin/system-health`, `/admin/pairs/bracket-templates`.
+- `PUT /admin/pairs/{id}` with `INACTIVE` turns both markets off and clears `maxLeverage`; Futures
+  switched on without brackets gets a default template.
+
+**Everyone — errors and realtime:**
+
+- MSG01 also for a NUL byte in text (was 409) and for a fraction in a whole-number field (was
+  silently cut) (D-134, `03-conventions.md`).
+- `/topic/overview.{MARKET}` sends one message about 150 ms after SUBSCRIBE (`05-realtime.md`).
+
 ## 2026-10-30 — Q-81 MSG22 "entry filled", PR #91 (`c302466`, `ec3a6f9`, `8a1cd5c` on `develop` `c4335ae`; not merged yet)
 
 **Web/mobile — one new notification:**
