@@ -30,8 +30,9 @@ The following are part of the decision, because the spike measured them:
 2. One chart page is started early (when the Markets tab opens) and kept; a change of pair or
    timeframe replaces the data, not the page.
 3. Candles are fetched while the page starts, not after.
-4. The first read asks for about 200 candles; older ones are read when the Trader reaches the left
-   edge.
+4. The first read asks for the 500 closed candles SRS 3.3.2 names (EMA200 needs that history); older
+   ones are read when the Trader reaches the left edge. (Corrected 2026-11-07: the first version of
+   this item said about 200, which contradicts the SRS; items 2 and 5 carry the speed.)
 5. The last candles of a pair and timeframe are kept on the device and drawn at once, then replaced
    by the fresh ones.
 6. The chart's locale is English (`en-US`), never the device default.
@@ -50,10 +51,11 @@ Costs: one more package (`webview_flutter`) and a 198 KB script in the app; a We
 interface with a test double and is checked on a device. The attribution logo is always shown; it is
 a licence condition, not promotion.
 
-Still to check during T-090, before the analysis screens are called done: the same measures on a real
-mid-range Android device (the criterion of this ADR); pinch zoom by hand (the emulator tools cannot
-send two fingers). If a real device shows the analysis chart later than about 2 s for a pair seen
-before, this decision is reviewed.
+Not checked: the measures on a real mid-range Android device (the criterion of this ADR). The FE owner
+has no Android device (2026-11-07), so T-090 measures on the emulator only and this criterion stays
+open until someone runs the app on a real device (at the latest in the closed testing of T-120). If a
+real device then shows the analysis chart later than about 2 s for a pair seen before, this decision
+is reviewed. Pinch zoom is checked by hand on the emulator (two-finger mode), not by the test tools.
 
 ## Alternatives considered
 | | A. Lightweight Charts in a WebView (chosen) | B. `k_chart_plus` 1.0.x (native package) | C. Own `CustomPainter` |
