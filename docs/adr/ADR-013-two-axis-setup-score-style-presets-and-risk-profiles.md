@@ -3,8 +3,9 @@
 **Status:** Accepted
 **Date:** 2026-09-26
 **Deciders:** BE1, BE2, FE, DO; supervisor
-**Related:** BR-13, BR-21, BR-29, BR-30, SRS 3.2.5, SRS 3.3.5; TECHNICAL_DESIGN 7.4, 7.5; CURRENT_STATE D-53, Q-01, A-07, A-34; tasks T-027, T-028, T-029, T-033, T-035, T-037, T-103
+**Related:** BR-13, BR-21, BR-29, BR-30, BR-51, SRS 3.2.5, SRS 3.3.5; TECHNICAL_DESIGN 7.2, 7.4, 7.5; CURRENT_STATE D-53, D-146, Q-01, A-07, A-34, A-58; tasks T-027, T-028, T-029, T-033, T-035, T-037, T-103
 **Amended:** 2026-09-26 — directional components by market, `dominant_side`, one style field (`trading_style`), BR-29 thresholds from the risk profile, the alert minimum not used in v1
+**Amended:** 2026-11-08 — addendum v2: component formulas v2, one scored side per candle, stored (D-146)
 
 ## Context
 BR-13 fixes one set of weights for everyone (Spot 35/30/15/20, Futures 30/25/15/15/15), and Q-01 left the weights and
@@ -116,6 +117,8 @@ Reasons, one per weight:
 ### A-07
 Closed as **no direction**. There is no `setup_bias` column or field in v1, and no migration adds one — in T-026 or
 any other task — because direction is not part of the score (invariant rule 2).
+Partially superseded on 2026-11-08 by D-146 (addendum v2): the side the components are scored for is stored and
+returned as context; there is still no `setup_bias` and the score is still not a direction recommendation.
 
 ## Consequences
 - Component scores are computed once per (pair, market, timeframe) whatever the number of users; a score costs a
@@ -144,7 +147,81 @@ Why this one:
 - Computing component scores once and weighting at read time avoids work proportional to users × symbols.
 - Three presets plus three profiles are six small configurations, instead of nine weight tables if the axes were mixed.
 
+## Addendum v2 (2026-11-08)
+
+**Status:** Accepted (team, 2026-11-08). Decision: D-146, which partially supersedes D-53(b) and A-07.
+**Code:** `c52f812` (previous MACD histogram from the series), `a7999de` (component formulas v2, V63).
+
+### Context
+Issues of v1, seen when the scores were read on stored data:
+- Futures took `max(LONG, SHORT)` per component, so one candle could take its trend from one side and its momentum or
+  level from the other. This inflated Futures scores: the v1 share of scores >= 65 was 40.6 / 63.9 / 88.5% on Futures
+  (SCALPING / DAY_TRADING / SWING), against 20.1 / 16.4 / 21.4% on Spot.
+- Funding was scored the wrong way: the funding part grew with the absolute funding rate whichever side pays, so the
+  crowded side scored higher, and it was never below 25.
+- The RSI part was a step table: a one-point move of the RSI could change it by 25.
+- Chasing at resistance scored high: on Futures a close just under resistance took the SHORT level reading (full room
+  to support) beside a LONG trend and momentum.
+- The v1 formulas and weights were chosen from experience and never calibrated.
+
+### Decision
+Component formulas v2, as in TECHNICAL_DESIGN 7.4:
+- One scored side per candle: LONG on Spot (BR-21); on Futures the dominant side of the trend, and the sign of the
+  MACD histogram when it is NEUTRAL. The side is stored in `technical_indicator.scored_side` (V63, null on v1 rows)
+  and returned as the optional field `scoredSide`. It is context for the score, not a trade direction recommendation
+  (BR-51). Counter-trend setups are out of v2 scope.
+- Trend conditions count only outside a band of 0.1 σ, with σ = (bbUpper − bbMiddle) / 2.
+- A piecewise-linear RSI part instead of the step tables.
+- Volume saturating at 2.0x its average, multiplied by 0.5 on a candle that closes against the side.
+- Level with a tight-stop guard: the risk to the level behind is at least 0.5 σ.
+- Derivatives: funding against a 0.0001 baseline, lower for the side that pays above it; open interest tied to the
+  price direction.
+- A smooth room cap: the score is capped at 54 up to a level component of 10, rising linearly to no cap at 30, with
+  `capReason` LOW_ROOM when the cap lowers the score.
+
+The presets move to version v2; their weights are the v1 weights, unchanged. The minimum setup scores to alert of the
+risk profiles stay at 75 / 65 / 55. Stored v1 rows are not recomputed; `score_version` tells them apart.
+
+### Calibration
+By score distribution on stored data, not a backtest: v1 and v2 recomputed on the same candles of a copy of the
+development database (development profile `calibration`), 13 pairs × 1000 closed candles per series, on each preset's
+own timeframe and both markets (78,000 samples). The 15m window is about 10 days, the 1h window about 6 weeks, the 4h
+window about 5.5 months. Futures derivatives data only exists from 2026-09, so SWING Futures has it on 3,302 of its
+13,000 candles.
+
+Share of setup scores >= 65:
+
+| Preset | Spot v1 -> v2 (share >= 65) | Futures v1 -> v2 (share >= 65) | Spot/Futures gap |
+|---|---|---|---|
+| SCALPING | 20.1% -> 6.0% | 40.6% -> 8.9% | 2.9 pp |
+| DAY_TRADING | 16.4% -> 5.2% | 63.9% -> 11.4% | 6.2 pp |
+| SWING | 21.4% -> 10.7% | 88.5% -> 26.4% | 2.8 pp on candles with derivatives data (15.7 pp overall) |
+
+On the SWING Futures candles with derivatives data the v2 share >= 65 is 13.5%, against 10.7% on Spot; the 15.7 pp
+overall gap comes mostly from candles scored without the derivatives component.
+
+### Thresholds kept at 55 / 65 / 75
+The report suggests lower per-preset thresholds for a 20% share. None is applied:
+- no feature reads the thresholds in this release (D-53(e));
+- the windows are short (15m covers about 10 days);
+- per-preset thresholds would change the configuration model, where the thresholds belong to the risk profile.
+
+Recalibrate when a feature starts reading them.
+
+### Forward returns
+Mean forward return over the next 3 candles in the scored direction, scores >= 65 against < 55, Welch t: not
+significant in 5 of the 6 groups (|t| < 1). DAY_TRADING Spot gives t = -4.06, inflated by overlapping windows,
+correlated pairs and a single falling regime (about 6 weeks of 1h candles). The setup score measures the quality of
+a setup; it is not a predictor.
+
+### LOW_ROOM
+The room cap lowered 8–10% of the Spot scores and 20–26% of the Futures scores. To be monitored.
+
 ## References
 - Wilder, J. W. (1978). *New Concepts in Technical Trading Systems*. Trend Research. (RSI in the momentum component.)
 - Tharp, V. K. (1999). *Trade Your Way to Financial Freedom*. McGraw-Hill. (Position sizing, R-multiples.)
 - Vince, R. (1990). *Portfolio Management Formulas*. Wiley. (Fixed fractional risk per trade.)
+- Appel, G. (2005). *Technical Analysis: Power Tools for Active Investors*. FT Prentice Hall. (MACD in the momentum component.)
+- Bollinger, J. (2001). *Bollinger on Bollinger Bands*. McGraw-Hill. (σ as the volatility unit of the v2 bands.)
+- Murphy, J. J. (1999). *Technical Analysis of the Financial Markets*, ch. 7. New York Institute of Finance. (Trend, volume and open interest confirming price.)
+- He, S., Manela, A., Ross, O. and von Wachter, V. (2022). *Fundamentals of Perpetual Futures*. arXiv:2212.06888. (Funding as the cost paid by the crowded side.)
