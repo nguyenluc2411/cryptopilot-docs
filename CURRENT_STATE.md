@@ -5153,4 +5153,4 @@ Kept current as tasks close (`/end-session` step 5). Each row: BR/UC/NSF/SCR id 
 - T-015 remaining scope: 31 missing cases (table in section 7) + Q-86
 - PR A #100 ai-context-v2: CI pass (build-and-test 5696/5696, secret-scan); PR B #101 ai-service CI: CI pass (ai-service-test 59/59, build-and-test 5692/5692 on the re-run; the first run failed on the existing flaky `PaperOrderApiTest.NSF01_anOrderTheListenerMissed_isCancelledByTheSweep_once` (expected 1, was 0), which this PR does not touch; secret-scan pass)
 - SetupComponents.level: open question (Q-85)
-- Docs repo: DOCS_SHA
+- Docs repo: `bb2ad99` docs: record setup score v2 and the 2026-11-11 merges (pushed to `main`)
