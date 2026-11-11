@@ -761,6 +761,12 @@ Rule: an AI agent never answers an open question by guessing. It implements what
 
 Newest first. One block per working session, format in `CLAUDE.md` section 8.
 
+## 2026-11-11 - BE1 review of #100 and #101
+- #101: APPROVE, merged `8bbd2f7` (ci: run the ai-service typecheck and tests)
+- #100: APPROVE, merged `6e939f9` (feat(ai): scored side and cap reason in the context, after update-branch on #101; CI build-and-test, ai-service-test, secret-scan green); develop last migration V66, no open PR adds a V66
+- Findings: none BLOCKER/MAJOR. MINOR #101: ci.yml header (lines 1-20) still describes only the backend build. MINOR #100: V66:21 hard-codes rule "8." (wrong if an admin prompt has another count; fallback at :16 appends after a single newline); no migration test for "no active row before V66" or "custom admin version active"; the migration's activation writes no audit_log entry (same as V62)
+- Follow-ups: PaperOrderApiTest.NSF01_anOrderTheListenerMissed_isCancelledByTheSweep_once flaky (failed once on #101's first run, passed on re-run; T-102-style task); make ai-service-test a required check on develop/main; Q-85 level rule; Q-86 Admin community read; T-074b -> BE2
+
 ### 2026-11-07 – T-056, T-072…T-076, UC-50 end-to-end check and PRs – BE2
 - Result: T-076 DONE; T-056 and T-072…T-075 (+UC-50) IN REVIEW; T-048c, T-049, T-050 IN PROGRESS (rebase pending)
 - Summary: End-to-end run on a local stack with real Gemini: alerts → in-app + mail; plan fill → journal learning data, MAE/MFE, review, manual trades; AI answers, topic rules, MSG29/30/31, no personal data in the context; admin AI configuration; 390 px and dark theme. Conversations now carry a topic (GENERAL, MARKET, MY_TRADING), so SCR-29 is two pages (`/ai/market`, `/ai/my-trading`) with their own conversations; the AI screens were redesigned (TopNav dropdown, chat, floating chat).
