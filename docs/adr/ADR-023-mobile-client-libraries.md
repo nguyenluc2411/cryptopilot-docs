@@ -3,7 +3,7 @@
 **Status:** Proposed
 **Date:** 2026-11-06
 **Deciders:** BE1, BE2, FE, DO
-**Related:** TECHNICAL_DESIGN 1.3, 4.2, 5.3; ADR-008, ADR-012, ADR-016, ADR-019; CURRENT_STATE D-140, D-141; T-088…T-092; SRS 3.1.1, NSF-15
+**Related:** TECHNICAL_DESIGN 1.3, 4.2, 5.3; ADR-008, ADR-012, ADR-016, ADR-019; CURRENT_STATE D-152, D-153; T-088…T-092; SRS 3.1.1, NSF-15
 
 ## Context
 TECHNICAL_DESIGN 1.3 gives the mobile client Flutter (stable), Riverpod, dio, go_router and
@@ -31,7 +31,7 @@ without its own decision entry:
 | `app_links` | deep links from notifications and from the password reset e-mail | T-092 |
 | `mocktail` (dev) | test doubles for repositories and data sources | T-088 |
 
-Versions are pinned in `pubspec.lock` of the mobile repository (D-140). The chart package is decided
+Versions are pinned in `pubspec.lock` of the mobile repository (D-152). The chart package is decided
 by ADR-012, not here.
 
 ## Consequences

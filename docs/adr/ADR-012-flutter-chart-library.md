@@ -3,13 +3,13 @@
 **Status:** Proposed (FE owner chose option A on 2026-11-07, for the team lead's review)
 **Date:** 2026-09-19 (opened); 2026-11-07 (decided by the FE owner)
 **Deciders:** BE1, BE2, FE, DO
-**Related:** CURRENT_STATE D-144, D-141, D-142, D-126, A-43; TECHNICAL_DESIGN 1.3, 1.4; ADR-016, ADR-023; T-090, T-121, T-122; SRS 3.3.2, 3.3.3, BR-08, BR-14
+**Related:** CURRENT_STATE D-156, D-153, D-154, D-126, A-43; TECHNICAL_DESIGN 1.3, 1.4; ADR-016, ADR-023; T-090, T-128, T-129; SRS 3.3.2, 3.3.3, BR-08, BR-14
 
 ## Context
 The mobile app must draw candlestick charts with indicator overlays, matching the analysis screens of
-the web app (SCR-10, SCR-11), and later the paper trading screens (D-142: T-121, T-122) with entry,
+the web app (SCR-10, SCR-11), and later the paper trading screens (D-154: T-128, T-129) with entry,
 stop loss and take profit lines. The web app uses TradingView Lightweight Charts, which has no
-first-party Flutter package. Prices are decimal strings in the API and decimals in the app (D-141);
+first-party Flutter package. Prices are decimal strings in the API and decimals in the app (D-153);
 the owner's devices run in Vietnamese, and the web once showed Vietnamese month names on its chart
 axes (A-43).
 
@@ -53,7 +53,7 @@ a licence condition, not promotion.
 
 Not checked: the measures on a real mid-range Android device (the criterion of this ADR). The FE owner
 has no Android device (2026-11-07), so T-090 measures on the emulator only and this criterion stays
-open until someone runs the app on a real device (at the latest in the closed testing of T-120). If a
+open until someone runs the app on a real device (at the latest in the closed testing of T-127). If a
 real device then shows the analysis chart later than about 2 s for a pair seen before, this decision
 is reviewed. Pinch zoom is checked by hand on the emulator (two-finger mode), not by the test tools.
 
