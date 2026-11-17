@@ -66,7 +66,7 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 | P6c Plan realism (GY-03) | S5 | STOP entries, invalidation, entry deviation, fee role, Futures last price, slippage (D-111) | 7 | 6 | WIP — TP-0 (#68), TP-A (#66), TP-B (#70), TP-C (#72), TP-D (#73), TP-E (#77) merged; T-113 TODO |
 | P7 Journal | S5 | Journal, manual trades, performance dashboard | 8 | 7 | WIP — T-048a (#71), T-048b (#75), T-051 (#94, `52736cb`), T-116 (#95, `25ba960`), T-048c, T-049, T-050 (#103, `9090dc0`, 2026-11-12) merged; T-052 PARTIAL (FE, part 1 merged `6038aa2`; SCR-22 and review editing left) |
 | P8 Monitoring | S6 | Watchlist, alerts, alert engine, notifications | 10 | 6 | WIP — T-053 (#43), T-054 (#44), T-055 (#51), T-110 (#56, #57), T-057 (#58), T-056 (#96, `12053ea`, 2026-11-11) merged; T-059, T-112 PARTIAL (FE); T-111, T-058 TODO |
-| P9 Community | S7 | Posts, media, comments, engagement, reports | 8 | 6 | WIP — T-060…T-064 merged with the forum (PR #64), extras (follows, votes, influencers, D-125) PR #83; T-065 PARTIAL (FE); T-101 TODO |
+| P9 Community | S7 | Posts, media, comments, engagement, reports | 8 | 7 | WIP — T-060…T-064 merged with the forum (PR #64), extras (follows, votes, influencers, D-125) PR #83; T-065 DONE (FE, 2026-10-24); T-101 TODO |
 | P10 Billing | S8 | Packages, orders, SePay/MoMo (D-148), subscriptions | 6 | 6 | DONE — T-066…T-070 merged (#102, `88df416`, 2026-11-12), T-071 DONE (FE `a3e65d2`); order model D-147; SRS alignment A-59 pending; package administration (UC-47, SCR-39) is not one of these rows (package tiers moved to T-106, T-104 to P3b, D-59) |
 | P11 AI Assistant | S9 | AI Service, conversations, quota | 6 | 4 | WIP — T-072, T-073, T-075 (+UC-50) merged (#97, `0524257`, 2026-11-11), T-076 DONE (FE `1d73ada`); T-074 PARTIAL (#97; #100 merged `6e939f9`; PR #104 open); T-074b TODO (unblocked by #103) |
 | P12 News | S9 | Sources, crawl, dedup, tagging, summary; Academy (T-114) | 7 | 7 | DONE — T-077…T-080, T-080b, T-080c merged (PR #79, `103d7cf`, 2026-10-25); T-114 Academy merged (PR #78, `a6c31e7`; no SRS FR/UC yet, Review 2 F-03) |
@@ -76,7 +76,7 @@ A task may be marked `DONE` only when the Definition of Done in `CLAUDE.md` sect
 | P16 Chart drawing (extension, D-149) | — | Trader drawing tools on the web chart, stored per user and symbol | 4 | 0 | TODO — T-119 (BE), T-120, T-121 (FE), T-122 (Should tools); not in the SRS |
 | **Total** | | | **185** | **131** | **71%** |
 
-**Recount 2026-11-17 (2):** counted from the rows of section 6: T-117 DONE (+1), and T-065, DONE in its row since 2026-10-24 but left out of the P9 count (+1): 129/185 → 131/185. The P9 row above still reads 6; see the 2026-11-17 (2) session follow-ups.
+**Recount 2026-11-17 (2):** counted from the rows of section 6: T-117 DONE (+1), and T-065, DONE in its row since 2026-10-24 but left out of the P9 count (+1): 129/185 → 131/185. P9 row corrected to 7 the same day.
 
 **Recount 2026-11-17 (FE docs merge):** the 12 mobile rows of P14 come from the FE branch (T-088…T-092, T-123…T-129; T-088 and T-089 DONE, T-090 PARTIAL, T-125 WIP) in place of the 5 rows main counted: 127/178 → 129/185.
 
@@ -5408,6 +5408,6 @@ Kept current as tasks close (`/end-session` step 5). Each row: BR/UC/NSF/SCR id 
 - FE CI (ci.yml): format, typecheck, lint, vitest, build; e2e: not run (unchanged since `f5a445a`, never ran e2e)
 - Last CI runs on develop: `bafaa7e` 2026-11-13 success; `a3e65d2` 2026-11-12 success; `1d73ada` 2026-11-07 success
 - Progress: 129/185 -> 131/185 (counted from the rows; +1 T-117, +1 T-065)
-- Follow-ups: P9 progress row still reads 6 done and "T-065 PARTIAL" while the T-065 row is DONE since 2026-10-24 (`3a590e1`); owner to confirm
+- P9 progress row corrected to 7 done (T-065 DONE since 2026-10-24, `3a590e1`), on the team lead's request
 - Follow-ups: R-09, web CI has no e2e job; FE decides whether to add one
 - Follow-ups: FE `4d035b7` carries an AI attribution trailer (history, not rewritten)
