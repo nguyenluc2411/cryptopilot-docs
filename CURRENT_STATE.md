@@ -5445,3 +5445,14 @@ Kept current as tasks close (`/end-session` step 5). Each row: BR/UC/NSF/SCR id 
 - P9 progress row corrected to 7 done (T-065 DONE since 2026-10-24, `3a590e1`), on the team lead's request
 - Follow-ups: R-09, web CI has no e2e job; FE decides whether to add one
 - Follow-ups: FE `4d035b7` carries an AI attribution trailer (history, not rewritten)
+
+## Session 2026-11-17 - Review of PRs #104-#107
+- #104: REQUEST CHANGES; before merge: F1, F4 (head still 6fd9cbf, F1-F6 not fixed)
+- #105: REQUEST CHANGES; before merge: renumber, rebase after #107, R105-1 advised (CoinPaprika names reach news tagging); migration V69 -> V72
+- #106: APPROVE WITH NITS (R106-1: GET /comments/1 passes on 405, no GET handler)
+- #107: APPROVE WITH NITS (R107-1: no 60 s cooldown after the registration mail)
+- Merge order: #106 -> #104 -> #107 -> #105; integration groups 926/929/941/992 pass; full verify stopped for low memory after 3788 tests, 0 failures
+- Report: docs/reviews/OPEN_PRS_REVIEW_2026-11-17.md (local)
+- Follow-ups: T-015 rows for GET /market/coins and /posts/coin-sentiment; ADR-022 (FE) to Q-86
+- Follow-ups: FE 429 MSG46 (unit for retryAfter, cooldown from retryAfter); T-130 owner
+- Follow-ups: #104 F2, F3, F5, F6; CoinPaprika / alternative.me terms not verified
