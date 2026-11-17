@@ -2,6 +2,42 @@
 
 Newest first. Each entry names the `develop` SHA the guide was synced to.
 
+## 2026-11-06 — PR #95 merged (`develop` `25ba960`)
+
+**Web — SCR-20, SCR-21, SCR-23 (`modules/planned.md`, `02-auth.md`):**
+
+- `GET /journal` has the filters `from`, `to`, `source`, `strategyId`, `result`, and `market` also takes `ALL`; rows
+  carry `strategyId` and `strategyName`.
+- `source` defaults to `ALL` and the period reads `entry_time` here, unlike performance (`SIMULATED`, `exit_time`):
+  the SCR-23 -> SCR-20 link passes pair and market only (D-140).
+- `netPnl` on a journal row counts a null fee as 0, as performance does; it is null only without `realizedPnl`.
+- New `GET /journal/{id}` (SCR-21 deep link) and `GET /strategies` (dropdown, every plan) are IMPLEMENTED (develop).
+  No D-111 learning fields on the detail until T-048c.
+- `/journal/performance/by-coin`: `label` is `null` for a pair that is not found (it was the pair id); show
+  "Unknown pair".
+
+## 2026-11-06 — PR #94 merged (`develop` `52736cb`)
+
+**Web — SCR-23, SCR-20, SCR-08 (`modules/planned.md`, `02-auth.md`):**
+
+- `GET /journal/performance/summary`, `/by-coin`, `/by-strategy`, `/by-market` and `/equity-curve` are IMPLEMENTED
+  (develop): the flag can go. `ADVANCED_PERFORMANCE` is enforced; `/performance` is gone from the Trader paths.
+  `GET /journal` (on `develop` since PR #80) now has its contract in the guide.
+- `errors.<field>` of a bad filter is a message code (`MSG15`) or the default text `is invalid`.
+- The period is checked once resolved: a `from` after today without `to` is 400 MSG01 with `errors.from: MSG15`.
+- A null fee counts as 0 in net P/L, so a closed trade is never left out for it (D-139).
+- The equity curve has no point at `from`: the client adds the 0 baseline.
+
+## 2026-11-06 — T-051 review fixes (`feat/t-051-performance-stats` `7ba89c6`, PR #94; not merged)
+
+**Web — SCR-23, SCR-08 (`modules/planned.md`):**
+
+- `errors.<field>` of a bad filter is `MSG15` or the default text `is invalid`, never the server's message.
+- `from` is checked against the resolved end: a `from` after today without `to` is now 400 MSG01 with `errors.from: MSG15`
+  (it was 200 and empty). A year outside 1..9999 is refused on `from` or `to` the same way (D-139).
+- The equity curve has no point at `from`: the client adds the 0 baseline. Show the "includes provisional trades" badge
+  from `summary.provisionalTrades`.
+
 ## 2026-11-05 — T-051 performance statistics (`feat/t-051-performance-stats`, on `develop` `6d8a3d9`; not merged)
 
 **Web — SCR-23, SCR-08 (`modules/planned.md`):**

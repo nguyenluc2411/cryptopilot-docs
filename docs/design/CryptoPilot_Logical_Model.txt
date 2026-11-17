@@ -106,6 +106,7 @@ erDiagram
     decimal level_score
     decimal derivatives_score "null if SPOT"
     varchar score_version "component formula version; the setup score is read under a preset, not stored (D-53, V9)"
+    varchar scored_side "LONG or SHORT, the side the v2 components were scored for; null on v1 rows (D-146, V63)"
     timestamp calculated_at
   }
   SPOT_MARKET_DATA {
@@ -401,6 +402,7 @@ erDiagram
   AI_MESSAGE {
     uuid message_id PK
     uuid conversation_id FK
+    uuid question_id FK "the question an ASSISTANT row answers (V64)"
     varchar sender_role "USER, ASSISTANT"
     text content
     jsonb context_snapshot
@@ -549,10 +551,16 @@ erDiagram
     varchar url_hash UK
     varchar title_hash
     text excerpt
+    varchar ai_title "translated headline, D-123"
     text ai_summary
     varchar sentiment_label "BULLISH, NEUTRAL, BEARISH"
     timestamp published_at
     timestamp collected_at
+    timestamp hidden_at "hidden by an administrator, D-124"
+    uuid hidden_by FK
+    int summary_attempts "D-124"
+    varchar summary_error
+    timestamp summary_attempted_at
   }
   NEWS_TAG {
     uuid tag_id PK
@@ -646,6 +654,7 @@ erDiagram
   USER ||--o{ AI_CONVERSATION : starts
   CRYPTO_PAIR |o--o{ AI_CONVERSATION : "context of"
   AI_CONVERSATION ||--o{ AI_MESSAGE : contains
+  AI_MESSAGE ||--o| AI_MESSAGE : "answered by"
   USER ||--o{ AI_CONFIGURATION : "configured by Admin"
 
   USER ||--o{ SUBSCRIPTION_ORDER : places

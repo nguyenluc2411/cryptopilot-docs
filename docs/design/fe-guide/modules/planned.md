@@ -1,7 +1,7 @@
 # Planned modules (spec only)
 
-Everything in this file is **PLANNED (spec only)**: listed in TD 8 or SRS, with no controller or DTO
-in code. Do not call these paths; until a controller exists a Guest gets 401, a TRADER
+Everything in this file is **PLANNED (spec only)** unless its entry says IMPLEMENTED (develop): listed
+in TD 8 or SRS, with no controller or DTO in code. Do not call these paths; until a controller exists a Guest gets 401, a TRADER
 404 (no handler) and an ADMIN 403. Request and response shapes are not defined — do not invent them. What the spec does fix
 (paths, roles, plan gates, messages) is listed so screens can be laid out.
 
@@ -11,19 +11,30 @@ Source for every entry: no code at `6137e24`; TD 8 endpoint catalogue.
 ## journal — SCR-20 … SCR-23 (T-048 … T-052)
 
 ### GET /journal
-Status: PLANNED (spec only)
-Auth: trader
-Purpose: List journal entries, filter by source SIMULATED / MANUAL (UC-22).
-Request: not defined. Response: not defined. Errors: not defined.
-FE notes: paged (CR-04). Source filter separates simulated from manual (T-052).
-Source: none. Spec: TD 8, SRS 3.6.1, UC-22, BR-40.
+Status: IMPLEMENTED (develop); filters and strategy fields merged with PR #95 (`25ba960`).
+Auth: trader (guest 401, admin 403); only the caller's trades.
+Purpose: List journal entries, latest entry first (SCR-20, UC-22).
+Request (all optional): `from`, `to` (`yyyy-MM-dd`, UTC+7 days, `from` counted and `to` not, on `entry_time`, so open trades are included; without `from` from the first trade, without `to` up to and including today; a bad period names the field with `MSG15`, same rule as performance), `source` (`SIMULATED`, `MANUAL`, `ALL`; default `ALL`), `strategyId`, `result` (`WIN`, `LOSS`, `BREAKEVEN` by net P/L; closed rows only, an open trade never matches), `market` (`SPOT`, `FUTURES`, `ALL`; default `ALL`), `status` (`OPEN`, `CLOSED`; both when absent), `pairId`, `page`, `pageSize` (CR-04, `03-conventions.md`).
+Response: `PageResponse` of `id, planId (null on a manual trade), strategyId, strategyName (both null when unassigned), pairId, market, direction, source (SIMULATED, MANUAL), status, leverage (null on Spot), entryPrice, quantity, entryTime, entryFee (null when unknown), stopLoss, takeProfit, exitPrice, exitTime, closeReason, realizedPnl, feeAmount, fundingFeeAmount (null on Spot), netPnl, provisional`. The fields from `exitPrice` to `netPnl` are set once CLOSED; `provisional` is true while a funding settlement may still be missing. `netPnl` = `realized_pnl - coalesce(fee_amount, 0) + funding`, the same constant as performance (D-139, D-140); null only when `realized_pnl` is null.
+Errors: 400 MSG01 with `errors.<field>` for a bad parameter (`MSG15` or the default text `is invalid`), 401 MSG44.
+FE notes: this list and SCR-23 differ on purpose (D-140): here `source` defaults to `ALL` and the period reads `entry_time`; performance defaults to `SIMULATED` and reads `exit_time`. The same dates can select different trades, so the SCR-23 -> SCR-20 link passes pair and market only. A row has no `result` field: derive the result column from `netPnl`. `strategyId` is not written until T-049 and T-050, so the strategy filter matches nothing on real data yet.
+Source: `backend/src/main/java/com/cryptopilot/journal/controller/JournalController.java#L59`, `JournalEntryResponse`, `TradePeriods`. Spec: TD 8, SRS 3.6.1, UC-22, BR-40, BR-42, D-140.
 
 ### GET /journal/{id}
-Status: PLANNED (spec only)
-Auth: trader
+Status: IMPLEMENTED (develop), merged with PR #95 (`25ba960`).
+Auth: trader (guest 401, admin 403); only the caller's own entry.
 Purpose: One journal entry (SCR-21).
-Request/Response/Errors: not defined.
-Source: none. Spec: TD 8, SRS 3.6.1.
+Response: the fields of a `GET /journal` row, flat, then `setupDescription, lessonsLearned, mistakes` (null until reviewed), `chartImageUrl` (null without one).
+Errors: 404 MSG41 for an entry of another Trader or an unknown id (the same answer), 400 MSG01 `errors.id` for a non-UUID id, 401 MSG44.
+FE notes: no D-111 learning fields (planned entry, entry deviation, setup score, MAE/MFE) until T-048c. Writing the review is `PUT /journal/{id}` (T-049).
+Source: `backend/src/main/java/com/cryptopilot/journal/controller/JournalController.java#L95`, `JournalEntryDetailResponse`. Spec: TD 8, SRS 3.6.1, UC-22, BR-40.
+
+### GET /strategies
+Status: IMPLEMENTED (develop), merged with PR #95 (`25ba960`).
+Auth: trader on every plan (guest 401 MSG44, admin 403).
+Purpose: The strategies a Trader can choose: the strategy dropdown of SCR-20, SCR-21 and SCR-23.
+Response: a plain list, not paged, sorted by name: `[{id, name}]`.
+Source: `backend/src/main/java/com/cryptopilot/trading/controller/StrategyController.java#L37`, `StrategyResponse`. Spec: SRS 3.6.1, 3.6.3, UC-22, UC-23, UC-25.
 
 ### PUT /journal/{id}
 Status: PLANNED (spec only)
@@ -47,18 +58,18 @@ Request/Response/Errors: not defined.
 Source: none. Spec: TD 8.
 
 ### GET /journal/performance/* (T-051, SCR-23, SCR-08 widget)
-Status: BUILT on `feat/t-051-performance-stats` (`c58e88b`), not merged. The path replaces the planned `GET /performance`.
+Status: IMPLEMENTED (develop), merged with PR #94 (`52736cb`). The path replaces the planned `GET /performance`.
 Auth: trader (guest 401, admin 403); only the caller's closed trades.
-Filters, the same on all five, all optional: `from`, `to` (`yyyy-MM-dd`, UTC+7 days, `from` counted and `to` not, no length limit; without `from` from the first trade, without `to` up to and including today), `market` (`SPOT`, `FUTURES`, `ALL`; default `ALL`), `source` (`SIMULATED`, `MANUAL`, `ALL`; default `SIMULATED`, BR-41), `pairId`, `strategyId`. A bad filter answers 400 MSG01; `from` not before `to`, when both are sent, names `from` with MSG15.
+Filters, the same on all five, all optional: `from`, `to` (`yyyy-MM-dd`, UTC+7 days, `from` counted and `to` not, no length limit; without `from` from the first trade, without `to` up to and including today), `market` (`SPOT`, `FUTURES`, `ALL`; default `ALL`), `source` (`SIMULATED`, `MANUAL`, `ALL`; default `SIMULATED`, BR-41), `pairId`, `strategyId`. A bad filter answers 400 MSG01. `errors.<field>` is a message code (`MSG15`) or the default text `is invalid`, never a server message: a value of the wrong type gives `is invalid`. Resolved-period rule (D-139): `from` must be before the end of the period, sent or defaulted, so a `from` after today without `to` is refused too, and a year outside 1..9999 is refused on `from` or `to`; each names the field with `MSG15`.
 Decimals are strings with 8 decimals. A ratio or mean with nothing to compute is `null`, never 0: show a dash.
 
 `GET /journal/performance/summary`, every plan:
-`from (null when counted from the first trade), to, trades, wins, losses, breakeven, winRate (0 to 1), totalNetPnl, provisionalTrades, totalFees, totalFunding (+ received), advanced`. `trades: 0` is the empty result: show MSG41 (it is 200, not 404). `provisionalTrades > 0`: the total may still change, funding is incomplete. `advanced` is `null` on FREE: show the locks (CR-08), do not call it an error.
+`from (null when counted from the first trade), to, trades, wins, losses, breakeven, winRate (0 to 1), totalNetPnl, provisionalTrades, totalFees, totalFunding (+ received), advanced`. `trades: 0` is the empty result: show MSG41 (it is 200, not 404). `provisionalTrades > 0`: show an "includes provisional trades" badge, the total may still change because funding is incomplete. This field is the only signal: breakdowns and the curve carry no provisional count (D-139). `advanced` is `null` on FREE: show the locks (CR-08), do not call it an error.
 `advanced` on PRO and PREMIUM: `averageWin, averageLoss (negative), profitFactor, averagePlannedRiskReward, averageRealizedR (also the expectancy in R), tradesWithR, largestWin, largestLoss, maxConsecutiveLosses, maxDrawdown (positive USDT), averageEntryDeviationR, costOfLateEntryR, averageMaeR, averageMfeR`. The last four are `null` until T-048c stores the learning data.
 
-`GET /journal/performance/by-coin`, `/by-strategy`, `/by-market`, PRO and PREMIUM, FREE 403 MSG29: a list, highest net P/L first, of `key, label, trades, wins, losses, breakeven, winRate, netPnl, profitFactor, averageRealizedR`. `key` is the pair id, strategy id or market; `label` the symbol, strategy name or market. Trades without a strategy: `key: null`, `label: "Unassigned"`.
+`GET /journal/performance/by-coin`, `/by-strategy`, `/by-market`, PRO and PREMIUM, FREE 403 MSG29: a list, highest net P/L first, of `key, label, trades, wins, losses, breakeven, winRate, netPnl, profitFactor, averageRealizedR`. `key` is the pair id, strategy id or market; `label` the symbol, strategy name or market. Trades without a strategy: `key: null`, `label: "Unassigned"`. In `/by-coin`, a pair that is not found has `label: null` and keeps its `key`: show "Unknown pair".
 
-`GET /journal/performance/equity-curve`, PRO and PREMIUM, FREE 403 MSG29: oldest first, one point per day with an exit: `day, trades, netPnl, cumulativeNetPnl`. The curve starts at 0 at `from`.
+`GET /journal/performance/equity-curve`, PRO and PREMIUM, FREE 403 MSG29: oldest first, one point per day with an exit: `day, trades, netPnl, cumulativeNetPnl`. There is no point at `from`: the first point is the first exit day, with that day's net as its cumulative. The client adds the 0 baseline itself.
 Source: `PerformanceController`. Spec: SRS 3.6.3, UC-25 (current SRS UC-22), BR-41, BR-42, BR-62, TD 7.10.
 
 ## community — SCR-24 … SCR-27 (T-060 … T-065)
@@ -185,18 +196,45 @@ Source: none. Spec: TD 8, BR-44.
 ## news — SCR-28 (T-077 … T-080)
 
 ### GET /news
-Status: PLANNED (spec only)
-Auth: trader; AI summary and sentiment `NEWS_AI_INSIGHT` (PRO+)
-Purpose: News feed with filters `coin`, `sentiment`, `range` (UC-34).
-Request: query names from TD 8: `coin`, `sentiment`, `range`; values not defined. Response/Errors: not defined.
-Source: none. Spec: TD 8, SRS 3.8.1, UC-34, BR-62.
+Status: BUILT 2026-10-25 on `feature/T-080-news-api` (`cdfefd7`, local, stacked on T-079; not merged)
+Auth: trader (401 without a session, 403 for ADMIN); every plan sees the same items (D-126, no `NEWS_AI_INSIGHT` gate)
+Purpose: News feed, newest first (UC-34, SCR-28; also the news blocks of SCR-08/10/11 with `coin`).
+Request (all optional): `coin` symbol, any case (`btc`); `sentiment` `BULLISH|NEUTRAL|BEARISH`, any case; `range` `24h|7d|30d`, any case, **7d by default**; `page` from 1; `pageSize` 1–100, 20 by default.
+Response 200 `PageResponse`: `{ items, page, pageSize, total }`; each item
+`{ articleId, title, originalTitle, source, originalUrl, publishedAt, summary, aiSummarized, sentiment, coins: [{ symbol, primary }] }`.
+- `title`: Vietnamese headline once summarized (D-127), else the collected one; `originalTitle` always the outlet's.
+- `summary`: the AI summary (Vietnamese, ≤ 60 words) when `aiSummarized`, else the feed excerpt; may be `null`.
+- `sentiment`: absent until the article is summarized (show no chip). `coins`: primary first.
+- An unknown `coin` answers an empty page, not an error. Open `originalUrl` in a new tab (SRS 3.8.1).
+Errors: 400 with `errors.sentiment`, `errors.range`, `errors.page` or `errors.pageSize` = `MSG15`.
+Source: `news/controller/NewsController`. Spec: TD 8, SRS 3.8.1, UC-34, D-126, D-127.
 
 ### GET /news/sentiment-summary
-Status: PLANNED (spec only)
-Auth: trader (PRO+ per `NEWS_AI_INSIGHT`)
-Purpose: 24h sentiment summary.
-Request/Response/Errors: not defined.
-Source: none. Spec: TD 8, SRS 3.8.1.
+Status: BUILT 2026-10-25 (`cdfefd7`, as above)
+Auth: trader, every plan (D-126)
+Purpose: the 24h summary bar of SCR-28.
+Response 200: `{ since, bullish, neutral, bearish }` — articles published since `since` (now − 24 h) per sentiment; articles not summarized yet are not counted.
+Source: `news/controller/NewsController`. Spec: TD 8, SRS 3.8.1.
+
+### POST /admin/news-sources/{id}/crawl — crawl now (T-080b, D-128)
+Status: BUILT 2026-10-25 on `feature/T-080b-news-admin` (`43ff01a`, local, stacked on T-080; not merged)
+Auth: admin. Body: none. Works on a source that is switched off too.
+**Confirm first (SCR-41):** before calling, show a dialog built from the source row (`GET /admin/news-sources` or `/{id}`): `crawlIntervalMinutes`, `lastCrawledAt`, `nextCrawlAt`, `active`. Suggested text (vi): *"Nguồn **{sourceName}** được hệ thống tự động crawl **mỗi {crawlIntervalMinutes} phút**. Lần gần nhất: **{lastCrawledAt}** ({n} phút trước). Lần kế tiếp: **{nextCrawlAt}**. Bạn vẫn muốn crawl ngay?"* `[Huỷ]` `[Crawl ngay]`. When `active` is false: *"Nguồn đang tắt, hệ thống không tự crawl."* in place of the next time; when never crawled: *"Chưa crawl lần nào."*
+Response 200: the crawl log entry `{ crawlLogId, startedAt, finishedAt, status, articlesFound, articlesInserted, errorMessage }`; then refresh the row (its next crawl is now + interval).
+Errors: 404 MSG41; **429 `NEWS_SOURCE_CRAWLED_RECENTLY` MSG50**, `messageArgs[0]` = seconds to wait (crawled less than a minute ago).
+
+### GET /admin/news-articles (T-080b, D-128)
+Status: BUILT 2026-10-25 (`43ff01a`, as above). Auth: admin.
+Request: `status` `PENDING|FAILED|SUMMARIZED|HIDDEN` (any case), `sourceId`, `page`, `pageSize` (CR-04). Newest first, hidden ones included.
+Response 200 `PageResponse` of `{ articleId, sourceId, source, title, aiTitle, originalUrl, excerpt, aiSummary, sentiment, publishedAt, collectedAt, status, summaryAttempts, summaryError, summaryAttemptedAt, hiddenAt }`.
+- `FAILED`: no summary after 3 attempts; the job no longer takes it — offer *Tóm tắt lại*. `PENDING` may already carry a `summaryError` from an earlier attempt.
+Errors: 400 `errors.status` / `errors.page` / `errors.pageSize` = MSG15.
+
+### POST /admin/news-articles/{id}/hide · /restore (T-080b)
+Auth: admin. Response 200: the article (`status` HIDDEN, or its status again). Idempotent; audited on a change (`NEWS_ARTICLE_HIDDEN` / `NEWS_ARTICLE_RESTORED`). A hidden article leaves `GET /news` and `/news/sentiment-summary`. Errors: 404 MSG41.
+
+### POST /admin/news-articles/{id}/summarize (T-080b)
+Auth: admin. Waits for the model (show a spinner; up to about 2 minutes). Replaces any summary. Response 200: the article — `SUMMARIZED`, or the refusal in `summaryError` (an article that had a summary keeps the old one). Errors: 404 MSG41; **503 `NEWS_SUMMARY_UNAVAILABLE` MSG31** (AI Service not configured, down or rate limited).
 
 ## ai — SCR-29 (T-072 … T-076)
 
@@ -341,7 +379,7 @@ Source: none. Spec: TD 8.
 | `/admin/leverage-brackets` | UC-46 | T-085 |
 | `/admin/packages` | UC-47 | T-066+ |
 | `/admin/orders` | UC-48 | T-066+ |
-| `/admin/news-sources` | UC-49 | T-077 |
+| `/admin/news-sources` | UC-49 | T-077 — **built 2026-10-25** on `feature/T-077-news-source-model` (local, not merged): `GET`, `POST` (201; feed read first, 400 `NEWS_FEED_UNREADABLE` with `errors.feedUrl` MSG15, 409 `NEWS_SOURCE_ALREADY_REGISTERED`), `GET/PUT/DELETE /{id}` (DELETE 204, 409 `NEWS_SOURCE_IN_USE`), `GET /{id}/crawl-logs?page=&pageSize=` (PageResponse, latest first). Interval < 15 → `errors.crawlIntervalMinutes` MSG15 (BR-49). Response: `sourceId, sourceName, feedUrl, sourceType, crawlIntervalMinutes, active, categoryFilter, bodySelector, excludedSelectors, userAgent, lastCrawledAt, lastCrawl{startedAt,status,articlesFound,articlesInserted}, nextCrawlAt, createdAt, updatedAt`; `status` ∈ SUCCESS, PARTIAL, FAILED |
 | `/admin/ai-configurations` | UC-50 | T-071/T-073 |
 | `/admin/settings` | UC-51 | T-082 |
 | `/admin/audit-log` | UC-46 (v1.0: UC-52), SCR-44 (search, CSV export) | T-115, IMPLEMENTED (below) |
