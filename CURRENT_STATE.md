@@ -5477,3 +5477,10 @@ Kept current as tasks close (`/end-session` step 5). Each row: BR/UC/NSF/SCR id 
 - Tests: BR65_aResendWithinTheIntervalAfterRegistering_isRefused_butTheRegistrationIsNotCounted, BR65_theCooldownAfterTheLastMail_endsExactlyAt60Seconds; 4 resend tests start after the registration cooldown; SeedDataTest lists verification_resend_attempt as technical
 - Verify 6078/6078, coverage gate met; CI pass (run 44143670940)
 - Next: merge #107, then #105 (V69 -> V72, R105-1, R105-2)
+
+## Session 2026-11-18 - PR #109 avatar/banner key collision
+- Branch feat/community-member-page: fix `aa926401` (subject shortened to 69 chars for the commit-msg hook)
+- ProfileServiceImpl.updateCommunityProfile: the same key for avatar and banner is refused with MSG32 on bannerPublicId before any storage call; an old image is deleted after commit only when neither new key names it (destroyAfterCommitUnlessKept, one set of new keys), so a swap deletes nothing
+- Tests: D99_theSameKeyForAvatarAndBanner_isRefused_beforeTheStorageIsAsked, D99_swappingAvatarAndBanner_deletesNothing; replace case D99_aReplacedOrClearedImage_isDeletedFromTheStorage unchanged and passing
+- Run: spotless:apply; CommunityProfileApiTest 16/16, ProfileControllerTest 23/23, UserProfileAndDeviceTest 9/9 (48/48)
+- Follow-ups: orphan sweep for cryptopilot/profiles (uploads signed but never saved, and deletes that failed after commit, stay in the storage)
