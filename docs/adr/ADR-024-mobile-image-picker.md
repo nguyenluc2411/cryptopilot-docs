@@ -1,6 +1,6 @@
 # ADR-024 — Mobile image and video picker for community posts
 
-**Status:** Proposed (FE owner chose 2026-11-20 for the mobile app; team lead review pending)
+**Status:** Accepted 2026-11-21 (FE owner chose 2026-11-20 for the mobile app; approved by the team lead, reported by the FE owner 2026-11-21)
 **Date:** 2026-11-20
 **Deciders:** FE
 **Related:** ADR-023; CURRENT_STATE D-160, A-66, Q-97; T-135; SRS 3.7.2 (SCR-26), BR-43, BR-44; D-98
