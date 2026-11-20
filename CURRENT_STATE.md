@@ -834,8 +834,8 @@ Newest first. One block per working session, format in `CLAUDE.md` section 8.
 - Tests: mobile 685/685 on `develop` `c8ad206`, `flutter analyze` clean, `dart format` clean; each commit green alone (665, 671, 679, 685); cp-screen-review without ❌
 - BR/UC/NSF covered: SCR-21, BR-40, MSG14, MSG32; D-98, D-160
 - Decisions: FE owner 2026-11-21: fold the red commit of the unpushed branch into its fix before the merge
-- Open questions: Q-97, Q-98; Q-91, Q-31, Q-89
-- Next: (1) Device check of the follow-up with the next batch: pick a real image with the Android photo picker against a backend whose media storage is configured, then save, replace and remove it. (2) When Q-97 is answered (`chartImagePublicId` in the detail): read the key from the detail and drop `chartImageKeyOf`. (3) Owner: T-092 when T-058 sends; T-127 if the Play release goes ahead; Q-97 and Q-98 with BE2.
+- Open questions: Q-97, Q-98, Q-91, Q-31 (FE owner agreed the proposal 2026-11-21) with the backend; Q-89 set aside with T-127
+- Next: (1) Emulator check of the follow-up (the owner has no real phone; emulator counts as the device check): free memory first (1.2 GB free on 2026-11-21: close Chrome, stop SQL Server), Docker + backend `03352518` (Cloudinary keys present in `deploy/.env`), `cp_pixel`, push an image into the gallery with adb, then add, save, replace and remove the chart image on SCR-21 in light/en-US and dark/vi-VN. (2) When the backend answers: Q-97 → read `chartImagePublicId` from the detail and drop `chartImageKeyOf`; Q-31 → "Paused · plan change" on the SCR-13 row; Q-91 and Q-98 need no mobile change. (3) T-092 when T-058 sends.
 - Commits: mobile `17d91c5`, `5b88b87`, `1a525ab`, `9be741a`, merge `c8ad206` (pushed); docs this commit (pushed)
 
 ### 2026-11-21 – T-135 writing posts, T-136 member pages, T-137 coin list merged; T-135 and T-137 DONE (cryptopilot-mobile)
