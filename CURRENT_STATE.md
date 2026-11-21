@@ -5523,3 +5523,13 @@ Kept current as tasks close (`/end-session` step 5). Each row: BR/UC/NSF/SCR id 
 - Tests: CoinPaprikaClientTest theCallBudget_isASlidingHour_andSpentCallsAreNotSent; CoinDescriptionServiceImplTest theLogoCalls_stopOnTheClientsRateLimit_andALaterRunGoesOn; MarketReferenceJobTest aReadOfTheSupplies_keepsFiveMinutesFromTheLastOne, aPairTurnedOn_waitsForTheCommit_andARollbackSchedulesNothing, aRefusingScheduler_isNotThrownAtTheEnable; CoinDescriptionJobTest same two; MarketStreamSupervisorTest BR07_aStartUpConnectionRebuiltAfterARemoval_isNeverJoined; SchedulingConfigTest aFailedBackfillTask_reachesTheErrorHandler (+ wiring); MarketReferenceServiceImplTest suppliesReadAt
 - Run: spotless:apply + spotless:check; market and common packages 1626/1626; full JaCoCo verify not rerun for `07e9ad99` (last full run on `b3a6bdac`: 6397/6397, line 97.39 %, branch 90.39 %) - CI on the PR runs it
 - Open: confirm CoinPaprika 402 semantics for review item #3 (observed 2026-11-21: 402 payment_required with soft limit 60/h, block_duration 1h, Retry-After ~2615 s; client treats 402 like 429 and waits out Retry-After, else 1 h) - check whether 402 can also mean the monthly hard limit (25k), which would need a longer wait
+
+## Session 2026-11-22 (2) - PR #112 CoinPaprika reserve
+- Branch fix/market-reference-new-pairs (PR #112): fix `c2741b7f` on top of `07e9ad99` (CI of `07e9ad99` passed)
+- Reserve: cryptopilot.market.coinpaprika.reserved-calls (default 10, @Min(0), less than calls-per-hour 55); logo calls (/coins/{id}) are low priority and are sent only while more than the reserve is left in the hour; global, tickers and the coin list use the whole budget
+- Local refusals: CoinPaprikaException.notSent for the budget and the Retry-After wait (rateLimited() still true); ExternalAnswer.notSent() default false; ExternalCallMonitoring.Watch rethrows a notSent failure without marking the source answered and without recording a failure
+- Cleanup: redundant try/catch inside AfterCommit.run removed in CoinDescriptionJob and MarketReferenceJob; MarketReferenceJob Logger moved to the top (now unused there)
+- Not changed: stream supervisor, scheduling config, SQL, the 402/429 wait logic, other external clients
+- Tests: CoinPaprikaClientTest logosStopAtTheReserve_whileTheMarketFiguresStillGoThrough, aReserveAsLargeAsTheBudget_isRefused, notSent asserted on the 402 wait; ExternalCallMonitoringTest aCallRefusedByTheClient_isNeitherAnAnswerNorAFailure
+- Run: spotless:apply + spotless:check; market, admin and common packages 1767/1767; full JaCoCo verify left to the PR CI
+- Open: CoinPaprika 402 semantics (soft 60/h with a 1 h block vs the 25k monthly hard limit) still to confirm; a monthly 402 would need a longer wait than Retry-After / 1 h
