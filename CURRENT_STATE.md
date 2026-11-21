@@ -5512,3 +5512,14 @@ Kept current as tasks close (`/end-session` step 5). Each row: BR/UC/NSF/SCR id 
 - Tests: D99_theSameKeyForAvatarAndBanner_isRefused_beforeTheStorageIsAsked, D99_swappingAvatarAndBanner_deletesNothing; replace case D99_aReplacedOrClearedImage_isDeletedFromTheStorage unchanged and passing
 - Run: spotless:apply; CommunityProfileApiTest 16/16, ProfileControllerTest 23/23, UserProfileAndDeviceTest 9/9 (48/48)
 - Follow-ups: orphan sweep for cryptopilot/profiles (uploads signed but never saved, and deletes that failed after commit, stay in the storage)
+
+## Session 2026-11-22 - PR #112 review fixes
+- Branch fix/market-reference-new-pairs (PR #112): fix `07e9ad99` on top of `a3182e8f`..`b3a6bdac`
+- Backfill: scheduler is the bean backfillScheduler (1 thread, candle-backfill-, removeOnCancel) built through SchedulingConfig, so a failed backfill task reaches the UC-52 error handler; CandleBackfillJob no longer owns a scheduler (DisposableBean and the owned constructor removed)
+- CoinPaprika: one sliding-window budget in CoinPaprikaClient for every call (cryptopilot.market.coinpaprika.calls-per-hour, default 55); once spent a call fails at once as rate limited (429) and is not sent; LOGO_CALLS_PER_HOUR removed, logo calls stop on that failure; MarketReferenceJob.runSupplies waits until 5 min after the last supplies read
+- Listeners: CoinDescriptionJob and MarketReferenceJob schedule on PairMarketEnabled after commit and log a refused schedule, like MarketStreamSupervisor
+- NSF-03: a connection rebuilt after a removal keeps the start-up/added flag of the one it replaces; only connections for newly enabled pairs are added, so a later batch never joins a start-up connection
+- Not changed: SQL / CoinMarketRepository, packing limits, ENABLE_SETTLE values, other modules' jobs, migrations
+- Tests: CoinPaprikaClientTest theCallBudget_isASlidingHour_andSpentCallsAreNotSent; CoinDescriptionServiceImplTest theLogoCalls_stopOnTheClientsRateLimit_andALaterRunGoesOn; MarketReferenceJobTest aReadOfTheSupplies_keepsFiveMinutesFromTheLastOne, aPairTurnedOn_waitsForTheCommit_andARollbackSchedulesNothing, aRefusingScheduler_isNotThrownAtTheEnable; CoinDescriptionJobTest same two; MarketStreamSupervisorTest BR07_aStartUpConnectionRebuiltAfterARemoval_isNeverJoined; SchedulingConfigTest aFailedBackfillTask_reachesTheErrorHandler (+ wiring); MarketReferenceServiceImplTest suppliesReadAt
+- Run: spotless:apply + spotless:check; market and common packages 1626/1626; full JaCoCo verify not rerun for `07e9ad99` (last full run on `b3a6bdac`: 6397/6397, line 97.39 %, branch 90.39 %) - CI on the PR runs it
+- Open: confirm CoinPaprika 402 semantics for review item #3 (observed 2026-11-21: 402 payment_required with soft limit 60/h, block_duration 1h, Retry-After ~2615 s; client treats 402 like 429 and waits out Retry-After, else 1 h) - check whether 402 can also mean the monthly hard limit (25k), which would need a longer wait
