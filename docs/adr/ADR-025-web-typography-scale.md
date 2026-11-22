@@ -1,6 +1,6 @@
 # ADR-025 — Web typography: one type scale after Binance, 12 px floor, fonts by role
 
-**Status:** Proposed (revised 2026-11-22)
+**Status:** Accepted (owner, 2026-11-22)
 **Date:** 2026-11-21, revised 2026-11-22
 **Deciders:** BE1, BE2, FE, DO
 **Related:** CURRENT_STATE D-161; ADR-016 (IBM Plex Sans and JetBrains Mono); NFR usability and accessibility; T-141
