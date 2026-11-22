@@ -113,9 +113,14 @@ sequenceDiagram
     else invalid, used or expired
         A-->>C: 400 MSG07, offer resend
         C->>A: POST /auth/resend-verification
-        A-->>C: 202 MSG05 whatever the address
+        A-->>C: 202 MSG05 whatever the address, or 429 MSG46
     end
 ```
+
+Resend limit (BR-65, T-105, IN REVIEW): per address, 60 s apart and 5 in any rolling 24 h, the same for every
+address whether or not it holds an account. Over it: **429** `VERIFICATION_RESEND_LIMITED`, `messageCode` **MSG46**,
+body `retryAfter` (seconds, integer; also `messageArgs[0]`) and header `Retry-After` with the same value. Show MSG46
+with `{time}` from `retryAfter` and disable the resend button for that long; do not retry automatically.
 
 The link URL format is decided by the mail template (T-057) and is not in code yet. Plan SCR-03 to
 read a `token` query parameter and send it in the body; never send the token in a URL to the API.
