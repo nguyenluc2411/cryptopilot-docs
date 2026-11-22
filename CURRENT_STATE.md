@@ -875,6 +875,15 @@ Rule: an AI agent never answers an open question by guessing. It implements what
 
 ## 9. Session log
 
+### 2026-11-22 (2) – Merged branch, Modulith advice for the whole app, TR-28 Spot record – BE3
+- The ten task branches except T-119 are merged into `feat/admin-packages-push-paper-realtime` (local, not pushed); T-119 `feat/t-119-chart-drawing` kept apart until BE2 confirms he has no drawing code of his own.
+- `e8e58555`: Spring Modulith's completion advisor replaced by one that also requires `@ApplicationModuleListener` (`common.config.RegisteredListenersOnlyAdvisor`), so no plain after-commit listener (alerts, plans, community, notifications, paper) takes a second connection any more; `spring-modulith-events-core` declared at compile scope.
+- `c21e55b2`: **V76** lets a Spot fill carry `realized_pnl_amount` (a sale: net USDT less the share of the average cost taken, BR-73); the TR-28 record now counts Spot sale orders, Futures positions, or both. The TR-36 fill timer now times from the trade time (a live fill has no source time, it was never timed).
+- `719d0318`: `PaperTradingSchemaTest` follows V76.
+- Full batched verify of the merged branch at `719d0318`: 6531/6531, JaCoCo gate met, spotless clean.
+- **Merge order:** T-119 has V75 and this branch V76: merge T-119 first, or renumber it to V77.
+- TR-32 still open on fill latency: 10 x 20 placement p95 114 ms (met); fill p95 2.0–2.7 s for 200 fills (target 1 s), about 37 ms per fill on a laptop with PostgreSQL in Docker. To be measured with PostgreSQL apart from the load generator (Q-37) before changing the engine (batching a Trader's fills in one transaction).
+
 ### 2026-11-22 – Backend task sweep: T-130, T-118, T-111, T-058/TR-29, TR-28, TR-30, T-119, TR-31, TR-35, TR-34/TR-36, TR-32/TR-33 – BE3
 - Eleven local branches, each cut from `develop` `c1803226`, none pushed: `feat/t-130-admin-packages` `f5689e16`, `fix/t-118-paging-overflow` `51f16038`, `feat/t-111-alert-gap-replay` `7eb3baa1`, `feat/t-058-fcm-push` `016bca69` (with TR-29), `feat/tr-28-pnl-analysis` `2e62d24d`, `feat/tr-30-paper-monitoring` `0ab00be9`, `feat/t-119-chart-drawing` `acc6b1fd` (V75), `test/tr-31-paper-robustness` `21957b90`, `feat/tr-35-chart-candles` `de83f276`, `feat/tr-34-realtime-latency` `49dccbb8` (with TR-36), `test/tr-32-paper-load` `9e870de6` (with TR-33).
 - Verification: the tests of each change and of its module, the architecture tests, OpenApiDocsTest, ErrorCodeTest and AuthorizationMatrixTest per branch; market + STOMP + notification 1225/1225 on TR-34; paper + notification 851 on T-058 (one assertion adjusted for the new order notices); on TR-32 PaperMatchingWorkerTest 52, PaperOrderApiTest 78, FuturesOrderApiTest 143, PaperUserQueueTest 7, TradingPauseGateApiTest 24. The full JaCoCo verify of each branch was not run (low RAM).
