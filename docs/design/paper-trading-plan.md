@@ -570,9 +570,11 @@ develop
 
 (commit 06c0423) và hành vi công khai của Binance Spot / USDⓈ-M Futures. Các tỉ lệ phí, MMR và giới hạn trong tài liệu chỉ là giá trị mặc định có thể cấu hình. Cần đối chiếu lại với tài liệu Binance hiện hành khi cài đặt.
 
-## 20. Đối chiếu với Binance Spot (cập nhật 2026-10-23)
+## 20. Đối chiếu với Binance Spot (cập nhật 2026-10-23, 2026-11-23)
 
 Ghi lại phần paper Spot đã giống Binance và phần còn khác, để BE và FE cùng biết việc còn lại. Căn cứ: backend nhánh `fix/spot-paper-high-severity` @ `06da02c` (chưa merge vào `develop`), frontend `cryptopilot-frontend` `develop` (`SpotOrderForm.tsx`, `spot-order.ts`). Phần giao diện Binance ghi theo hiểu biết hiện có, **chưa đối chiếu bằng ảnh chụp màn hình Binance mới nhất**; ai làm thì chụp form Binance để so từng ô trước.
+
+**Phạm vi (2026-11-23):** B1–B8 và F2–F6 là phần làm thêm cho giống Binance, không bắt buộc theo phiếu đăng ký đề tài; không có dòng task riêng trong `CURRENT_STATE.md` (F1–F6 thuộc TR-F3). BE3 làm B1, B4–B7 trên nhánh `feat/spot-amend-oco-legs` (từ `develop` `3fe9de9f`); B2, B3, B8 giữ là giới hạn của mô phỏng (mục 19). Căn cứ của 20.1 (nhánh `fix/spot-paper-high-severity`) đã vào `develop`.
 
 ### 20.1 Backend đã giống Binance Spot API
 
@@ -583,20 +585,20 @@ Ghi lại phần paper Spot đã giống Binance và phần còn khác, để BE
 | Filter | PRICE_FILTER, LOT_SIZE, MARKET_LOT_SIZE, NOTIONAL, PERCENT_PRICE_BY_SIDE, TRAILING_DELTA, MAX_NUM_ORDERS, MAX_NUM_ALGO_ORDERS; sai bước thì từ chối, không làm tròn |
 | Hành vi | Stop của OTO/OTOCO đã chạm giá lúc lệnh working khớp thì trigger ngay (OCO: take profit expire `OCO_OTHER_EXECUTED`); cặp sàn ngừng giao dịch thì lệnh mở bị hủy `PAIR_NOT_TRADING`; gửi lại cùng `clientOrderId` / `listClientOrderId` trả lại lệnh đã đặt (200) |
 
-### 20.2 Backend còn khác Binance (chưa làm)
+### 20.2 Backend còn khác Binance
 
 | # | Mục | Binance | Hiện tại | Ghi chú |
 |---|---|---|---|---|
-| B1 | Loại lệnh từng chân OCO | Chân trên và chân dưới chọn được loại (limit maker, stop limit, stop market…), chân stop có thể trailing | Take profit cố định `LIMIT_MAKER`; stop chỉ `STOP_LOSS` / `STOP_LOSS_LIMIT`, không trailing | Cần làm trước F2 bên FE; đổi request `PlaceOrderListRequest` (chỉ thêm trường) |
+| B1 | Loại lệnh từng chân OCO | Chân trên và chân dưới chọn được loại (limit maker, stop limit, stop market…), chân stop có thể trailing | **Đã làm 2026-11-23** (nhánh `feat/spot-amend-oco-legs`): `oco.takeProfitType` = `LIMIT_MAKER` (mặc định) / `TAKE_PROFIT_LIMIT` / `TAKE_PROFIT` với `oco.takeProfitStopPrice`; `oco.stopTrailingDelta` cho chân stop (khi có thì không gửi `stopPrice`, bám giá từ lúc đặt/kích hoạt; BUY trailing phải có `stopLimitPrice`). Take profit dạng stop tính là lệnh stop thứ hai cho `MAX_NUM_ALGO_ORDERS` | Mở F2 bên FE. Chỉ thêm trường, request cũ giữ nguyên nghĩa |
 | B2 | Khớp từng phần theo khối lượng | Lệnh limit chờ có thể khớp dần theo khối lượng giao dịch tại giá | Khớp hết một lần khi giá chạm (theo hàng đợi QUEUE) | Giới hạn của mô phỏng (mục 19) |
 | B3 | Trượt giá vượt depth20 | Ăn tiếp các mức sâu hơn | Phần vượt depth20 khớp ở mức giá cuối thấy được, gắn `DEPTH_EXHAUSTED` | Giới hạn dữ liệu stream |
-| B4 | Sửa lệnh (amend / cancel-replace) | Có | Chưa có API | |
-| B5 | Fill theo `orderId` | Có (`myTrades?orderId=`) | Chưa lọc được theo lệnh | |
-| B6 | Lọc lịch sử lệnh | Lọc theo cặp, thời gian, loại, trạng thái | Chỉ lọc cặp và khoảng thời gian | |
-| B7 | Xuất CSV lịch sử | Có | Chưa có | |
+| B4 | Sửa lệnh (amend / cancel-replace) | Có | **Đã làm 2026-11-23:** `POST /api/v1/paper/orders/{orderId}/replace` `{price, quantity?}` cho lệnh LIMIT / LIMIT_MAKER đang mở, không thuộc nhóm; hủy lệnh cũ và đặt lệnh mới (id mới, giữ side, type, TIF; quantity mặc định = phần còn lại) trong một transaction như `cancelReplace` `STOP_ON_FAILURE`: lệnh mới bị từ chối thì lệnh cũ giữ nguyên. Trả `{canceled, placed}` | Dùng cho TR-F5 (kéo đường lệnh Spot) |
+| B5 | Fill theo `orderId` | Có (`myTrades?orderId=`) | **Đã làm 2026-11-23:** `GET /paper/fills?orderId=` (và `side=`) | |
+| B6 | Lọc lịch sử lệnh | Lọc theo cặp, thời gian, loại, trạng thái | **Đã làm 2026-11-23:** `GET /paper/orders` lọc thêm `type=`, `side=` (đã có `pairId`, `status`, `from`, `to`) | |
+| B7 | Xuất CSV lịch sử | Có | **Đã làm 2026-11-23:** `GET /paper/orders/export`, `GET /paper/fills/export` cùng bộ lọc, `text/csv`, tối đa 10.000 dòng (`X-Total-Count`, `X-Result-Truncated: export` khi bị cắt), ô bắt đầu như công thức thêm dấu `'` | |
 | B8 | Nhiều instance engine | (không áp dụng) | Engine matching chạy một instance; hai instance có thể replay trùng (đã idempotent nhưng tốn) | Ghi chú vận hành |
 
-Thứ tự đề xuất: B1 (để FE làm F2), rồi B5, B6, B4; B2, B3 giữ là giới hạn đã ghi.
+Thứ tự đề xuất: B1 (để FE làm F2), rồi B5, B6, B4; B2, B3 giữ là giới hạn đã ghi. Cập nhật 2026-11-23: B1, B4–B7 đã làm, chờ PR vào `develop`.
 
 ### 20.3 Giao diện FE cần sửa cho khớp Binance
 
@@ -604,8 +606,8 @@ Code FE đã có đủ các form như Binance: Limit, Market, và tab cuối g�
 
 | # | Việc | Hiện tại | Cần sửa | Phụ thuộc |
 |---|---|---|---|---|
-| F1 | Post only và Time in force trên form Limit | Checkbox Post only và dropdown GTC / IOC / FOK luôn hiện | Form Limit mặc định chỉ còn giá, số lượng, thanh %, TP/SL; gom Post only và Time in force vào mục "Nâng cao" thu gọn (mặc định GTC, không post only). Kiểm tra lại: tick Post only thì dropdown Time in force phải ẩn | Không, backend đã hỗ trợ |
-| F2 | Form OCO chọn loại từng chân | Cố định take profit + stop (stop limit hoặc stop market) | Thêm chọn loại cho chân trên / chân dưới như Binance | Chờ B1 |
+| F1 | Post only và Time in force trên form Limit | Checkbox Post only và dropdown GTC / IOC / FOK luôn hiện | Form Limit mặc định chỉ còn giá, số lượng, thanh %, TP/SL; gom Post only và Time in force vào mục "Nâng cao" thu gọn (mặc định GTC, không post only). Kiểm tra lại: tick Post only thì dropdown Time in force phải ẩn | Không, backend đã hỗ trợ **Đã làm 2026-11-23** (FE `develop` `ecb8dc9`, `5f5331b`) |
+| F2 | Form OCO chọn loại từng chân | Cố định take profit + stop (stop limit hoặc stop market) | Thêm chọn loại cho chân trên / chân dưới như Binance | B1 đã làm (2026-11-23), chờ BE merge |
 | F3 | Form Trailing Stop | Delta, giá kích hoạt tuỳ chọn, giá limit, số lượng | Đối chiếu từng ô với form Binance (nhãn, đơn vị delta, gợi ý) | Không |
 | F4 | Hiển thị trạng thái mới | Có thể chưa có chữ cho các lý do mới | Hiện đúng: stop OTO/OTOCO trigger ngay khi lệnh working khớp, take profit `EXPIRED` / `OCO_OTHER_EXECUTED`, lệnh `CANCELED` / `PAIR_NOT_TRADING` | Sau khi `fix/spot-paper-high-severity` merge |
 | F5 | Gửi lại lệnh | — | Khi retry cùng `clientOrderId` / `listClientOrderId`, nhận 200 là lệnh cũ, không báo lỗi | Sau khi merge |
