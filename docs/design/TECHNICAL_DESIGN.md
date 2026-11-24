@@ -1427,7 +1427,7 @@ In-process market pipeline: stream shard → `ArrayBlockingQueue<MarketEvent>` p
 | Web | Components and hooks (separate repository, 4.4) | Vitest, Testing Library, jsdom | All pass |
 | E2E | Register → verify → login; create/activate plan → fill → close → journal; purchase (sandbox) | Playwright | Nightly |
 | Mobile | Widget and provider tests | flutter_test | All pass |
-| Performance | NFR 4.2.3 targets | k6 | Before release |
+| Performance | NFR 4.2.3 targets | Apache JMeter 5.6.3, non-GUI run with the HTML dashboard report; test plans (`.jmx`) in the repository (D-164) | Before release |
 | Security | OWASP baseline scan, dependency audit | OWASP ZAP baseline, OWASP dependency-check (Maven), `npm audit` | No High findings |
 
 Overall backend line coverage ≥ 70% (SRS 4.2.5; the JaCoCo bundle gate is set higher since T-020: line ≥ 95 %, branch ≥ 90 %, the interim coverage-drop gate of T-009), enforced by the JaCoCo `check` goal in `./mvnw verify` (installed in T-002; `CryptoPilotApplication` is excluded from the bundle). Test method names contain the rule id: `BR28_longStopBelowLiquidation_returnsBlocking`.
