@@ -5854,3 +5854,27 @@ Kept current as tasks close (`/end-session` step 5). Each row: BR/UC/NSF/SCR id 
 - Tests: CoinPaprikaClientTest logosStopAtTheReserve_whileTheMarketFiguresStillGoThrough, aReserveAsLargeAsTheBudget_isRefused, notSent asserted on the 402 wait; ExternalCallMonitoringTest aCallRefusedByTheClient_isNeitherAnAnswerNorAFailure
 - Run: spotless:apply + spotless:check; market, admin and common packages 1767/1767; full JaCoCo verify left to the PR CI
 - Open: CoinPaprika 402 semantics (soft 60/h with a 1 h block vs the 25k monthly hard limit) still to confirm; a monthly 402 would need a longer wait than Retry-After / 1 h
+
+## Branch cleanup - 2026-11-23
+- Base: develop @ 3fe9de9f | Default branch: main (stale, 422 commits behind develop)
+- Deleted local: 10 | Deleted remote: 92 (57 merge-commit, 34 squash, 1 content-equal: feat/t-107-analysis-gates #84) | Kept remote: 4 | Grace: 5
+- Kept (reason): develop, main - protected; release/review-2 - release/*; docs/sdd-review-2-alignment - 2 commits not in develop (0a62e9f7, 0efab769)
+- Grace (delete next run, merged < 3 days): feat/admin-packages-push-paper-realtime #113, fix/market-reference-new-pairs #112, feat/market-outage-pause #111, feature/T-074b-ai-learning-context #110, feat/community-member-page #109
+- Local kept: 27 worktree branches (incl. develop; 19 of them now have no remote); pr105/pr110/pr111 - local only, squash-merged but no remote; 7 local-only unmerged (backup/T-017-pre-rebase, backup/t-107-pre-rebase, fix/review-2026-10-04, pr-102, pr106, pr107, pr71)
+- Backup: .git/branch-cleanup-20261123.txt
+- Follow-up: decide docs/sdd-review-2-alignment; fix default branch before demo; notify team
+
+## 2026-11-24 - Review PR #115 (T-119 chart drawings)
+- Verdict: Request changes (core lock/ownership/schema correct; D-63 parallel tests missing; OpenAPI lacks 409 on racing paths)
+- Blocking: 1 | Non-blocking: 4 | Nit: 5
+- Build/test: pass, 6691/6691 (clean verify on fa8a4032, JaCoCo gate met; drawing line 99.6 %, branch 95.3 %)
+- Waiting on: TrucFPTU to address comments; recommend squash merge
+- Open for team: per-user total drawing cap (N4, OWASP API4) vs D-149 "no tier limit"
+
+## 2026-11-25 - PR #115 review fixes (T-119)
+- Fixed: B1 concurrent limit tests, N1 OpenAPI 409, N2 404 on gone layout, N3 composite FK in V76
+- Commit: c829942d on feature/T-119-chart-drawings
+- Tests: 6750/6750 pass on clean verify (was 893 in the PR's scoped run; 6691 full suite at review on fa8a4032), JaCoCo gates met
+- Lock sanity check: red in 20/20 repetitions (10 per limit test) with both create locks removed; restored
+- Schema fixtures: no change needed (expected-columns unchanged; cascade and FK-index checks key on leading column layout_id)
+- Open: N4 per-user quota (team decision, D-149); squash merge when approved
