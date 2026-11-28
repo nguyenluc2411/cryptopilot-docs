@@ -5899,3 +5899,12 @@ Kept current as tasks close (`/end-session` step 5). Each row: BR/UC/NSF/SCR id 
 - Lock sanity check: red in 20/20 repetitions (10 per limit test) with both create locks removed; restored
 - Schema fixtures: no change needed (expected-columns unchanged; cascade and FK-index checks key on leading column layout_id)
 - Open: N4 per-user quota (team decision, D-149); squash merge when approved
+
+## 2026-11-28 - MSG id alignment (MSG61-MSG64)
+- Changed: ORDER_ALREADY_PENDING -> MSG61; admin-author BAN_USER refusal -> MSG62;
+  TRADING_PAUSED -> MSG63; ACCOUNT_STATUS_TRANSITION_INVALID -> MSG64
+- Files: backend `common/exception/ErrorCode.java` (new MODERATION_BAN_ADMIN_REFUSED, 409, MSG62), `user/service/impl/UserServiceImpl.java` (banForModeration throws it), javadoc/OpenAPI ids in `ModerationController`, `ModerationService`, `CommentModerationService`, `UserApi`, `AccountAdminController`, `AccountAdminService`, `AccountAdminServiceImpl`; tests `ErrorCodeTest`, `ModerationApiTest`, `CommentModerationApiTest`, `BillingApiTest`, `AccountAdminApiTest`, `TradingPauseGateApiTest`. Frontend `i18n/locales/en.ts`, `vi.ts`, `i18n/messages.ts` (MSG63 filled from body market/state/since), `ModerationCaseDialog.tsx` (new code), dev fixtures `dev-admin-users.ts`, `dev-community.ts`, tests. Mobile `app_en.arb` + generated localizations, `api_problem.dart` (extensions), `message_text.dart`, tests. The old MSG57 "trading paused" text is removed from both clients (MSG57 stays the margin call; mobile margin call uses `futMarginCall`).
+- Tests: backend `./mvnw clean verify` 6785/6785 pass, build OK; frontend format:check, typecheck, lint clean, `vitest run` 1220/1220, build OK; mobile `flutter test` 801/801, `flutter analyze` no warnings/errors (Flutter 3.50.1 in `D:\Capstone_Project\tools\flutter-3.50`; the pubspec needs Dart ^3.12.2)
+- Clients updated: frontend yes, mobile yes
+- Commits/PRs: backend `503b1099` PR #119; frontend `6e2897f` huyhv-se180722/cryptopilot-frontend#3; mobile `4ed5500` huyhv-se180722/cryptopilot-mobile#1 (all into `develop`)
+- Open: SRS Appendix A, BR-54 and BR-58 text to be updated by the docs owner
